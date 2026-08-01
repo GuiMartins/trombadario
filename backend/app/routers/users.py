@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 
 from app.deps import AdminUser, DbSession
-from app.models import Event, Role, User
+from app.models import Role, Trombadice, User
 from app.schemas import UserCreate, UserOut, UserUpdate
 from app.security import hash_password
 
@@ -79,10 +79,12 @@ def delete_user(user_id: int, admin: AdminUser, db: DbSession) -> None:
 
     # author_id is ondelete=RESTRICT: the history must not disappear because the
     # parent who wrote it was removed. Deactivating is the way out here.
-    if db.scalar(select(func.count()).select_from(Event).where(Event.author_id == user.id)):
+    if db.scalar(
+        select(func.count()).select_from(Trombadice).where(Trombadice.author_id == user.id)
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Esse usuário cadastrou acontecimentos - desative a conta em vez de apagar",
+            detail="Esse usuário cadastrou trombadices - desative a conta em vez de apagar",
         )
 
     db.delete(user)

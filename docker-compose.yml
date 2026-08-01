@@ -9,8 +9,7 @@ services:
     volumes:
       - ./data:/data
     environment:
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-pai}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      ADMIN_DISPLAY_NAME: ${ADMIN_DISPLAY_NAME:-Pai}
-      SECRET_KEY: ${SECRET_KEY}
+      # Tudo opcional: sem nenhuma variável o servidor sobe, gera a própria
+      # SECRET_KEY e espera você criar a conta do pai pelo navegador.
+      SECRET_KEY: ${SECRET_KEY:-}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-43200}

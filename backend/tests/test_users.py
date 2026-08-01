@@ -2,13 +2,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models import User
-from tests.conftest import auth_header
+from tests.conftest import as_admin, auth_header
 
 OCCURRED_AT = "2026-08-01T14:30:00+00:00"
 
 
 def test_admin_cria_conta_de_filho(client: TestClient, admin: User) -> None:
-    headers = auth_header(client, "pai", "senha-do-pai")
+    headers = as_admin(client)
 
     response = client.post(
         "/api/users",
@@ -39,7 +39,7 @@ def test_filho_nao_acessa_gestao_de_usuarios(client: TestClient, admin: User, ch
 
 
 def test_username_duplicado_da_409(client: TestClient, admin: User, child: User) -> None:
-    headers = auth_header(client, "pai", "senha-do-pai")
+    headers = as_admin(client)
 
     response = client.post(
         "/api/users",
@@ -51,7 +51,7 @@ def test_username_duplicado_da_409(client: TestClient, admin: User, child: User)
 
 
 def test_admin_troca_a_senha_do_filho(client: TestClient, admin: User, child: User) -> None:
-    headers = auth_header(client, "pai", "senha-do-pai")
+    headers = as_admin(client)
 
     response = client.patch(
         f"/api/users/{child.id}", headers=headers, json={"password": "senha-trocada"}
@@ -67,7 +67,7 @@ def test_admin_troca_a_senha_do_filho(client: TestClient, admin: User, child: Us
 
 
 def test_nao_desativa_o_unico_admin(client: TestClient, admin: User) -> None:
-    headers = auth_header(client, "pai", "senha-do-pai")
+    headers = as_admin(client)
 
     response = client.patch(f"/api/users/{admin.id}", headers=headers, json={"is_active": False})
 
@@ -75,15 +75,15 @@ def test_nao_desativa_o_unico_admin(client: TestClient, admin: User) -> None:
 
 
 def test_nao_apaga_o_unico_admin(client: TestClient, admin: User) -> None:
-    headers = auth_header(client, "pai", "senha-do-pai")
+    headers = as_admin(client)
 
     assert client.delete(f"/api/users/{admin.id}", headers=headers).status_code == 400
 
 
-def test_nao_apaga_quem_ja_cadastrou_acontecimento(
+def test_nao_apaga_quem_ja_cadastrou_trombadice(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
-    headers = auth_header(client, "pai", "senha-do-pai")
+    headers = as_admin(client)
     client.post(
         "/api/users",
         headers=headers,
@@ -91,7 +91,7 @@ def test_nao_apaga_quem_ja_cadastrou_acontecimento(
     )
     mae_headers = auth_header(client, "mae", "senha-da-mae")
     client.post(
-        "/api/events",
+        "/api/trombadices",
         headers=mae_headers,
         json={"title": "Nota baixa", "occurred_at": OCCURRED_AT, "child_id": child.id},
     )
@@ -103,15 +103,15 @@ def test_nao_apaga_quem_ja_cadastrou_acontecimento(
     assert response.status_code == 400
 
 
-def test_apagar_filho_leva_os_eventos_dele_junto(
+def test_apagar_filho_leva_as_trombadices_dele_junto(
     client: TestClient, admin: User, child: User
 ) -> None:
-    headers = auth_header(client, "pai", "senha-do-pai")
+    headers = as_admin(client)
     client.post(
-        "/api/events",
+        "/api/trombadices",
         headers=headers,
         json={"title": "Bagunça", "occurred_at": OCCURRED_AT, "child_id": child.id},
     )
 
     assert client.delete(f"/api/users/{child.id}", headers=headers).status_code == 204
-    assert client.get("/api/events", headers=headers).json() == []
+    assert client.get("/api/trombadices", headers=headers).json() == []
