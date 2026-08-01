@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext HTTP is allowed on purpose: the backend runs on the home LAN over
+  plain HTTP, and its address is typed by the user at runtime (the server's IP
+  comes from DHCP), so there is no domain to scope this to. See CLAUDE.md.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

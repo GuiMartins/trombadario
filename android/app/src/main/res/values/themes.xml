@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window-level only, until Compose's setContent takes over. Every color
+         the user actually sees comes from TrombadarioTheme (Material3).
+         Unlike Casshole this is not a Theme.AppCompat descendant: there is no
+         per-app language switching here, so the Activity is a plain
+         ComponentActivity. -->
+    <style name="Theme.Trombadario" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/background_dark</item>
+    </style>
+</resources>

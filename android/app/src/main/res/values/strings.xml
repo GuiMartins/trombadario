@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Trombadário</string>
+
+    <!-- Comum -->
+    <string name="action_retry">Tentar de novo</string>
+    <string name="action_save">Salvar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_delete">Excluir</string>
+    <string name="action_edit">Editar</string>
+    <string name="action_back">Voltar</string>
+    <string name="loading">Carregando…</string>
+
+    <!-- Configuração do servidor -->
+    <string name="server_setup_title">Servidor</string>
+    <string name="server_setup_intro">Endereço do servidor de casa. Você encontra no ZimaOS.</string>
+    <string name="server_setup_url_label">Endereço</string>
+    <string name="server_setup_url_placeholder">http://192.168.31.172:8090</string>
+    <string name="server_setup_connect">Conectar</string>
+    <string name="server_setup_checking">Procurando o servidor…</string>
+    <string name="server_setup_error_invalid_url">Endereço inválido. Use algo como http://192.168.31.172:8090</string>
+    <string name="server_setup_error_unreachable">Não achei o servidor nesse endereço. Confira o IP e se você está no Wi-Fi de casa.</string>
+    <string name="server_setup_error_not_trombadario">Tem alguma coisa respondendo nesse endereço, mas não é o Trombadário.</string>
+
+    <!-- Login -->
+    <string name="login_title">Entrar</string>
+    <string name="login_username">Usuário</string>
+    <string name="login_password">Senha</string>
+    <string name="login_submit">Entrar</string>
+    <string name="login_error_invalid">Usuário ou senha inválidos</string>
+    <string name="login_error_network">Não consegui falar com o servidor</string>
+    <string name="login_show_password">Mostrar senha</string>
+    <string name="login_hide_password">Ocultar senha</string>
+
+    <!-- Fora de casa -->
+    <string name="away_title">Você precisa estar em casa</string>
+    <string name="away_message">O Trombadário só funciona dentro da rede de casa. Conecte no Wi-Fi de casa pra ver os acontecimentos.</string>
+    <string name="away_checking">Procurando o servidor de casa…</string>
+
+    <!-- Feed -->
+    <string name="feed_title">Acontecimentos</string>
+    <string name="feed_empty">Nada registrado ainda.</string>
+    <string name="feed_empty_admin">Nada registrado ainda. Toque no + pra cadastrar o primeiro.</string>
+    <string name="feed_new">Novo acontecimento</string>
+    <string name="feed_filter_all">Todos</string>
+    <string name="feed_error">Não consegui carregar os acontecimentos</string>
+
+    <!-- Detalhe / formulário -->
+    <string name="event_detail_title">Acontecimento</string>
+    <string name="event_form_new_title">Novo acontecimento</string>
+    <string name="event_form_edit_title">Editar acontecimento</string>
+    <string name="event_form_title_label">Título</string>
+    <string name="event_form_description_label">Descrição</string>
+    <string name="event_form_child_label">De quem</string>
+    <string name="event_form_date_label">Data</string>
+    <string name="event_form_time_label">Hora</string>
+    <string name="event_form_error_title_required">O título não pode ficar vazio</string>
+    <string name="event_form_error_no_children">Cadastre uma conta de filho antes de registrar um acontecimento.</string>
+    <string name="event_delete_confirm_title">Excluir acontecimento?</string>
+    <string name="event_delete_confirm_message">Isso não tem volta.</string>
+
+    <!-- Usuários -->
+    <string name="users_title">Contas</string>
+    <string name="users_new">Nova conta</string>
+    <string name="users_role_admin">Pai</string>
+    <string name="users_role_child">Filho</string>
+    <string name="users_inactive">desativada</string>
+    <string name="users_form_username">Usuário</string>
+    <string name="users_form_display_name">Nome</string>
+    <string name="users_form_password">Senha</string>
+    <string name="users_form_new_password">Nova senha</string>
+    <string name="users_form_new_password_hint">Deixe em branco pra manter a senha atual</string>
+    <string name="users_form_role">Tipo de conta</string>
+    <string name="users_form_active">Conta ativa</string>
+    <string name="users_delete_confirm_title">Excluir conta?</string>
+    <string name="users_delete_confirm_message">Os acontecimentos dessa pessoa também somem.</string>
+    <string name="users_error_password_too_short">A senha precisa de pelo menos 6 caracteres</string>
+    <string name="users_error_username_too_short">O usuário precisa de pelo menos 3 caracteres</string>
+
+    <!-- Configurações -->
+    <string name="settings_title">Configurações</string>
+    <string name="settings_section_account">Conta</string>
+    <string name="settings_section_appearance">Aparência</string>
+    <string name="settings_section_server">Servidor</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_system">Do sistema</string>
+    <string name="settings_theme_light">Claro</string>
+    <string name="settings_theme_dark">Escuro</string>
+    <string name="settings_logout">Sair</string>
+    <string name="settings_change_server">Trocar de servidor</string>
+    <string name="settings_change_server_warning">Você vai precisar entrar de novo.</string>
+
+    <!-- Navegação -->
+    <string name="nav_feed">Acontecimentos</string>
+    <string name="nav_users">Contas</string>
+    <string name="nav_settings">Configurações</string>
+</resources>
