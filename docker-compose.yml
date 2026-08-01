@@ -1,0 +1,16 @@
+services:
+  trombadario:
+    build: ./backend
+    image: trombadario:latest
+    container_name: trombadario
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8090}:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-pai}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_DISPLAY_NAME: ${ADMIN_DISPLAY_NAME:-Pai}
+      SECRET_KEY: ${SECRET_KEY}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-43200}
