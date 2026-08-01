@@ -1,0 +1,29 @@
+# Android
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/.idea/
+
+# Release signing keystore - nunca comitar. Vive só como GitHub Secret
+# (RELEASE_KEYSTORE_BASE64) e localmente fora do repo, ver CLAUDE.md.
+*.jks
+*.keystore
+
+# Backend
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Banco SQLite e o que mais o container escrever - dado real, nunca comitar
+backend/data/
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Segredos de deploy (SECRET_KEY, senha do admin)
+.env
