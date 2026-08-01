@@ -105,6 +105,34 @@ Mesmo com um filho só. Sem ele, um segundo filho depois vira migration de
 dados chata. O filho só enxerga eventos com o `child_id` dele — checado no
 backend, não na query do cliente.
 
+### Navegação: `NavigationBar` padrão, não a barra flutuante do Casshole
+
+O Casshole tem uma `FloatingNavigationBar` própria no slot
+`floatingActionButton` do `Scaffold`. Aqui usamos o `NavigationBar` do
+Material3 no slot `bottomBar` — é o componente oficial e não havia pedido de
+visual específico. A barra só aparece nos destinos de aba; telas filhas
+(detalhe, formulário) usam a altura toda e a seta de voltar.
+
+Transições do `NavHost`: slide + fade de 220ms configurado **uma vez** nos
+parâmetros do `NavHost` (vale pra todas as rotas, não repetir por
+`composable()`). Tocar numa aba sempre leva pra raiz dela, sem
+`saveState`/`restoreState` — restaurar reabriria uma tela filha que o usuário
+já tinha deixado.
+
+### Injeção de dependência manual (`AppContainer`)
+
+Sem Hilt. O grafo é pequeno (3 stores + repositório + gate) e a orientação
+oficial do Android é começar assim. `viewModelFactory { }`
+(`ui/ViewModelFactory.kt`) é a ponte pro `viewModel()`, que exige uma factory.
+
+### O feed recarrega no `ON_RESUME`, não no `init` do ViewModel
+
+`LifecycleEventEffect(Lifecycle.Event.ON_RESUME)` em `FeedScreen`. O ViewModel
+sobrevive à navegação pro formulário e pro detalhe, então carregar só na
+construção deixava o feed desatualizado depois de cadastrar, editar ou excluir
+— bug observado ao vivo (o evento entrava no servidor e a lista continuava
+"Nada registrado ainda").
+
 ### i18n: só português
 
 Diferente do Casshole (PT/EN/ES). É um app familiar de uso privado; três
@@ -186,6 +214,50 @@ tudo que foi squash-mergeado pra `main`. A divergência que aparece no GitHub
 `develop -> main` aparecer como não-mergeável, resolver num branch
 descartável a partir de `develop`, mantendo o conteúdo de `develop` nos
 conflitos, e squash-mergear esse branch.
+
+## CI (GitHub Actions)
+
+`.github/workflows/ci.yml` roda em todo PR e em push em `main`/`develop`.
+`dorny/paths-filter` decide o que executa:
+
+- **`backend-tests`** — `ruff check` + `pytest` (só se `backend/**` mudou).
+- **`unit-tests`** — `./gradlew testDebugUnitTest` (sempre; custo baixo).
+- **`instrumented-tests`** — emulador API 30, só se `android/**` mudou. Quando
+  pulado, o GitHub reporta "skipped", que **conta como passou** pros required
+  status checks (comportamento oficial de job condicional, não gambiarra).
+  **Sem cache de snapshot do AVD** — mesma decisão do Casshole, onde a dança de
+  dois boots bateu num bug real e o emulador nunca saía de "device offline".
+
+Os testes instrumentados existem porque `EncryptedSharedPreferences` passa pelo
+keystore do Android e o DataStore grava por `Context` — nenhum dos dois tem
+caminho só-JVM que valha a pena fingir.
+
+## Release automática
+
+`.github/workflows/release.yml` roda em todo push em `main`:
+`mathieudutour/github-tag-action` calcula o SemVer pelos Conventional Commits →
+`assembleRelease` assinado e minificado (R8) → `softprops/action-gh-release`
+publica `trombadario-vX.Y.Z.apk`.
+
+### Keystore
+
+`trombadario-release.jks` (PKCS12, alias `trombadario-release`, validade até
+2053). **Nunca vai pro repo** (`*.jks` no `.gitignore`); vive como backup do
+usuário fora do repo e como o secret `RELEASE_KEYSTORE_BASE64`, decodificado
+num arquivo temporário só durante o job e apagado com `if: always()`.
+
+Quatro secrets, criados manualmente pelo usuário (o assistente não pode criar
+secrets): `RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`,
+`RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`.
+
+**Perder a keystore = nunca mais publicar update assinado com a mesma
+identidade** — só reinstalando do zero nos celulares.
+
+`app/proguard-rules.pro` foi validado buildando `assembleRelease` de verdade e
+rodando o APK no emulador: pareamento, login e o feed inteiro funcionam sob R8.
+As regras que importam são as de kotlinx.serialization (a `.serializer()` do
+companion é achada por reflexão — sem o keep, os DTOs falham **só em release**)
+e as de Retrofit/Tink.
 
 ## Deploy (ZimaOS)
 
