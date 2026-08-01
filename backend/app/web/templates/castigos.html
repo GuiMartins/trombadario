@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% set pagina = 'castigos' %}
+{% block titulo %}Castigos — Trombadário{% endblock %}
+
+{% block conteudo %}
+<h1>Castigos</h1>
+
+{% if not children %}
+  <div class="aviso">Cadastre uma conta de filho em <a href="/contas">Contas</a> antes de aplicar castigos.</div>
+{% else %}
+<form method="post" action="/castigos" class="bloco">
+  <label for="child_id">Quem</label>
+  <select id="child_id" name="child_id" required>
+    {% for c in children %}
+    <option value="{{ c.id }}">{{ c.display_name }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="ends_at">Até quando</label>
+  <input type="datetime-local" id="ends_at" name="ends_at" value="{{ fim_sugerido }}" required>
+
+  <label for="reason">Motivo</label>
+  <textarea id="reason" name="reason" placeholder="O que pesou na decisão"></textarea>
+
+  {% if trombadices %}
+  <label>Por causa de quais trombadices</label>
+  <div class="dias" style="flex-direction:column;gap:0.4rem;max-height:14rem;overflow-y:auto">
+    {% for t in trombadices %}
+    <label>
+      <input type="checkbox" name="trombadice_ids" value="{{ t.id }}">
+      {{ t.occurred_at.astimezone().strftime('%d/%m') }} —
+      {{ t.title }}
+      <span class="sub">({{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else '' }})</span>
+    </label>
+    {% endfor %}
+  </div>
+  <p class="sub" style="margin-top:0.4rem">
+    Só as trombadices do filho escolhido entram — as dos outros são ignoradas.
+  </p>
+  {% endif %}
+
+  <button type="submit">Aplicar castigo</button>
+</form>
+{% endif %}
+
+{% if punishments %}
+  {% for p, ativo in punishments %}
+  <div class="cartao">
+    <div class="linha">
+      <div class="cresce">
+        {% if ativo %}
+          <span class="etiqueta ativo">de castigo</span>
+        {% elif p.ended_early_at %}
+          <span class="etiqueta fim">encerrado antes</span>
+        {% else %}
+          <span class="etiqueta fim">cumprido</span>
+        {% endif %}
+        <p class="titulo">{{ children_by_id[p.child_id].display_name if p.child_id in children_by_id else 'Filho' }}</p>
+        <p class="sub">
+          {{ p.starts_at.astimezone().strftime('%d/%m/%Y às %H:%M') }}
+          até {{ p.ends_at.astimezone().strftime('%d/%m/%Y às %H:%M') }}
+          {% if p.ended_early_at %}
+            · solto em {{ p.ended_early_at.astimezone().strftime('%d/%m às %H:%M') }}
+          {% endif %}
+        </p>
+        {% if p.reason %}<p class="sub">{{ p.reason }}</p>{% endif %}
+        {% for t in p.trombadices %}
+          <span class="etiqueta">{{ t.title }}</span>
+        {% endfor %}
+      </div>
+      <div style="display:flex;gap:0.4rem">
+        {% if ativo %}
+        <form method="post" action="/castigos/{{ p.id }}/encerrar">
+          <button class="mini secundario">Encerrar</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/castigos/{{ p.id }}/delete"
+              hx-confirm="Excluir este castigo do histórico?">
+          <button class="mini perigo">Excluir</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% elif children %}
+  <div class="vazio">Nenhum castigo registrado.</div>
+{% endif %}
+{% endblock %}

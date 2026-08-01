@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Trombadário{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+{% if user %}
+<header class="topo">
+  <span class="marca">Trombadário</span>
+  <nav>
+    <a href="/" {% if pagina == 'painel' %}class="ativo"{% endif %}>Painel</a>
+    <a href="/trombadices" {% if pagina == 'trombadices' %}class="ativo"{% endif %}>Trombadices</a>
+    <a href="/tarefas" {% if pagina == 'tarefas' %}class="ativo"{% endif %}>Tarefas</a>
+    <a href="/castigos" {% if pagina == 'castigos' %}class="ativo"{% endif %}>Castigos</a>
+    <a href="/contas" {% if pagina == 'contas' %}class="ativo"{% endif %}>Contas</a>
+  </nav>
+  <div class="direita">
+    <span>{{ user.display_name }}</span>
+    <form method="post" action="/logout">
+      <button class="mini secundario" style="background:transparent;color:inherit;border-color:currentColor">Sair</button>
+    </form>
+  </div>
+</header>
+{% endif %}
+
+<main>
+{% block conteudo %}{% endblock %}
+</main>
+</body>
+</html>
