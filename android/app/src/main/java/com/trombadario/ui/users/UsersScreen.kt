@@ -1,7 +1,9 @@
 package com.trombadario.ui.users
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,6 +46,7 @@ import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.viewModelFactory
 
@@ -53,8 +57,10 @@ fun UsersScreen(container: AppContainer, currentUser: UserDto, onBack: () -> Uni
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
+                colors = transparentTopBar(),
                 title = { Text(stringResource(R.string.users_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -67,7 +73,13 @@ fun UsersScreen(container: AppContainer, currentUser: UserDto, onBack: () -> Uni
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = viewModel::startCreate) {
+            FloatingActionButton(
+                    // Círculo, não o squircle padrão do M3 - é o botão redondo
+                    // do mockup.
+                    shape = CircleShape,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    onClick = viewModel::startCreate) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.users_new))
             }
         },
@@ -139,7 +151,8 @@ private fun UserCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
         Row(
             modifier = Modifier.padding(16.dp),

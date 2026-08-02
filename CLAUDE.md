@@ -55,6 +55,50 @@ porquê.
 - **SDK**: `compileSdk`/`targetSdk` 34, `minSdk` 26, JVM target 17, Kotlin
   1.9.24, AGP 8.5.2, compose-bom `2024.06.00`, compiler extension 1.5.14.
 
+## Identidade visual: caderno de papel
+
+Veio de um mockup do usuário (Claude Design, 02/08/2026). O que vale dele é a
+**linguagem visual**, não posicionamento de elemento nem features — ele foi
+explícito nisso.
+
+**As cores foram amostradas pixel a pixel do mockup**, não estimadas:
+
+| | claro | papel |
+|---|---|---|
+| folha | `#FBF4E2` | fundo de tudo |
+| pauta | `#E6D9B8` | linhas horizontais |
+| margem | `#E7A79A` | linha vertical da lateral |
+| card | `#FFFDF7` | "papelzinho colado", com borda âmbar |
+| recado | `#FFF0C2` + borda tracejada `#FDE4AB` | formulário / destaque |
+| tinta | `#3A2E22` / `#8A7357` | texto e texto secundário |
+| acentos | `#40A4A1` `#E0A030` `#E4634F` | teal, âmbar, coral |
+
+**Duas intensidades do vermelho, e o motivo é contraste medido, não gosto.** O
+vermelho do mockup (`#E8562D`) dá **3,3:1** sobre o papel: passa em texto grande
+e reprova em texto pequeno e com branco por cima. `#C13A14` é a mesma matiz mais
+funda, **4,9:1** no papel e **5,4:1** com branco. Então:
+- `#E8562D` (`MarkerRed` / `--marker`) só na assinatura grande — o nome do app.
+- `#C13A14` (`MarkerInk` / `--marker-ink`) em tudo que é lido de perto: datas nos
+  cards, fundo de botão, aba ativa.
+
+**Fontes vendorizadas**, nunca CDN (mesmo motivo do HTMX — o ZimaOS pode estar
+sem internet):
+- **Caveat Brush** só em título e cabeçalho. Texto corrido em letra de mão cansa,
+  e o filho é quem mais lê aqui.
+- **Nunito** no resto.
+Ambas OFL; a licença acompanha os arquivos em `web/static/fonts/`.
+
+**A folha é desenhada, não é imagem.** No Android, `NotebookBackground` usa
+`drawBehind` e fica **na raiz** — desenhada uma vez, aparece em toda tela sem
+cada uma se lembrar dela. Por isso todo `Scaffold` e `TopAppBar` do app é
+`Color.Transparent`: um container opaco tapa a folha. Na web é
+`repeating-linear-gradient`. Nos dois casos as linhas acompanham qualquer altura
+sem esticar nem cortar.
+
+**`secondaryContainer` precisa estar definido** no tema do Android. Sem ele o
+Material entrega o lilás padrão em chip selecionado e no indicador da nav bar —
+destoa de tudo e não é óbvio de onde vem.
+
 ## Decisões de arquitetura (não reverter sem motivo)
 
 ### O app só funciona em casa — e a prova é o backend responder

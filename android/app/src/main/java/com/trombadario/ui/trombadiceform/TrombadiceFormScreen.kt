@@ -39,6 +39,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,6 +47,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.viewModelFactory
 import java.time.Instant
@@ -75,8 +77,10 @@ fun TrombadiceFormScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
+                colors = transparentTopBar(),
                 title = {
                     Text(
                         stringResource(

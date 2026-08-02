@@ -95,7 +95,7 @@
     <string name="nav_tasks">Tarefas</string>
     <string name="nav_punishment">Castigo</string>
     <string name="nav_users">Contas</string>
-    <string name="nav_settings">Configurações</string>
+    <string name="nav_settings">Ajustes</string>
 
     <!-- Servidor ainda não configurado -->
     <string name="setup_needed_title">Servidor ainda não configurado</string>

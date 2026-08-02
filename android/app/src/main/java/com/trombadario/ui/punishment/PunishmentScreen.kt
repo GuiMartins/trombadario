@@ -1,7 +1,9 @@
 package com.trombadario.ui.punishment
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -44,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -56,6 +59,7 @@ import com.trombadario.R
 import com.trombadario.data.remote.PunishmentDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.components.formatDateTime
 import com.trombadario.ui.components.parseInstant
@@ -77,10 +81,19 @@ fun PunishmentScreen(container: AppContainer, currentUser: UserDto) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.load() }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.punishment_title)) }) },
+        containerColor = Color.Transparent,
+        topBar = { TopAppBar(
+                colors = transparentTopBar(),
+                title = { Text(stringResource(R.string.punishment_title)) }) },
         floatingActionButton = {
             if (currentUser.isAdmin) {
-                FloatingActionButton(onClick = viewModel::startCreate) {
+                FloatingActionButton(
+                    // Círculo, não o squircle padrão do M3 - é o botão redondo
+                    // do mockup.
+                    shape = CircleShape,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    onClick = viewModel::startCreate) {
                     Icon(Icons.Default.Add, contentDescription = stringResource(R.string.punishment_new))
                 }
             }
@@ -178,8 +191,9 @@ private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        containerColor = MaterialTheme.colorScheme.surface
                     ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 ) {
                     Text(
                         text = stringResource(R.string.punishment_admin_empty),
@@ -214,7 +228,8 @@ private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
 private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ativo: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(

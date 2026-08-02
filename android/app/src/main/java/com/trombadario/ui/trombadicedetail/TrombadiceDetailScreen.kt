@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -31,6 +32,7 @@ import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.components.MessageScreen
 import com.trombadario.ui.components.formatDateTime
@@ -56,8 +58,10 @@ fun TrombadiceDetailScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
+                colors = transparentTopBar(),
                 title = { Text(stringResource(R.string.trombadice_detail_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
