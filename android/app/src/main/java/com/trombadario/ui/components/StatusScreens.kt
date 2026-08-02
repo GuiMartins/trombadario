@@ -83,3 +83,16 @@ fun MessageScreen(
         }
     }
 }
+
+/**
+ * Barra de topo sem cor de fundo própria: a folha de caderno é desenhada uma vez
+ * na raiz e precisa aparecer inteira, incluindo atrás do título.
+ */
+@androidx.compose.material3.ExperimentalMaterial3Api
+@Composable
+fun transparentTopBar() = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+    containerColor = androidx.compose.ui.graphics.Color.Transparent,
+    titleContentColor = MaterialTheme.colorScheme.primary,
+    navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+    actionIconContentColor = MaterialTheme.colorScheme.onBackground,
+)

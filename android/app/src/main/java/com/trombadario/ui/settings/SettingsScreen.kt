@@ -35,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -43,6 +44,8 @@ import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.theme.NotebookGutter
+import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.theme.ThemePreference
 import kotlinx.coroutines.launch
 
@@ -62,7 +65,11 @@ fun SettingsScreen(
     var confirmingServerChange by remember { mutableStateOf(false) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.settings_title)) }) }
+        containerColor = Color.Transparent,
+        topBar = { TopAppBar(
+                colors = transparentTopBar(),
+                modifier = Modifier.padding(start = NotebookGutter),
+                title = { Text(stringResource(R.string.settings_title)) }) }
     ) { padding ->
         AdaptiveScreen(modifier = Modifier.padding(padding)) {
             Column(

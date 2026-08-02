@@ -2,7 +2,9 @@ package com.trombadario.ui.tasks
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -34,6 +36,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -49,6 +52,8 @@ import com.trombadario.R
 import com.trombadario.data.remote.TaskDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.theme.NotebookGutter
+import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.components.MessageScreen
 import com.trombadario.ui.viewModelFactory
@@ -65,10 +70,20 @@ fun TasksScreen(container: AppContainer, currentUser: UserDto) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.load() }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.tasks_title)) }) },
+        containerColor = Color.Transparent,
+        topBar = { TopAppBar(
+                colors = transparentTopBar(),
+                modifier = Modifier.padding(start = NotebookGutter),
+                title = { Text(stringResource(R.string.tasks_title)) }) },
         floatingActionButton = {
             if (currentUser.isAdmin) {
-                FloatingActionButton(onClick = viewModel::startCreate) {
+                FloatingActionButton(
+                    // Círculo, não o squircle padrão do M3 - é o botão redondo
+                    // do mockup.
+                    shape = CircleShape,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    onClick = viewModel::startCreate) {
                     Icon(Icons.Default.Add, contentDescription = stringResource(R.string.tasks_new))
                 }
             }
@@ -191,7 +206,8 @@ private fun TaskCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(enabled = isAdmin, onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(

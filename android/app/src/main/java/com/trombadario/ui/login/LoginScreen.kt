@@ -35,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.theme.MarkerRed
 import com.trombadario.ui.viewModelFactory
 
 @Composable
@@ -50,8 +51,10 @@ fun LoginScreen(container: AppContainer) {
         ) {
             Text(
                 text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.displayMedium,
+                // Aqui é a assinatura da marca e é texto grande, então usa o
+                // vermelho exato do mockup.
+                color = MarkerRed,
             )
             Spacer(Modifier.height(48.dp))
 
