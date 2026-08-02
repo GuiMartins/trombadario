@@ -29,6 +29,10 @@ sealed interface HomeState {
 
     /** Something answered, but it is not the server this app was paired with. */
     data object WrongServer : HomeState
+
+    /** The home server is reachable but nobody has created the parent account
+     *  yet, so there is no login anyone could pass. */
+    data class SetupRequired(val baseUrl: String) : HomeState
 }
 
 /**
@@ -86,8 +90,9 @@ class HomeNetworkGate(
         _state.value = try {
             val health = apiProvider.api(baseUrl).health()
             when {
-                health.serverId == pairedServerId -> HomeState.AtHome
-                else -> HomeState.WrongServer
+                health.serverId != pairedServerId -> HomeState.WrongServer
+                health.setupRequired -> HomeState.SetupRequired(baseUrl)
+                else -> HomeState.AtHome
             }
         } catch (e: IOException) {
             HomeState.AwayFromHome

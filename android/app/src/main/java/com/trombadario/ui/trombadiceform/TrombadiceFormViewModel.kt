@@ -1,4 +1,4 @@
-package com.trombadario.ui.eventform
+package com.trombadario.ui.trombadiceform
 
 import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
@@ -6,8 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.ApiResult
-import com.trombadario.data.remote.EventCreateDto
-import com.trombadario.data.remote.EventUpdateDto
+import com.trombadario.data.remote.TrombadiceCreateDto
+import com.trombadario.data.remote.TrombadiceUpdateDto
+import com.trombadario.data.remote.TaskDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.localToInstant
 import com.trombadario.ui.components.parseInstant
@@ -21,7 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class EventFormState(
+data class TrombadiceFormState(
     val loading: Boolean = true,
     val title: String = "",
     val description: String = "",
@@ -29,18 +30,20 @@ data class EventFormState(
     val time: LocalTime = LocalTime.now().withSecond(0).withNano(0),
     val children: List<UserDto> = emptyList(),
     val selectedChildId: Int? = null,
+    val tasks: List<TaskDto> = emptyList(),
+    val selectedTaskId: Int? = null,
     val submitting: Boolean = false,
     @StringRes val error: Int? = null,
     val saved: Boolean = false,
 )
 
-class EventFormViewModel(
+class TrombadiceFormViewModel(
     private val container: AppContainer,
-    private val eventId: Int?,
+    private val trombadiceId: Int?,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(EventFormState())
-    val state: StateFlow<EventFormState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(TrombadiceFormState())
+    val state: StateFlow<TrombadiceFormState> = _state.asStateFlow()
 
     init {
         load()
@@ -53,9 +56,14 @@ class EventFormViewModel(
                 ?.filter { !it.isAdmin && it.isActive }
                 .orEmpty()
 
-            val event = eventId?.let {
-                (container.repository.getEvent(it) as? ApiResult.Success)?.data
+            val event = trombadiceId?.let {
+                (container.repository.getTrombadice(it) as? ApiResult.Success)?.data
             }
+
+            val tasks = (container.repository.listTasks() as? ApiResult.Success)
+                ?.data
+                ?.filter { it.isActive }
+                .orEmpty()
 
             _state.update { current ->
                 val occurred = event?.let { parseInstant(it.occurredAt).toLocalDateTime() }
@@ -69,6 +77,8 @@ class EventFormViewModel(
                     // Editing keeps the event's own child; a new event defaults to
                     // the only child when there is just one, which is the usual case.
                     selectedChildId = event?.childId ?: children.singleOrNull()?.id,
+                    tasks = tasks,
+                    selectedTaskId = event?.taskId,
                 )
             }
         }
@@ -82,18 +92,24 @@ class EventFormViewModel(
 
     fun onTimeChange(value: LocalTime) = _state.update { it.copy(time = value) }
 
-    fun onChildChange(childId: Int) = _state.update { it.copy(selectedChildId = childId, error = null) }
+    fun onChildChange(childId: Int) = _state.update {
+        // Trocar de filho descarta a tarefa marcada: ela era de outro, e o
+        // backend recusaria o vínculo.
+        it.copy(selectedChildId = childId, selectedTaskId = null, error = null)
+    }
+
+    fun onTaskChange(taskId: Int?) = _state.update { it.copy(selectedTaskId = taskId) }
 
     fun submit() {
         val current = _state.value
         if (current.submitting) return
         if (current.title.isBlank()) {
-            _state.update { it.copy(error = R.string.event_form_error_title_required) }
+            _state.update { it.copy(error = R.string.trombadice_form_error_title_required) }
             return
         }
         val childId = current.selectedChildId
         if (childId == null) {
-            _state.update { it.copy(error = R.string.event_form_error_no_children) }
+            _state.update { it.copy(error = R.string.trombadice_form_error_no_children) }
             return
         }
 
@@ -101,22 +117,24 @@ class EventFormViewModel(
         val occurredAt = localToInstant(current.date, current.time.hour, current.time.minute).toIsoUtc()
 
         viewModelScope.launch {
-            val result = if (eventId == null) {
-                container.repository.createEvent(
-                    EventCreateDto(
+            val result = if (trombadiceId == null) {
+                container.repository.createTrombadice(
+                    TrombadiceCreateDto(
                         title = current.title.trim(),
                         description = current.description.trim(),
                         occurredAt = occurredAt,
                         childId = childId,
+                        taskId = current.selectedTaskId,
                     )
                 )
             } else {
-                container.repository.updateEvent(
-                    eventId,
-                    EventUpdateDto(
+                container.repository.updateTrombadice(
+                    trombadiceId,
+                    TrombadiceUpdateDto(
                         title = current.title.trim(),
                         description = current.description.trim(),
                         occurredAt = occurredAt,
+                        taskId = current.selectedTaskId,
                     )
                 )
             }

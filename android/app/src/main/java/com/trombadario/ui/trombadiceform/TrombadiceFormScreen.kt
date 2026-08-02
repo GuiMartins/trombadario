@@ -1,4 +1,4 @@
-package com.trombadario.ui.eventform
+package com.trombadario.ui.trombadiceform
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -55,14 +56,14 @@ import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EventFormScreen(
+fun TrombadiceFormScreen(
     container: AppContainer,
-    eventId: Int?,
+    trombadiceId: Int?,
     onDone: () -> Unit,
     onBack: () -> Unit,
 ) {
-    val viewModel: EventFormViewModel = viewModel(
-        factory = viewModelFactory { EventFormViewModel(container, eventId) }
+    val viewModel: TrombadiceFormViewModel = viewModel(
+        factory = viewModelFactory { TrombadiceFormViewModel(container, trombadiceId) }
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -79,8 +80,8 @@ fun EventFormScreen(
                 title = {
                     Text(
                         stringResource(
-                            if (eventId == null) R.string.event_form_new_title
-                            else R.string.event_form_edit_title
+                            if (trombadiceId == null) R.string.trombadice_form_new_title
+                            else R.string.trombadice_form_edit_title
                         )
                     )
                 },
@@ -110,7 +111,7 @@ fun EventFormScreen(
                 OutlinedTextField(
                     value = state.title,
                     onValueChange = viewModel::onTitleChange,
-                    label = { Text(stringResource(R.string.event_form_title_label)) },
+                    label = { Text(stringResource(R.string.trombadice_form_title_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -119,7 +120,7 @@ fun EventFormScreen(
                 OutlinedTextField(
                     value = state.description,
                     onValueChange = viewModel::onDescriptionChange,
-                    label = { Text(stringResource(R.string.event_form_description_label)) },
+                    label = { Text(stringResource(R.string.trombadice_form_description_label)) },
                     minLines = 4,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -138,19 +139,54 @@ fun EventFormScreen(
                     )
                 }
 
-                if (state.children.size > 1) {
+                // Sempre visível, mesmo com um filho só (requisito 3): quem lê a
+                // tela precisa ver de quem é a trombadice sem ter que deduzir.
+                if (state.children.isNotEmpty()) {
                     Spacer(Modifier.height(24.dp))
                     Text(
-                        text = stringResource(R.string.event_form_child_label),
+                        text = stringResource(R.string.trombadice_form_child_label),
                         style = MaterialTheme.typography.labelLarge,
                     )
                     Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         state.children.forEach { child ->
                             FilterChip(
                                 selected = state.selectedChildId == child.id,
                                 onClick = { viewModel.onChildChange(child.id) },
                                 label = { Text(child.displayName) },
+                            )
+                        }
+                    }
+                }
+
+                // Requisito 4.2: marcar a tarefa que não foi cumprida. Só as do
+                // filho escolhido - o backend recusa vínculo cruzado, e o
+                // vínculo afirmaria algo falso.
+                val tarefasDoFilho = state.tasks.filter { it.childId == state.selectedChildId }
+                if (tarefasDoFilho.isNotEmpty()) {
+                    Spacer(Modifier.height(24.dp))
+                    Text(
+                        text = stringResource(R.string.trombadice_form_task_label),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        FilterChip(
+                            selected = state.selectedTaskId == null,
+                            onClick = { viewModel.onTaskChange(null) },
+                            label = { Text(stringResource(R.string.trombadice_form_task_none)) },
+                        )
+                        tarefasDoFilho.forEach { task ->
+                            FilterChip(
+                                selected = state.selectedTaskId == task.id,
+                                onClick = { viewModel.onTaskChange(task.id) },
+                                label = { Text(task.name) },
                             )
                         }
                     }

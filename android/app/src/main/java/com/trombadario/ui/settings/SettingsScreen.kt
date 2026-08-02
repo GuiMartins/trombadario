@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -46,7 +47,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(container: AppContainer, currentUser: UserDto) {
+fun SettingsScreen(container: AppContainer, currentUser: UserDto, onOpenUsers: () -> Unit) {
     val scope = rememberCoroutineScope()
     val theme by container.serverConfigStore.theme
         .collectAsStateWithLifecycle(initialValue = ThemePreference.SYSTEM)
@@ -74,6 +75,16 @@ fun SettingsScreen(container: AppContainer, currentUser: UserDto) {
                         ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                if (currentUser.isAdmin) {
+                    // Fora da nav bar de propósito: cinco abas é o limite do
+                    // Material3 e fica apertado no celular.
+                    ActionRow(
+                        icon = Icons.Default.People,
+                        label = stringResource(R.string.users_title),
+                        onClick = onOpenUsers,
                     )
                 }
 

@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.trombadario.AppContainer
 import com.trombadario.data.ApiResult
-import com.trombadario.data.remote.EventDto
+import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.UserDto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 
 data class FeedState(
     val loading: Boolean = true,
-    val events: List<EventDto> = emptyList(),
+    val events: List<TrombadiceDto> = emptyList(),
     /** Only populated for the admin, to label and filter the feed. */
     val children: List<UserDto> = emptyList(),
     val selectedChildId: Int? = null,
@@ -45,7 +45,7 @@ class FeedViewModel(
                 }
             }
 
-            when (val result = container.repository.listEvents(_state.value.selectedChildId)) {
+            when (val result = container.repository.listTrombadices(_state.value.selectedChildId)) {
                 is ApiResult.Success -> _state.update {
                     it.copy(loading = false, events = result.data, error = false)
                 }

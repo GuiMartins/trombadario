@@ -38,7 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trombadario.AppContainer
 import com.trombadario.R
-import com.trombadario.data.remote.EventDto
+import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
 import com.trombadario.ui.components.LoadingScreen
@@ -52,8 +52,8 @@ import com.trombadario.ui.viewModelFactory
 fun FeedScreen(
     container: AppContainer,
     currentUser: UserDto,
-    onOpenEvent: (Int) -> Unit,
-    onNewEvent: () -> Unit,
+    onOpenTrombadice: (Int) -> Unit,
+    onNewTrombadice: () -> Unit,
 ) {
     val viewModel: FeedViewModel = viewModel(
         factory = viewModelFactory { FeedViewModel(container, currentUser) }
@@ -68,7 +68,7 @@ fun FeedScreen(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.feed_title)) }) },
         floatingActionButton = {
             if (currentUser.isAdmin) {
-                FloatingActionButton(onClick = onNewEvent) {
+                FloatingActionButton(onClick = onNewTrombadice) {
                     Icon(Icons.Default.Add, contentDescription = stringResource(R.string.feed_new))
                 }
             }
@@ -118,7 +118,7 @@ fun FeedScreen(
                                     } else {
                                         null
                                     },
-                                    onClick = { onOpenEvent(event.id) },
+                                    onClick = { onOpenTrombadice(event.id) },
                                 )
                             }
                         }
@@ -159,7 +159,7 @@ private fun ChildFilter(
 }
 
 @Composable
-private fun EventCard(event: EventDto, childName: String?, onClick: () -> Unit) {
+private fun EventCard(event: TrombadiceDto, childName: String?, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(

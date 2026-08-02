@@ -1,4 +1,4 @@
-package com.trombadario.ui.eventdetail
+package com.trombadario.ui.trombadicedetail
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -39,15 +39,15 @@ import com.trombadario.ui.viewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EventDetailScreen(
+fun TrombadiceDetailScreen(
     container: AppContainer,
     currentUser: UserDto,
-    eventId: Int?,
+    trombadiceId: Int?,
     onBack: () -> Unit,
     onEdit: (Int) -> Unit,
 ) {
-    val viewModel: EventDetailViewModel = viewModel(
-        factory = viewModelFactory { EventDetailViewModel(container, eventId) }
+    val viewModel: TrombadiceDetailViewModel = viewModel(
+        factory = viewModelFactory { TrombadiceDetailViewModel(container, trombadiceId) }
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -58,7 +58,7 @@ fun EventDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.event_detail_title)) },
+                title = { Text(stringResource(R.string.trombadice_detail_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -116,6 +116,16 @@ fun EventDetailScreen(
                             style = MaterialTheme.typography.bodyLarge,
                         )
                     }
+                    // Nome da tarefa, não o id: "não cumpriu: 7" não diz nada a
+                    // quem está lendo.
+                    state.taskName?.let { taskName ->
+                        Spacer(Modifier.height(24.dp))
+                        Text(
+                            text = stringResource(R.string.trombadice_form_broke_task, taskName),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
             }
         }
@@ -124,8 +134,8 @@ fun EventDetailScreen(
     if (state.confirmingDelete) {
         AlertDialog(
             onDismissRequest = viewModel::cancelDelete,
-            title = { Text(stringResource(R.string.event_delete_confirm_title)) },
-            text = { Text(stringResource(R.string.event_delete_confirm_message)) },
+            title = { Text(stringResource(R.string.trombadice_delete_confirm_title)) },
+            text = { Text(stringResource(R.string.trombadice_delete_confirm_message)) },
             confirmButton = {
                 TextButton(onClick = viewModel::confirmDelete) {
                     Text(stringResource(R.string.action_delete))

@@ -1,9 +1,15 @@
 package com.trombadario.data
 
 import com.trombadario.data.remote.ApiProvider
-import com.trombadario.data.remote.EventCreateDto
-import com.trombadario.data.remote.EventDto
-import com.trombadario.data.remote.EventUpdateDto
+import com.trombadario.data.remote.TrombadiceCreateDto
+import com.trombadario.data.remote.TrombadiceDto
+import com.trombadario.data.remote.TrombadiceUpdateDto
+import com.trombadario.data.remote.PunishmentCreateDto
+import com.trombadario.data.remote.PunishmentDto
+import com.trombadario.data.remote.PunishmentUpdateDto
+import com.trombadario.data.remote.TaskCreateDto
+import com.trombadario.data.remote.TaskDto
+import com.trombadario.data.remote.TaskUpdateDto
 import com.trombadario.data.remote.TokenDto
 import com.trombadario.data.remote.TrombadarioApi
 import com.trombadario.data.remote.UserCreateDto
@@ -80,18 +86,18 @@ class TrombadarioRepository(
 
     suspend fun me(): ApiResult<UserDto> = call { it.me() }
 
-    suspend fun listEvents(childId: Int? = null): ApiResult<List<EventDto>> =
-        call { it.listEvents(childId) }
+    suspend fun listTrombadices(childId: Int? = null): ApiResult<List<TrombadiceDto>> =
+        call { it.listTrombadices(childId) }
 
-    suspend fun getEvent(id: Int): ApiResult<EventDto> = call { it.getEvent(id) }
+    suspend fun getTrombadice(id: Int): ApiResult<TrombadiceDto> = call { it.getTrombadice(id) }
 
-    suspend fun createEvent(event: EventCreateDto): ApiResult<EventDto> =
-        call { it.createEvent(event) }
+    suspend fun createTrombadice(event: TrombadiceCreateDto): ApiResult<TrombadiceDto> =
+        call { it.createTrombadice(event) }
 
-    suspend fun updateEvent(id: Int, event: EventUpdateDto): ApiResult<EventDto> =
-        call { it.updateEvent(id, event) }
+    suspend fun updateTrombadice(id: Int, event: TrombadiceUpdateDto): ApiResult<TrombadiceDto> =
+        call { it.updateTrombadice(id, event) }
 
-    suspend fun deleteEvent(id: Int): ApiResult<Unit> = callNoContent { it.deleteEvent(id) }
+    suspend fun deleteTrombadice(id: Int): ApiResult<Unit> = callNoContent { it.deleteTrombadice(id) }
 
     suspend fun listUsers(): ApiResult<List<UserDto>> = call { it.listUsers() }
 
@@ -101,6 +107,33 @@ class TrombadarioRepository(
         call { it.updateUser(id, user) }
 
     suspend fun deleteUser(id: Int): ApiResult<Unit> = callNoContent { it.deleteUser(id) }
+
+    suspend fun listTasks(childId: Int? = null): ApiResult<List<TaskDto>> =
+        call { it.listTasks(childId) }
+
+    suspend fun createTask(task: TaskCreateDto): ApiResult<TaskDto> = call { it.createTask(task) }
+
+    suspend fun updateTask(id: Int, task: TaskUpdateDto): ApiResult<TaskDto> =
+        call { it.updateTask(id, task) }
+
+    suspend fun deleteTask(id: Int): ApiResult<Unit> = callNoContent { it.deleteTask(id) }
+
+    suspend fun listPunishments(childId: Int? = null): ApiResult<List<PunishmentDto>> =
+        call { it.listPunishments(childId) }
+
+    suspend fun currentPunishments(): ApiResult<List<PunishmentDto>> =
+        call { it.currentPunishments() }
+
+    suspend fun createPunishment(punishment: PunishmentCreateDto): ApiResult<PunishmentDto> =
+        call { it.createPunishment(punishment) }
+
+    suspend fun updatePunishment(
+        id: Int,
+        punishment: PunishmentUpdateDto,
+    ): ApiResult<PunishmentDto> = call { it.updatePunishment(id, punishment) }
+
+    suspend fun deletePunishment(id: Int): ApiResult<Unit> =
+        callNoContent { it.deletePunishment(id) }
 
     fun logout() = sessionStore.clear()
 }

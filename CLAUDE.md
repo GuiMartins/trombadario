@@ -207,6 +207,18 @@ construção deixava o feed desatualizado depois de cadastrar, editar ou excluir
 — bug observado ao vivo (o evento entrava no servidor e a lista continuava
 "Nada registrado ainda").
 
+### Nav bar de 4 abas; Contas mora em Configurações
+
+Trombadices · Tarefas · Castigo · Configurações, iguais pros dois papéis — o
+que muda é o conteúdo, não a estrutura. **Contas ficou fora da barra** e vira um
+item dentro de Configurações (só pro pai): com ela seriam 5 abas, o limite do
+`NavigationBar` do Material3 e apertado demais num celular.
+
+A tela de **Castigo do filho** existe pra responder uma coisa só, e responde
+grande: ícone, "Você está de castigo" e até quando — ou "Você não está de
+castigo". `is_active` vem calculado do servidor; o relógio do celular não decide
+isso.
+
 ### i18n: só português
 
 Diferente do Casshole (PT/EN/ES). É um app familiar de uso privado; três

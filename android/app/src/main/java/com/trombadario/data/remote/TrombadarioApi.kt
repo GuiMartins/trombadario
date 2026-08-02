@@ -27,20 +27,20 @@ interface TrombadarioApi {
     @GET("api/auth/me")
     suspend fun me(): Response<UserDto>
 
-    @GET("api/events")
-    suspend fun listEvents(@Query("child_id") childId: Int? = null): Response<List<EventDto>>
+    @GET("api/trombadices")
+    suspend fun listTrombadices(@Query("child_id") childId: Int? = null): Response<List<TrombadiceDto>>
 
-    @GET("api/events/{id}")
-    suspend fun getEvent(@Path("id") id: Int): Response<EventDto>
+    @GET("api/trombadices/{id}")
+    suspend fun getTrombadice(@Path("id") id: Int): Response<TrombadiceDto>
 
-    @POST("api/events")
-    suspend fun createEvent(@Body event: EventCreateDto): Response<EventDto>
+    @POST("api/trombadices")
+    suspend fun createTrombadice(@Body event: TrombadiceCreateDto): Response<TrombadiceDto>
 
-    @PATCH("api/events/{id}")
-    suspend fun updateEvent(@Path("id") id: Int, @Body event: EventUpdateDto): Response<EventDto>
+    @PATCH("api/trombadices/{id}")
+    suspend fun updateTrombadice(@Path("id") id: Int, @Body event: TrombadiceUpdateDto): Response<TrombadiceDto>
 
-    @DELETE("api/events/{id}")
-    suspend fun deleteEvent(@Path("id") id: Int): Response<Unit>
+    @DELETE("api/trombadices/{id}")
+    suspend fun deleteTrombadice(@Path("id") id: Int): Response<Unit>
 
     @GET("api/users")
     suspend fun listUsers(): Response<List<UserDto>>
@@ -53,4 +53,37 @@ interface TrombadarioApi {
 
     @DELETE("api/users/{id}")
     suspend fun deleteUser(@Path("id") id: Int): Response<Unit>
+
+    @GET("api/tasks")
+    suspend fun listTasks(@Query("child_id") childId: Int? = null): Response<List<TaskDto>>
+
+    @POST("api/tasks")
+    suspend fun createTask(@Body task: TaskCreateDto): Response<TaskDto>
+
+    @PATCH("api/tasks/{id}")
+    suspend fun updateTask(@Path("id") id: Int, @Body task: TaskUpdateDto): Response<TaskDto>
+
+    @DELETE("api/tasks/{id}")
+    suspend fun deleteTask(@Path("id") id: Int): Response<Unit>
+
+    @GET("api/punishments")
+    suspend fun listPunishments(
+        @Query("child_id") childId: Int? = null,
+    ): Response<List<PunishmentDto>>
+
+    /** What the child's punishment screen asks: am I grounded right now? */
+    @GET("api/punishments/current")
+    suspend fun currentPunishments(): Response<List<PunishmentDto>>
+
+    @POST("api/punishments")
+    suspend fun createPunishment(@Body punishment: PunishmentCreateDto): Response<PunishmentDto>
+
+    @PATCH("api/punishments/{id}")
+    suspend fun updatePunishment(
+        @Path("id") id: Int,
+        @Body punishment: PunishmentUpdateDto,
+    ): Response<PunishmentDto>
+
+    @DELETE("api/punishments/{id}")
+    suspend fun deletePunishment(@Path("id") id: Int): Response<Unit>
 }

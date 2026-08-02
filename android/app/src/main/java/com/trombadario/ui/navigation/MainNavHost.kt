@@ -8,7 +8,8 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.ChecklistRtl
+import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -32,22 +33,26 @@ import androidx.navigation.compose.rememberNavController
 import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.remote.UserDto
-import com.trombadario.ui.eventdetail.EventDetailScreen
-import com.trombadario.ui.eventform.EventFormScreen
+import com.trombadario.ui.trombadicedetail.TrombadiceDetailScreen
+import com.trombadario.ui.trombadiceform.TrombadiceFormScreen
 import com.trombadario.ui.feed.FeedScreen
+import com.trombadario.ui.punishment.PunishmentScreen
+import com.trombadario.ui.tasks.TasksScreen
 import com.trombadario.ui.settings.SettingsScreen
 import com.trombadario.ui.users.UsersScreen
 
 object Routes {
     const val FEED = "feed"
+    const val TASKS = "tasks"
+    const val PUNISHMENT = "punishment"
     const val USERS = "users"
     const val SETTINGS = "settings"
-    const val EVENT_DETAIL = "event/{eventId}"
-    const val EVENT_FORM = "event_form?eventId={eventId}"
+    const val TROMBADICE_DETAIL = "trombadice/{trombadiceId}"
+    const val TROMBADICE_FORM = "trombadice_form?trombadiceId={trombadiceId}"
 
-    fun eventDetail(eventId: Int) = "event/$eventId"
-    fun eventForm(eventId: Int? = null) =
-        if (eventId == null) "event_form" else "event_form?eventId=$eventId"
+    fun trombadiceDetail(trombadiceId: Int) = "trombadice/$trombadiceId"
+    fun trombadiceForm(trombadiceId: Int? = null) =
+        if (trombadiceId == null) "trombadice_form" else "trombadice_form?trombadiceId=$trombadiceId"
 }
 
 private data class Tab(val route: String, val icon: ImageVector, val labelRes: Int)
@@ -58,13 +63,15 @@ private const val TRANSITION_MS = 220
 fun MainNavHost(container: AppContainer, currentUser: UserDto) {
     val navController = rememberNavController()
 
-    val tabs = buildList {
-        add(Tab(Routes.FEED, Icons.AutoMirrored.Filled.List, R.string.nav_feed))
-        // The child never sees account management. The backend refuses it too -
-        // this is only about not offering what would be denied.
-        if (currentUser.isAdmin) add(Tab(Routes.USERS, Icons.Default.People, R.string.nav_users))
-        add(Tab(Routes.SETTINGS, Icons.Default.Settings, R.string.nav_settings))
-    }
+    // Four tabs for everyone. Accounts is admin-only but lives inside Settings
+    // instead of the bar: a fifth item is the Material3 maximum and reads as
+    // cramped on a phone.
+    val tabs = listOf(
+        Tab(Routes.FEED, Icons.AutoMirrored.Filled.List, R.string.nav_feed),
+        Tab(Routes.TASKS, Icons.Default.ChecklistRtl, R.string.nav_tasks),
+        Tab(Routes.PUNISHMENT, Icons.Default.Gavel, R.string.nav_punishment),
+        Tab(Routes.SETTINGS, Icons.Default.Settings, R.string.nav_settings),
+    )
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination
@@ -110,42 +117,56 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
                 FeedScreen(
                     container = container,
                     currentUser = currentUser,
-                    onOpenEvent = { navController.navigate(Routes.eventDetail(it)) },
-                    onNewEvent = { navController.navigate(Routes.eventForm()) },
+                    onOpenTrombadice = { navController.navigate(Routes.trombadiceDetail(it)) },
+                    onNewTrombadice = { navController.navigate(Routes.trombadiceForm()) },
                 )
             }
+            composable(Routes.TASKS) {
+                TasksScreen(container = container, currentUser = currentUser)
+            }
+            composable(Routes.PUNISHMENT) {
+                PunishmentScreen(container = container, currentUser = currentUser)
+            }
             composable(Routes.USERS) {
-                UsersScreen(container = container, currentUser = currentUser)
-            }
-            composable(Routes.SETTINGS) {
-                SettingsScreen(container = container, currentUser = currentUser)
-            }
-            composable(Routes.EVENT_DETAIL) { entry ->
-                val eventId = entry.arguments?.getString("eventId")?.toIntOrNull()
-                EventDetailScreen(
+                UsersScreen(
                     container = container,
                     currentUser = currentUser,
-                    eventId = eventId,
                     onBack = navController::popBackStack,
-                    onEdit = { navController.navigate(Routes.eventForm(it)) },
+                )
+            }
+            composable(Routes.SETTINGS) {
+                SettingsScreen(
+                    container = container,
+                    currentUser = currentUser,
+                    onOpenUsers = { navController.navigate(Routes.USERS) },
+                )
+            }
+            composable(Routes.TROMBADICE_DETAIL) { entry ->
+                val trombadiceId = entry.arguments?.getString("trombadiceId")?.toIntOrNull()
+                TrombadiceDetailScreen(
+                    container = container,
+                    currentUser = currentUser,
+                    trombadiceId = trombadiceId,
+                    onBack = navController::popBackStack,
+                    onEdit = { navController.navigate(Routes.trombadiceForm(it)) },
                 )
             }
             composable(
-                route = Routes.EVENT_FORM,
-                // Without declaring it optional, navigating to plain "event_form"
+                route = Routes.TROMBADICE_FORM,
+                // Without declaring it optional, navigating to plain "trombadice_form"
                 // (the new-event case) would not match this destination at all.
                 arguments = listOf(
-                    navArgument("eventId") {
+                    navArgument("trombadiceId") {
                         type = NavType.StringType
                         nullable = true
                         defaultValue = null
                     }
                 ),
             ) { entry ->
-                val eventId = entry.arguments?.getString("eventId")?.toIntOrNull()
-                EventFormScreen(
+                val trombadiceId = entry.arguments?.getString("trombadiceId")?.toIntOrNull()
+                TrombadiceFormScreen(
                     container = container,
-                    eventId = eventId,
+                    trombadiceId = trombadiceId,
                     onDone = {
                         // Back to the feed, dropping the detail screen of an
                         // event that may no longer look the same.
