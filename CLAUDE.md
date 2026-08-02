@@ -273,6 +273,25 @@ token, dois transportes.
 Nada de CDN: CSS próprio e HTMX vendorizado em `app/web/static/`. O ZimaOS pode
 estar sem internet e a página tem que abrir do mesmo jeito.
 
+**Filtro troca só a lista, nunca a página inteira.** Os `<a>` de filtro têm
+`href` **e** `hx-get`: sem JavaScript o link funciona como sempre, com ele só o
+`#lista-*` é trocado. Não é enfeite — como navegação normal, o filtro recarregava
+a página e apagava o que já estava digitado no formulário acima (era um bug
+relatado). O cabeçalho não entra na troca, então quem depende do endereço atual
+precisa vir junto por `hx-select-oob` (é o caso do `#tema-next`).
+
+**Claro e escuro com `light-dark()`, uma cor em um lugar só.** Cada variável é
+declarada duas vezes: o valor claro puro e depois o `light-dark(claro, escuro)`.
+Navegador que não conhece a função descarta a segunda linha e fica no claro — a
+página não quebra, só não escurece. Um bloco `@media` separado obrigaria a manter
+duas listas de cores em sincronia na mão. O alternador do topo só muda
+`color-scheme`; sem escolha feita, quem manda é o sistema.
+
+> **`TZ` no compose não é enfeite.** O `<input type="datetime-local">` manda a
+> hora que a pessoa digitou **sem fuso nenhum**, e o servidor cola o dele. Em UTC
+> — o padrão do container — o campo "Quando" abre 3h à frente e o que é cadastrado
+> pela web é **gravado 3h errado**. A imagem já tem `tzdata`; basta a variável.
+
 ### A configuração começa no backend, pelo navegador
 
 Enquanto não existe **admin ativo**, o servidor está em modo setup e toda rota

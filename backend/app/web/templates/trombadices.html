@@ -35,11 +35,23 @@
 
   <button type="submit">Registrar</button>
 </form>
+{% endif %}
 
+{# O filtro troca só esta parte, senão a página recarrega e apaga o que já
+   estava digitado no formulário acima. O href continua valendo sem JavaScript. #}
+<div id="lista-trombadices"
+     hx-target="#lista-trombadices" hx-select="#lista-trombadices" hx-swap="outerHTML"
+     hx-push-url="true"
+     {# O botão de tema fica no cabeçalho, que não é trocado aqui: sem isto ele
+        guardaria o endereço de antes do filtro e trocar de tema jogaria você de
+        volta na lista inteira. #}
+     hx-select-oob="#tema-next">
+{% if children %}
 <div class="filtros">
-  <a href="/trombadices" class="{% if not selected_child %}ativo{% endif %}">Todos</a>
+  <a href="/trombadices" hx-get="/trombadices"
+     class="{% if not selected_child %}ativo{% endif %}">Todos</a>
   {% for c in children %}
-  <a href="/trombadices?child_id={{ c.id }}"
+  <a href="/trombadices?child_id={{ c.id }}" hx-get="/trombadices?child_id={{ c.id }}"
      class="{% if selected_child == c.id %}ativo{% endif %}">{{ c.display_name }}</a>
   {% endfor %}
 </div>
@@ -68,4 +80,5 @@
 {% elif children %}
   <div class="vazio">Nada registrado ainda.</div>
 {% endif %}
+</div>
 {% endblock %}

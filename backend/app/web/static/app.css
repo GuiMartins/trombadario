@@ -15,29 +15,53 @@
   font-display: swap;
 }
 
+/* Claro e escuro na mesma linha, com `light-dark()`.
+
+   Cada cor aparece duas vezes de propósito: a primeira é o valor claro puro, a
+   segunda é a de verdade. Navegador que não conhece `light-dark()` descarta a
+   segunda e fica com a clara - a página continua inteira, só não escurece. O
+   contrário (um bloco `@media` separado) obrigaria a manter duas listas de
+   cores em sincronia na mão. */
 :root {
+  /* É isto que o alternador do topo muda: com `light-dark()`, trocar o
+     color-scheme troca a paleta toda. */
+  color-scheme: light dark;
+
   --paper: #fbf4e2;
+  --paper: light-dark(#fbf4e2, #241e18);
   --rule: #e6d9b8;
+  --rule: light-dark(#e6d9b8, #3a3026);
   --margin-line: #e7a79a;
+  --margin-line: light-dark(#e7a79a, #7a4a42);
   --card: #fffdf7;
+  --card: light-dark(#fffdf7, #2e2721);
   --note: #fff0c2;
+  --note: light-dark(#fff0c2, #3d3320);
   --note-border: #fde4ab;
+  --note-border: light-dark(#fde4ab, #5c4a2a);
   --ink: #3a2e22;
+  --ink: light-dark(#3a2e22, #f2e7d5);
   /* Não é o tom do mockup (#8a7357): aquele reprovava em contraste nas três
      superfícies (4,10 no papel, 4,42 no card, 3,96 no recado; mínimo 4,5).
-     Este dá 5,8 / 6,3 / 5,6. */
+     Este dá 5,8 / 6,3 / 5,6. No escuro, 5,3 a 7,1. */
   --ink-soft: #6f5c40;
+  --ink-soft: light-dark(#6f5c40, #b8a88e);
   /* Duas intensidades da mesma caneta, por contraste medido: --marker é a cor
      exata do mockup (3,3:1 no papel - só serve para texto grande) e
      --marker-ink é a mesma matiz mais funda (4,9:1 no papel, 5,4:1 com branco
-     por cima), usada em tudo que é lido de perto. */
+     por cima), usada em tudo que é lido de perto. No escuro o papel já é
+     escuro, então o mesmo tom claro serve para os dois. */
   --marker: #e8562d;
+  --marker: light-dark(#e8562d, #ff8a5e);
   --marker-ink: #c13a14;
+  --marker-ink: light-dark(#c13a14, #ff8a5e);
   --on-marker: #ffffff;
+  --on-marker: light-dark(#ffffff, #4a1600);
   --teal: #40a4a1;
   --amber: #e0a030;
   --coral: #e4634f;
   --danger: #b3261e;
+  --danger: light-dark(#b3261e, #ffb4ab);
   --radius: 16px;
   --rule-gap: 32px;
   --margin-x: 24px;
@@ -46,27 +70,15 @@
      janela enquanto o texto estaria no meio. Mesmo raciocínio do app. */
   --page-max: 68rem;
   --desk: #e7d9bc;
+  --desk: light-dark(#e7d9bc, #17120e);
   --hand: "Caveat Brush", "Segoe Script", cursive;
   --sans: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #241e18;
-    --rule: #3a3026;
-    --margin-line: #7a4a42;
-    --card: #2e2721;
-    --note: #3d3320;
-    --note-border: #5c4a2a;
-    --ink: #f2e7d5;
-    --ink-soft: #b8a88e;
-    --marker: #ff8a5e;
-    --marker-ink: #ff8a5e;
-    --on-marker: #4a1600;
-    --danger: #ffb4ab;
-    --desk: #17120e;
-  }
-}
+/* O alternador do topo. Sem escolha feita, quem manda é o sistema - inclusive
+   quando ele troca sozinho ao anoitecer. */
+:root[data-tema="claro"] { color-scheme: light; }
+:root[data-tema="escuro"] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 
@@ -171,6 +183,22 @@ header.topo nav a:hover { color: var(--ink); }
 header.topo nav a.ativo { color: var(--marker-ink); border-bottom-color: var(--marker-ink); }
 header.topo .direita { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; }
 
+form.tema { display: flex; gap: 0.25rem; }
+form.tema button {
+  margin-top: 0;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.75rem;
+  border-width: 1px;
+  background: transparent;
+  color: var(--ink-soft);
+  border-color: var(--note-border);
+}
+form.tema button.ativo {
+  background: var(--note);
+  color: var(--ink);
+  border-color: var(--amber);
+}
+
 /* padding-left maior que --margin-x: a escrita começa depois da linha. */
 main { max-width: 62rem; margin: 0 auto; padding: 1.5rem 1.5rem 4rem 3rem; }
 
@@ -252,6 +280,19 @@ input:focus, select:focus, textarea:focus {
   outline-offset: 1px;
 }
 textarea { min-height: 5rem; resize: vertical; }
+
+/* Campo que só aparece quando a escolha ao lado pede por ele. Sem JavaScript:
+   `:checked` acompanha o <select> em tempo real e `:has()` deixa o formulário
+   reagir sozinho.
+
+   O @supports não é enfeite - sem ele, um navegador que não conhece `:has()`
+   entenderia o `display: none` e esconderia o campo para sempre. Assim, quem
+   não tem suporte vê os dois campos, que é exatamente como era antes. */
+@supports selector(:has(*)) {
+  .so-semanal, .so-mensal { display: none; }
+  form:has(#periodicity option[value="weekly"]:checked) .so-semanal { display: block; }
+  form:has(#periodicity option[value="monthly"]:checked) .so-mensal { display: block; }
+}
 
 .dias { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.25rem; }
 .dias label { display: flex; align-items: center; gap: 0.35rem; margin: 0; font-weight: 400; }

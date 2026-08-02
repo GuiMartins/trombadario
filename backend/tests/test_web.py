@@ -161,3 +161,66 @@ def test_castigo_ignora_trombadice_de_outro_filho(
     punishment = db.query(Punishment).one()
     assert punishment.child_id == child.id
     assert punishment.trombadices == []
+
+
+# --------------------------------------------------------------------------
+# Tema claro / escuro
+# --------------------------------------------------------------------------
+
+
+def test_tema_escolhido_vira_atributo_no_html(client: TestClient, admin: User) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    client.post("/tema", data={"valor": "escuro", "next": "/trombadices"})
+
+    assert 'data-tema="escuro"' in client.get("/trombadices").text
+
+
+def test_tema_sistema_nao_escreve_atributo(client: TestClient, admin: User) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post("/tema", data={"valor": "escuro", "next": "/"})
+
+    client.post("/tema", data={"valor": "sistema", "next": "/"})
+
+    # Sem atributo, quem manda é o prefers-color-scheme do sistema - inclusive
+    # quando ele troca sozinho ao anoitecer.
+    assert "data-tema" not in client.get("/").text
+
+
+def test_tema_desconhecido_no_cookie_nao_entra_no_html(client: TestClient, admin: User) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.cookies.set("trombadario_tema", '"><script>alert(1)</script>')
+
+    corpo = client.get("/").text
+
+    assert "data-tema" not in corpo
+    assert "<script>alert" not in corpo
+
+
+def test_tema_volta_pra_pagina_onde_estava(client: TestClient, admin: User) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    response = client.post(
+        "/tema", data={"valor": "claro", "next": "/tarefas"}, follow_redirects=False
+    )
+
+    assert response.headers["location"] == "/tarefas"
+
+
+def test_tema_nao_redireciona_pra_fora_de_casa(client: TestClient, admin: User) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    for fora in ["https://exemplo.com", "//exemplo.com", "javascript:alert(1)"]:
+        response = client.post(
+            "/tema", data={"valor": "claro", "next": fora}, follow_redirects=False
+        )
+        assert response.headers["location"] == "/", fora
+
+
+def test_tema_preserva_o_filtro_da_pagina(client: TestClient, admin: User) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    corpo = client.get("/trombadices?child_id=7").text
+
+    # O botão de tema tem que voltar pra lista filtrada, não pra lista inteira.
+    assert 'name="next" value="/trombadices?child_id=7"' in corpo
