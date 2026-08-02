@@ -27,7 +27,8 @@ sealed interface HomeState {
 
     data object AwayFromHome : HomeState
 
-    /** Something answered, but it is not the server this app was paired with. */
+    /** Something answered on that address, but it is not a Trombadário - almost
+     *  always a typo in the server address. */
     data object WrongServer : HomeState
 
     /** The home server is reachable but nobody has created the parent account
@@ -39,8 +40,12 @@ sealed interface HomeState {
  * Decides whether the phone is on the home network, by asking the home server
  * itself. See CLAUDE.md for why this is reachability and not GPS.
  *
- * Fails closed: anything other than a healthy answer from the paired server
- * blocks the app.
+ * Fails closed: anything other than a healthy answer from a Trombadário at the
+ * configured address blocks the app.
+ *
+ * The check is deliberately stateless - it compares nothing against a value
+ * saved at pairing time. See CLAUDE.md for why the earlier server_id comparison
+ * was dropped.
  */
 class HomeNetworkGate(
     context: Context,
@@ -80,8 +85,7 @@ class HomeNetworkGate(
 
     private suspend fun check() = checkLock.withLock {
         val baseUrl = serverConfigStore.baseUrl.first()
-        val pairedServerId = serverConfigStore.pairedServerId.first()
-        if (baseUrl == null || pairedServerId == null) {
+        if (baseUrl == null) {
             _state.value = HomeState.Unpaired
             return@withLock
         }
@@ -90,11 +94,11 @@ class HomeNetworkGate(
         _state.value = try {
             val health = apiProvider.api(baseUrl).health()
             when {
-                health.serverId != pairedServerId -> HomeState.WrongServer
+                health.app != EXPECTED_APP -> HomeState.WrongServer
                 health.setupRequired -> HomeState.SetupRequired(baseUrl)
                 else -> HomeState.AtHome
             }
-        } catch (e: IOException) {
+        } catch (_: IOException) {
             HomeState.AwayFromHome
         } catch (e: Exception) {
             // A non-IO failure means something answered but not with the health
@@ -106,5 +110,6 @@ class HomeNetworkGate(
 
     private companion object {
         const val TAG = "HomeNetworkGate"
+        const val EXPECTED_APP = "trombadario"
     }
 }

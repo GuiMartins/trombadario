@@ -37,7 +37,7 @@ fun AppNavigation(container: AppContainer) {
     val unpair: () -> Unit = {
         scope.launch {
             container.repository.logout()
-            container.serverConfigStore.unpair()
+            container.serverConfigStore.clearBaseUrl()
             container.homeNetworkGate.refresh()
         }
     }

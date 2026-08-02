@@ -20,34 +20,47 @@ class ServerConfigStoreTest {
 
     @Before
     fun limpaEstadoAnterior() = runTest {
-        store.unpair()
+        store.clearBaseUrl()
         store.setTheme(ThemePreference.SYSTEM)
     }
 
     @Test
-    fun sem_pareamento_o_endereco_e_nulo() = runTest {
+    fun sem_servidor_configurado_o_endereco_e_nulo() = runTest {
         assertNull(store.baseUrl.first())
-        assertNull(store.pairedServerId.first())
     }
 
     @Test
-    fun parear_guarda_endereco_e_server_id() = runTest {
-        store.pair("http://192.168.31.172:8090", "uuid-do-servidor")
+    fun guarda_o_endereco_do_servidor() = runTest {
+        store.setBaseUrl("http://192.168.31.172:8090")
 
         assertEquals("http://192.168.31.172:8090", store.baseUrl.first())
-        assertEquals("uuid-do-servidor", store.pairedServerId.first())
     }
 
     @Test
-    fun despareaer_apaga_os_dois() = runTest {
-        store.pair("http://192.168.31.172:8090", "uuid-do-servidor")
+    fun endereco_sobrevive_a_recriacao_do_store() = runTest {
+        store.setBaseUrl("http://192.168.31.172:8090")
 
-        store.unpair()
+        // Simula o app sendo aberto de novo: instância nova, mesmo disco.
+        assertEquals("http://192.168.31.172:8090", ServerConfigStore(context).baseUrl.first())
+    }
 
-        // Os dois juntos: com só um deles o gate ficaria num estado ambíguo,
-        // sem saber se deve pedir configuração ou bloquear.
+    @Test
+    fun trocar_de_servidor_apaga_o_endereco() = runTest {
+        store.setBaseUrl("http://192.168.31.172:8090")
+
+        store.clearBaseUrl()
+
+        // Sem endereço o gate cai em Unpaired e a tela de configuração assume.
         assertNull(store.baseUrl.first())
-        assertNull(store.pairedServerId.first())
+    }
+
+    @Test
+    fun trocar_de_endereco_sobrescreve_o_anterior() = runTest {
+        store.setBaseUrl("http://192.168.31.172:8090")
+
+        store.setBaseUrl("http://192.168.31.200:8090")
+
+        assertEquals("http://192.168.31.200:8090", store.baseUrl.first())
     }
 
     @Test
