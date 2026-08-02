@@ -46,6 +46,7 @@ import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.theme.NotebookGutter
 import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.viewModelFactory
@@ -61,6 +62,7 @@ fun UsersScreen(container: AppContainer, currentUser: UserDto, onBack: () -> Uni
         topBar = {
             TopAppBar(
                 colors = transparentTopBar(),
+                modifier = Modifier.padding(start = NotebookGutter),
                 title = { Text(stringResource(R.string.users_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

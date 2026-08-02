@@ -47,6 +47,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.theme.NotebookGutter
 import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.viewModelFactory
@@ -81,6 +82,7 @@ fun TrombadiceFormScreen(
         topBar = {
             TopAppBar(
                 colors = transparentTopBar(),
+                modifier = Modifier.padding(start = NotebookGutter),
                 title = {
                     Text(
                         stringResource(

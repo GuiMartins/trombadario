@@ -73,13 +73,20 @@ explícito nisso.
 | tinta | `#3A2E22` / `#8A7357` | texto e texto secundário |
 | acentos | `#40A4A1` `#E0A030` `#E4634F` | teal, âmbar, coral |
 
-**Duas intensidades do vermelho, e o motivo é contraste medido, não gosto.** O
-vermelho do mockup (`#E8562D`) dá **3,3:1** sobre o papel: passa em texto grande
-e reprova em texto pequeno e com branco por cima. `#C13A14` é a mesma matiz mais
-funda, **4,9:1** no papel e **5,4:1** com branco. Então:
+**Onde a paleta do mockup foi ajustada, foi por contraste medido — não por
+gosto.** Dois casos, os dois com número:
+
+O **vermelho**: o do mockup (`#E8562D`) dá **3,3:1** sobre o papel — passa em
+texto grande e reprova em texto pequeno e com branco por cima. `#C13A14` é a
+mesma matiz mais funda, **4,9:1** no papel e **5,4:1** com branco. Então:
 - `#E8562D` (`MarkerRed` / `--marker`) só na assinatura grande — o nome do app.
 - `#C13A14` (`MarkerInk` / `--marker-ink`) em tudo que é lido de perto: datas nos
   cards, fundo de botão, aba ativa.
+
+O **texto secundário**: `#8A7357` reprovava nas três superfícies (**4,10** no
+papel, **4,42** no card, **3,96** no recado; o mínimo é 4,5). Virou `#6F5C40`,
+que dá **5,8 / 6,3 / 5,6** e continua claramente secundário contra os 12:1 do
+texto principal. O tema escuro já passava (5,3 a 7,1) e não mudou.
 
 **Fontes vendorizadas**, nunca CDN (mesmo motivo do HTMX — o ZimaOS pode estar
 sem internet):
@@ -94,6 +101,23 @@ cada uma se lembrar dela. Por isso todo `Scaffold` e `TopAppBar` do app é
 `Color.Transparent`: um container opaco tapa a folha. Na web é
 `repeating-linear-gradient`. Nos dois casos as linhas acompanham qualquer altura
 sem esticar nem cortar.
+
+**Ninguém escreve em cima da linha vermelha.** A margem fica em
+`NotebookMarginX` (24dp) e o conteúdo recua `NotebookGutter` (mais 24dp),
+aplicado num lugar só — no `AdaptiveScreen` e no título da `TopAppBar`. Na web,
+`main` tem `padding-left` maior que `--margin-x` pelo mesmo motivo.
+
+**Em tela larga quem centraliza é a folha, não só o conteúdo.** Acima de 648dp
+(`PAGE_MAX_WIDTH`) a página limita e centraliza sobre uma "mesa"
+(`DeskLight`/`DeskDark`, cor própria — reusar `surfaceVariant` deixava a mesa
+amarelo-gema competindo com o papel). Sem isso a margem ficava colada na borda
+esquerda da tela enquanto o texto estava no meio: uma linha vermelha solta longe
+de tudo. **Verificado num AVD de tablet real** (`trombadario_tablet`,
+1280x800dp), não só no papel.
+
+> Ao mexer nisso, cuidado com a ordem dos modifiers: `fillMaxSize()` **antes** do
+> `widthIn` fixa min=max na largura do pai e o teto é silenciosamente ignorado.
+> Foi exatamente o que aconteceu na primeira versão, e só apareceu no tablet.
 
 **`secondaryContainer` precisa estar definido** no tema do Android. Sem ele o
 Material entrega o lilás padrão em chip selecionado e no indicador da nav bar —

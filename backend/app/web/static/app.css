@@ -23,7 +23,10 @@
   --note: #fff0c2;
   --note-border: #fde4ab;
   --ink: #3a2e22;
-  --ink-soft: #8a7357;
+  /* Não é o tom do mockup (#8a7357): aquele reprovava em contraste nas três
+     superfícies (4,10 no papel, 4,42 no card, 3,96 no recado; mínimo 4,5).
+     Este dá 5,8 / 6,3 / 5,6. */
+  --ink-soft: #6f5c40;
   /* Duas intensidades da mesma caneta, por contraste medido: --marker é a cor
      exata do mockup (3,3:1 no papel - só serve para texto grande) e
      --marker-ink é a mesma matiz mais funda (4,9:1 no papel, 5,4:1 com branco
@@ -37,7 +40,12 @@
   --danger: #b3261e;
   --radius: 16px;
   --rule-gap: 32px;
-  --margin-x: 44px;
+  --margin-x: 24px;
+  /* Largura da folha. Em monitor largo ela para de esticar e centraliza, com a
+     mesa aparecendo dos lados - senão a margem ficaria colada na borda da
+     janela enquanto o texto estaria no meio. Mesmo raciocínio do app. */
+  --page-max: 68rem;
+  --desk: #e7d9bc;
   --hand: "Caveat Brush", "Segoe Script", cursive;
   --sans: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -56,6 +64,7 @@
     --marker-ink: #ff8a5e;
     --on-marker: #4a1600;
     --danger: #ffb4ab;
+    --desk: #17120e;
   }
 }
 
@@ -68,7 +77,7 @@ body {
   line-height: 1.6;
   /* A folha: pauta horizontal + margem vertical, desenhadas com gradiente em
      vez de imagem - assim acompanham qualquer altura de página sem esticar. */
-  background-color: var(--paper);
+  background-color: var(--desk);
   background-image:
     linear-gradient(var(--margin-line), var(--margin-line)),
     repeating-linear-gradient(
@@ -76,10 +85,17 @@ body {
       var(--paper) calc(var(--rule-gap) - 1px),
       var(--rule) calc(var(--rule-gap) - 1px),
       var(--rule) var(--rule-gap)
-    );
-  background-size: 2px 100%, 100% 100%;
-  background-position: var(--margin-x) 0, 0 0;
-  background-repeat: no-repeat, repeat-y;
+    ),
+    linear-gradient(var(--paper), var(--paper));
+  background-size:
+    2px 100%,
+    min(100%, var(--page-max)) 100%,
+    min(100%, var(--page-max)) 100%;
+  background-position:
+    calc(50% - min(50%, var(--page-max) / 2) + var(--margin-x)) 0,
+    center 0,
+    center 0;
+  background-repeat: no-repeat;
   background-attachment: fixed;
 }
 
@@ -90,7 +106,7 @@ header.topo {
   align-items: center;
   gap: 1.5rem;
   flex-wrap: wrap;
-  padding: 0.9rem 1.5rem;
+  padding: 0.9rem 1.5rem 0.9rem 3rem;
   background: var(--card);
   border-bottom: 2px solid var(--note-border);
 }
@@ -115,7 +131,8 @@ header.topo nav a:hover { color: var(--ink); }
 header.topo nav a.ativo { color: var(--marker-ink); border-bottom-color: var(--marker-ink); }
 header.topo .direita { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; }
 
-main { max-width: 62rem; margin: 0 auto; padding: 1.5rem 1.5rem 4rem; }
+/* padding-left maior que --margin-x: a escrita começa depois da linha. */
+main { max-width: 62rem; margin: 0 auto; padding: 1.5rem 1.5rem 4rem 3rem; }
 
 /* ---------- títulos em letra de mão ---------- */
 
@@ -259,10 +276,10 @@ button.mini { padding: 0.3rem 0.9rem; font-size: 0.8rem; margin-top: 0; border-w
 .centro button { width: 100%; margin-top: 1.75rem; }
 
 @media (max-width: 40rem) {
-  :root { --margin-x: 20px; }
-  header.topo { gap: 0.75rem; padding: 0.75rem 1rem; }
+  :root { --margin-x: 16px; }
+  header.topo { gap: 0.75rem; padding: 0.75rem 1rem 0.75rem 2.75rem; }
   header.topo .direita { width: 100%; margin-left: 0; }
-  main { padding: 1.25rem 1rem 3rem; }
+  main { padding: 1.25rem 1rem 3rem 2.75rem; }
   h1 { font-size: 2.1rem; }
   .linha { flex-direction: column; gap: 0.5rem; }
 }

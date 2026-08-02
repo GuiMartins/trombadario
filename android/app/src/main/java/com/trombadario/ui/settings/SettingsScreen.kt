@@ -44,6 +44,7 @@ import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.theme.NotebookGutter
 import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.theme.ThemePreference
 import kotlinx.coroutines.launch
@@ -67,6 +68,7 @@ fun SettingsScreen(
         containerColor = Color.Transparent,
         topBar = { TopAppBar(
                 colors = transparentTopBar(),
+                modifier = Modifier.padding(start = NotebookGutter),
                 title = { Text(stringResource(R.string.settings_title)) }) }
     ) { padding ->
         AdaptiveScreen(modifier = Modifier.padding(padding)) {

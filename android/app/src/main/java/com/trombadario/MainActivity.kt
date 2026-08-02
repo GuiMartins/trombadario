@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.trombadario.ui.components.LocalWindowWidthSizeClass
 import com.trombadario.ui.navigation.AppNavigation
+import com.trombadario.ui.theme.DeskBackground
 import com.trombadario.ui.theme.NotebookBackground
 import com.trombadario.ui.theme.ThemePreference
 import com.trombadario.ui.theme.TrombadarioTheme
@@ -52,8 +53,10 @@ class MainActivity : ComponentActivity() {
                 ) {
                     // A folha fica aqui, na raiz: desenhada uma vez, aparece
                     // em toda tela sem cada uma ter que se lembrar dela.
-                    NotebookBackground {
-                        AppNavigation(container)
+                    DeskBackground {
+                        NotebookBackground {
+                            AppNavigation(container)
+                        }
                     }
                 }
             }

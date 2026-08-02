@@ -32,6 +32,7 @@ import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.theme.NotebookGutter
 import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.components.MessageScreen
@@ -62,6 +63,7 @@ fun TrombadiceDetailScreen(
         topBar = {
             TopAppBar(
                 colors = transparentTopBar(),
+                modifier = Modifier.padding(start = NotebookGutter),
                 title = { Text(stringResource(R.string.trombadice_detail_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
