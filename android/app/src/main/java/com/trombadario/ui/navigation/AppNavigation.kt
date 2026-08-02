@@ -21,6 +21,9 @@ import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.components.MessageScreen
 import com.trombadario.ui.login.LoginScreen
 import com.trombadario.ui.serversetup.ServerSetupScreen
+import com.trombadario.ui.splash.SPLASH_DURATION_MS
+import com.trombadario.ui.splash.SplashScreen
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -86,14 +89,38 @@ fun AppNavigation(container: AppContainer) {
 @Composable
 private fun AuthenticatedApp(container: AppContainer) {
     var currentUser by remember { mutableStateOf<UserDto?>(null) }
+    var splashMessage by remember { mutableStateOf<String?>(null) }
+    var splashDone by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         // A 401 here clears the token, which sends the root back to login on its
         // own - no navigation needed.
-        (container.repository.me() as? ApiResult.Success)?.let { currentUser = it.data }
+        val user = (container.repository.me() as? ApiResult.Success)?.data
+
+        // Only the child gets the phrase - it is the parent talking to them, and
+        // the parent seeing their own message on every open would just be noise.
+        if (user != null && !user.isAdmin) {
+            splashMessage = (container.repository.randomSplashMessage() as? ApiResult.Success)
+                ?.data
+                ?.text
+        }
+        currentUser = user
     }
 
-    currentUser?.let { user ->
-        MainNavHost(container = container, currentUser = user)
-    } ?: LoadingScreen()
+    val user = currentUser
+    when {
+        user == null -> LoadingScreen()
+
+        // No phrase registered that applies to them: skip the screen entirely
+        // rather than show an empty one.
+        splashMessage != null && !splashDone -> {
+            SplashScreen(message = splashMessage!!)
+            LaunchedEffect(Unit) {
+                delay(SPLASH_DURATION_MS.toLong())
+                splashDone = true
+            }
+        }
+
+        else -> MainNavHost(container = container, currentUser = user)
+    }
 }

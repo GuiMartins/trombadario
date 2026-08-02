@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 
 from app.deps import DbSession
-from app.models import Periodicity, Punishment, Role, Task, Trombadice, User
+from app.models import Periodicity, Punishment, Role, SplashMessage, Task, Trombadice, User
 from app.security import create_access_token, hash_password, verify_password
 from app.setup_state import setup_required
 from app.web.deps import SESSION_COOKIE, AdminWeb, MaybeUser, RedirectTo
@@ -362,6 +362,59 @@ def punishment_delete(punishment_id: int, db: DbSession, user: AdminWeb):
         db.delete(punishment)
         db.commit()
     return _redirect("/castigos")
+
+
+# --------------------------------------------------------------------------
+# Frases de abertura
+# --------------------------------------------------------------------------
+
+
+@router.get("/frases", response_class=HTMLResponse)
+def splash_page(request: Request, db: DbSession, user: AdminWeb):
+    children = _children(db)
+    return _render(
+        request,
+        "frases.html",
+        user=user,
+        messages=list(db.scalars(select(SplashMessage).order_by(SplashMessage.id.desc()))),
+        children=children,
+        children_by_id={c.id: c for c in children},
+    )
+
+
+@router.post("/frases")
+def splash_create(
+    db: DbSession,
+    user: AdminWeb,
+    text: Annotated[str, Form()],
+    child_id: Annotated[str, Form()] = "",
+):
+    # Vazio = pra todos os filhos.
+    alvo = int(child_id) if child_id else None
+    if alvo is not None:
+        child = db.get(User, alvo)
+        if child is None or child.role is not Role.CHILD:
+            alvo = None
+
+    db.add(SplashMessage(text=text.strip(), child_id=alvo, author_id=user.id))
+    db.commit()
+    return _redirect("/frases")
+
+
+@router.post("/frases/{message_id}/toggle")
+def splash_toggle(message_id: int, db: DbSession, user: AdminWeb):
+    if (message := db.get(SplashMessage, message_id)) is not None:
+        message.is_active = not message.is_active
+        db.commit()
+    return _redirect("/frases")
+
+
+@router.post("/frases/{message_id}/delete")
+def splash_delete(message_id: int, db: DbSession, user: AdminWeb):
+    if (message := db.get(SplashMessage, message_id)) is not None:
+        db.delete(message)
+        db.commit()
+    return _redirect("/frases")
 
 
 # --------------------------------------------------------------------------

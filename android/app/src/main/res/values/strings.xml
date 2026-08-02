@@ -149,6 +149,19 @@
     <string name="trombadice_form_task_none">Nenhuma</string>
     <string name="trombadice_form_broke_task">não cumpriu: %1$s</string>
 
+    <!-- Frases de abertura -->
+    <string name="splash_title">Frases de abertura</string>
+    <string name="splash_intro">Quando o filho abre o app, uma destas aparece como tela de carregamento, sorteada na hora. Ele vê só as dele e as que valem pra todos.</string>
+    <string name="splash_empty">Nenhuma frase cadastrada — o app abre direto.</string>
+    <string name="splash_new">Nova frase</string>
+    <string name="splash_edit">Editar frase</string>
+    <string name="splash_text">Frase</string>
+    <string name="splash_target">Pra quem</string>
+    <string name="splash_target_all">Todos os filhos</string>
+    <string name="splash_paused">pausada</string>
+    <string name="splash_error_empty">A frase não pode ficar vazia</string>
+    <string name="splash_delete_confirm_title">Excluir frase?</string>
+
     <string-array name="weekday_names">
         <item>Segunda</item>
         <item>Terça</item>

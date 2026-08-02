@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% set pagina = 'frases' %}
+{% block titulo %}Frases — Trombadário{% endblock %}
+
+{% block conteudo %}
+<h1>Frases de abertura</h1>
+
+<div class="aviso">
+  Quando o filho abre o app, uma destas aparece como tela de carregamento,
+  sorteada na hora. Ele vê só as dele e as que valem pra todos — nunca as
+  escritas para um irmão.
+</div>
+
+<form method="post" action="/frases" class="bloco">
+  <label for="text">Frase</label>
+  <textarea id="text" name="text" required maxlength="300"
+            placeholder="Arruma essa cama antes de sair, hein"></textarea>
+
+  <label for="child_id">Pra quem</label>
+  <select id="child_id" name="child_id">
+    <option value="">Todos os filhos</option>
+    {% for c in children %}
+    <option value="{{ c.id }}">{{ c.display_name }}</option>
+    {% endfor %}
+  </select>
+
+  <button type="submit">Adicionar frase</button>
+</form>
+
+{% if messages %}
+  {% for m in messages %}
+  <div class="cartao">
+    <div class="linha">
+      <div class="cresce">
+        <span class="etiqueta">
+          {% if m.child_id and m.child_id in children_by_id %}
+            {{ children_by_id[m.child_id].display_name }}
+          {% else %}
+            todos
+          {% endif %}
+        </span>
+        {% if not m.is_active %}<span class="etiqueta fim">pausada</span>{% endif %}
+        <p class="titulo">{{ m.text }}</p>
+      </div>
+      <div style="display:flex;gap:0.4rem">
+        <form method="post" action="/frases/{{ m.id }}/toggle">
+          <button class="mini secundario">{{ 'Retomar' if not m.is_active else 'Pausar' }}</button>
+        </form>
+        <form method="post" action="/frases/{{ m.id }}/delete"
+              hx-confirm="Excluir esta frase?">
+          <button class="mini perigo">Excluir</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="vazio">Nenhuma frase cadastrada — o app abre direto, sem tela de carregamento.</div>
+{% endif %}
+{% endblock %}

@@ -160,3 +160,33 @@ data class PunishmentUpdateDto(
     @SerialName("trombadice_ids") val trombadiceIds: List<Int>? = null,
     @SerialName("end_now") val endNow: Boolean? = null,
 )
+
+// --------------------------------------------------------------------------
+// Frases de abertura
+// --------------------------------------------------------------------------
+
+@Serializable
+data class SplashMessageDto(
+    val id: Int,
+    val text: String,
+    /** null = vale pra todos os filhos. */
+    @SerialName("child_id") val childId: Int? = null,
+    @SerialName("is_active") val isActive: Boolean = true,
+)
+
+@Serializable
+data class SplashMessageCreateDto(
+    val text: String,
+    @SerialName("child_id") val childId: Int? = null,
+)
+
+@Serializable
+data class SplashMessageUpdateDto(
+    val text: String? = null,
+    @SerialName("child_id") val childId: Int? = null,
+    @SerialName("is_active") val isActive: Boolean? = null,
+)
+
+/** `text` nulo quando não há frase que se aplique - o app pula a tela. */
+@Serializable
+data class SplashMessageRandomDto(val text: String? = null)

@@ -176,3 +176,26 @@ class ServerIdentity(Base):
         String(128), default=lambda: secrets.token_urlsafe(48)
     )
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, server_default=func.now())
+
+
+class SplashMessage(Base):
+    """A phrase the parent writes, shown to the child as the loading screen when
+    they open the app."""
+
+    __tablename__ = "splash_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    text: Mapped[str] = mapped_column(String(300))
+
+    # NULL means "for every child". Targeting one child is per-phrase, so the
+    # same list holds "bom dia" and "arruma essa cama, João".
+    child_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+    child: Mapped["User | None"] = relationship(foreign_keys=[child_id])
+    author: Mapped[User] = relationship(foreign_keys=[author_id])
