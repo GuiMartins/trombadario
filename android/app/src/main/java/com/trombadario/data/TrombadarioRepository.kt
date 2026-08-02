@@ -7,6 +7,10 @@ import com.trombadario.data.remote.TrombadiceUpdateDto
 import com.trombadario.data.remote.PunishmentCreateDto
 import com.trombadario.data.remote.PunishmentDto
 import com.trombadario.data.remote.PunishmentUpdateDto
+import com.trombadario.data.remote.SplashMessageCreateDto
+import com.trombadario.data.remote.SplashMessageDto
+import com.trombadario.data.remote.SplashMessageRandomDto
+import com.trombadario.data.remote.SplashMessageUpdateDto
 import com.trombadario.data.remote.TaskCreateDto
 import com.trombadario.data.remote.TaskDto
 import com.trombadario.data.remote.TaskUpdateDto
@@ -134,6 +138,24 @@ class TrombadarioRepository(
 
     suspend fun deletePunishment(id: Int): ApiResult<Unit> =
         callNoContent { it.deletePunishment(id) }
+
+    suspend fun listSplashMessages(): ApiResult<List<SplashMessageDto>> =
+        call { it.listSplashMessages() }
+
+    suspend fun randomSplashMessage(): ApiResult<SplashMessageRandomDto> =
+        call { it.randomSplashMessage() }
+
+    suspend fun createSplashMessage(
+        message: SplashMessageCreateDto,
+    ): ApiResult<SplashMessageDto> = call { it.createSplashMessage(message) }
+
+    suspend fun updateSplashMessage(
+        id: Int,
+        message: SplashMessageUpdateDto,
+    ): ApiResult<SplashMessageDto> = call { it.updateSplashMessage(id, message) }
+
+    suspend fun deleteSplashMessage(id: Int): ApiResult<Unit> =
+        callNoContent { it.deleteSplashMessage(id) }
 
     fun logout() = sessionStore.clear()
 }

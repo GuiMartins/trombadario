@@ -118,6 +118,24 @@ trombadices de um castigo.
 não pode apagar o registro do que aconteceu por causa dela), `child_id` é
 CASCADE, `author_id` é RESTRICT (a história sobrevive à conta de quem escreveu).
 
+### Frases de abertura: o sorteio é do servidor
+
+O pai cadastra N frases; ao abrir o app, a conta de filho vê uma delas como tela
+de carregamento. Cada frase é **de um filho específico ou de todos** (`child_id`
+nulo = todos) — a decisão é por frase, não uma configuração global.
+
+- **O sorteio acontece no backend** (`GET /api/splash-messages/random`), não no
+  app. Assim o aparelho não influencia a escolha e **nunca recebe frase escrita
+  pra um irmão** — mandar a lista pro cliente filtrar entregaria o texto alheio
+  junto. A rota de listagem é só do admin.
+- **A duração é fixa (`SPLASH_DURATION_MS`, 2,5s)**, não "enquanto carrega". Na
+  LAN os dados chegam em ~200ms, então uma barra honesta piscaria e sumiria
+  antes de dar pra ler — e a frase existe pra ser lida.
+- **Sem frase que se aplique, a tela é pulada** em vez de aparecer vazia
+  (`text` nulo na resposta).
+- **Só o filho vê.** É o pai falando com ele; o pai reencontrar a própria
+  mensagem a cada abertura seria só ruído.
+
 ### Castigo ativo é calculado, nunca guardado
 
 `starts_at <= agora < ends_at` e `ended_early_at is null`

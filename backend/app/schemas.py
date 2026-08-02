@@ -154,7 +154,36 @@ class PunishmentUpdate(BaseModel):
     end_now: bool | None = None
 
 
+class SplashMessageRandom(BaseModel):
+    """Resposta do sorteio. `text` nulo quando o pai não cadastrou nenhuma frase
+    que se aplique - o app pula a tela e vai direto pro conteúdo."""
+
+    text: str | None = None
+
+
 class Health(BaseModel):
     app: str
     server_id: str
     setup_required: bool
+
+
+class SplashMessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    text: str
+    child_id: int | None
+    is_active: bool
+    created_at: datetime
+
+
+class SplashMessageCreate(BaseModel):
+    text: str = Field(min_length=1, max_length=300)
+    # None = vale pra todos os filhos.
+    child_id: int | None = None
+
+
+class SplashMessageUpdate(BaseModel):
+    text: str | None = Field(default=None, min_length=1, max_length=300)
+    child_id: int | None = None
+    is_active: bool | None = None

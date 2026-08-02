@@ -86,4 +86,26 @@ interface TrombadarioApi {
 
     @DELETE("api/punishments/{id}")
     suspend fun deletePunishment(@Path("id") id: Int): Response<Unit>
+
+    @GET("api/splash-messages")
+    suspend fun listSplashMessages(): Response<List<SplashMessageDto>>
+
+    /** Sorteado no servidor: o aparelho não influencia a escolha e nunca recebe
+     *  frase escrita pra outro filho. */
+    @GET("api/splash-messages/random")
+    suspend fun randomSplashMessage(): Response<SplashMessageRandomDto>
+
+    @POST("api/splash-messages")
+    suspend fun createSplashMessage(
+        @Body message: SplashMessageCreateDto,
+    ): Response<SplashMessageDto>
+
+    @PATCH("api/splash-messages/{id}")
+    suspend fun updateSplashMessage(
+        @Path("id") id: Int,
+        @Body message: SplashMessageUpdateDto,
+    ): Response<SplashMessageDto>
+
+    @DELETE("api/splash-messages/{id}")
+    suspend fun deleteSplashMessage(@Path("id") id: Int): Response<Unit>
 }

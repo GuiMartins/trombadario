@@ -39,6 +39,7 @@ import com.trombadario.ui.feed.FeedScreen
 import com.trombadario.ui.punishment.PunishmentScreen
 import com.trombadario.ui.tasks.TasksScreen
 import com.trombadario.ui.settings.SettingsScreen
+import com.trombadario.ui.splash.SplashMessagesScreen
 import com.trombadario.ui.users.UsersScreen
 
 object Routes {
@@ -46,6 +47,7 @@ object Routes {
     const val TASKS = "tasks"
     const val PUNISHMENT = "punishment"
     const val USERS = "users"
+    const val SPLASH_MESSAGES = "splash_messages"
     const val SETTINGS = "settings"
     const val TROMBADICE_DETAIL = "trombadice/{trombadiceId}"
     const val TROMBADICE_FORM = "trombadice_form?trombadiceId={trombadiceId}"
@@ -127,6 +129,12 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
             composable(Routes.PUNISHMENT) {
                 PunishmentScreen(container = container, currentUser = currentUser)
             }
+            composable(Routes.SPLASH_MESSAGES) {
+                SplashMessagesScreen(
+                    container = container,
+                    onBack = navController::popBackStack,
+                )
+            }
             composable(Routes.USERS) {
                 UsersScreen(
                     container = container,
@@ -139,6 +147,7 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
                     container = container,
                     currentUser = currentUser,
                     onOpenUsers = { navController.navigate(Routes.USERS) },
+                    onOpenSplashMessages = { navController.navigate(Routes.SPLASH_MESSAGES) },
                 )
             }
             composable(Routes.TROMBADICE_DETAIL) { entry ->

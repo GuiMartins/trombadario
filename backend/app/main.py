@@ -10,7 +10,16 @@ from alembic import command
 from alembic.config import Config
 from app.config import get_settings
 from app.database import SessionLocal
-from app.routers import auth, health, punishments, setup, tasks, trombadices, users
+from app.routers import (
+    auth,
+    health,
+    punishments,
+    setup,
+    splash_messages,
+    tasks,
+    trombadices,
+    users,
+)
 from app.server_identity import get_identity
 from app.setup_state import setup_required
 from app.web import routes as web_routes
@@ -72,5 +81,6 @@ app.include_router(trombadices.router)
 app.include_router(tasks.router)
 app.include_router(punishments.router)
 app.include_router(users.router)
+app.include_router(splash_messages.router)
 # Last: its routes live at the root and would otherwise shadow /api paths.
 app.include_router(web_routes.router)

@@ -6,7 +6,7 @@ from app.security import create_access_token
 from app.web.deps import SESSION_COOKIE
 from tests.conftest import ADMIN_PASSWORD, CHILD_PASSWORD
 
-PAGINAS_ADMIN = ["/", "/trombadices", "/tarefas", "/castigos", "/contas"]
+PAGINAS_ADMIN = ["/", "/trombadices", "/tarefas", "/castigos", "/frases", "/contas"]
 
 
 def login_web(client: TestClient, username: str, password: str):

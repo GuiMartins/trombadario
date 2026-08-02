@@ -8,6 +8,7 @@ from app.database import Base
 from app.models import (  # noqa: F401  (registers the tables)
     Punishment,
     ServerIdentity,
+    SplashMessage,
     Task,
     Trombadice,
     User,
