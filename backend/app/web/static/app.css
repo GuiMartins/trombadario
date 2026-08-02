@@ -99,6 +99,46 @@ body {
   background-attachment: fixed;
 }
 
+/* ---------- virar a página ---------- */
+
+/* A mesma virada do app: a folha gira presa pela lombada, do lado da margem
+   vermelha, e a de baixo assenta. Sai de graça na navegação normal do
+   navegador, sem uma linha de JavaScript.
+
+   Quem não tem suporte a view transitions simplesmente troca de página do jeito
+   de sempre - por isso não há nada aqui de que a página dependa para funcionar. */
+@view-transition { navigation: auto; }
+
+@keyframes folha-virando {
+  from { transform: perspective(1400px) rotateY(0deg); }
+  to   { transform: perspective(1400px) rotateY(92deg); }
+}
+
+@keyframes folha-assentando {
+  from { transform: perspective(1400px) rotateY(-5deg); }
+  to   { transform: perspective(1400px) rotateY(0deg); }
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  /* A lombada é a esquerda, como no caderno. */
+  transform-origin: left center;
+  animation-duration: 360ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-fill-mode: both;
+  /* Substitui o esmaecimento que o navegador faria sozinho. */
+  mix-blend-mode: normal;
+}
+
+/* A que sai é a que levanta, então fica por cima. */
+::view-transition-old(root) { animation-name: folha-virando; z-index: 2; }
+::view-transition-new(root) { animation-name: folha-assentando; z-index: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none; }
+}
+
 /* ---------- topo ---------- */
 
 header.topo {
