@@ -133,7 +133,7 @@ fun SettingsScreen(container: AppContainer, currentUser: UserDto, onOpenUsers: (
                     confirmingServerChange = false
                     scope.launch {
                         container.repository.logout()
-                        container.serverConfigStore.unpair()
+                        container.serverConfigStore.clearBaseUrl()
                         container.homeNetworkGate.refresh()
                     }
                 }) { Text(stringResource(R.string.action_save)) }

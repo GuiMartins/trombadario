@@ -63,9 +63,26 @@ Requisito explícito do usuário: fora de casa o app não exibe dado nenhum,
 só uma tela dizendo que precisa estar em casa.
 
 A detecção é **alcançabilidade do backend**, não GPS. `GET /api/health` com
-timeout curto (~3s); respondeu **e** o `server_id` bate com o que o app
-gravou no pareamento inicial → está em casa. Qualquer outra coisa (timeout,
-connection refused, `server_id` diferente) → bloqueado.
+timeout curto (~3s); respondeu **e** se identificou como Trombadário
+(`app == "trombadario"`) → está em casa. Qualquer outra coisa (timeout,
+connection refused, resposta que não é do Trombadário) → bloqueado.
+
+**A checagem é sem estado, de propósito.** A primeira versão comparava o
+`server_id` contra o valor gravado no pareamento. Foi removido em 02/08/2026
+porque o custo era real e o ganho não:
+
+- **Custo**: o `server_id` mora no banco, então zerar ou restaurar o banco muda
+  ele e **todo app pareado passa a dizer "você não está em casa"** até refazer o
+  pareamento. Isso aconteceu de verdade, ao limpar os dados de teste.
+- **Ganho**: só distinguiria "outro Trombadário respondendo nesse endereço" —
+  exigiria alguém rodando esta mesma app, na mesma faixa de IP, na mesma porta,
+  em outra rede.
+- **E não protegia de nada**: um filho decidido não precisa burlar o
+  `server_id`; é só ir em Configurações → Trocar de servidor e apontar pra outro
+  lugar. A comparação só atrapalhava quem estava sendo honesto.
+
+O campo `server_id` continua no `/api/health` como informação de diagnóstico —
+nada no app depende dele.
 
 Por que não GPS (foi considerado e descartado pelo usuário): exigiria
 `ACCESS_FINE_LOCATION`, Play Services, tratamento de fix indoor ruim e de

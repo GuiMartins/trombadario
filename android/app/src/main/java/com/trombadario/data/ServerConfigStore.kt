@@ -23,27 +23,17 @@ class ServerConfigStore(private val context: Context) {
 
     val baseUrl: Flow<String?> = context.dataStore.data.map { it[KEY_BASE_URL] }
 
-    /** Set when the app first reaches a server. The gate compares against it so
-     *  that "something answered on this port" is not enough to unlock. */
-    val pairedServerId: Flow<String?> = context.dataStore.data.map { it[KEY_SERVER_ID] }
-
     val theme: Flow<ThemePreference> = context.dataStore.data.map { prefs ->
         prefs[KEY_THEME]?.let { runCatching { ThemePreference.valueOf(it) }.getOrNull() }
             ?: ThemePreference.SYSTEM
     }
 
-    suspend fun pair(baseUrl: String, serverId: String) {
-        context.dataStore.edit {
-            it[KEY_BASE_URL] = baseUrl
-            it[KEY_SERVER_ID] = serverId
-        }
+    suspend fun setBaseUrl(baseUrl: String) {
+        context.dataStore.edit { it[KEY_BASE_URL] = baseUrl }
     }
 
-    suspend fun unpair() {
-        context.dataStore.edit {
-            it.remove(KEY_BASE_URL)
-            it.remove(KEY_SERVER_ID)
-        }
+    suspend fun clearBaseUrl() {
+        context.dataStore.edit { it.remove(KEY_BASE_URL) }
     }
 
     suspend fun setTheme(preference: ThemePreference) {
@@ -52,7 +42,6 @@ class ServerConfigStore(private val context: Context) {
 
     private companion object {
         val KEY_BASE_URL: Preferences.Key<String> = stringPreferencesKey("base_url")
-        val KEY_SERVER_ID: Preferences.Key<String> = stringPreferencesKey("server_id")
         val KEY_THEME: Preferences.Key<String> = stringPreferencesKey("theme")
     }
 }

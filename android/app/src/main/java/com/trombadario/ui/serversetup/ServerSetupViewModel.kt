@@ -57,10 +57,11 @@ class ServerSetupViewModel(private val container: AppContainer) : ViewModel() {
                     },
                 )
             }
-            result.getOrNull()?.takeIf { it.app == EXPECTED_APP }?.let { health ->
-                // Pairing is the last step on purpose: the gate watches this
-                // value, so writing it flips the whole app out of setup.
-                container.serverConfigStore.pair(url, health.serverId)
+            if (result.getOrNull()?.app == EXPECTED_APP) {
+                // Saving the address is the last step on purpose: the gate
+                // watches this value, so writing it flips the whole app out of
+                // setup.
+                container.serverConfigStore.setBaseUrl(url)
                 container.homeNetworkGate.refresh()
             }
         }
