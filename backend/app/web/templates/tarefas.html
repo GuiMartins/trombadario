@@ -30,23 +30,39 @@
     <option value="once">Uma vez só</option>
   </select>
 
-  <label>Dias da semana <span class="sub">(só vale para "em dias da semana")</span></label>
-  <div class="dias">
-    {% for nome in weekday_names %}
-    <label><input type="checkbox" name="weekdays" value="{{ loop.index0 }}"> {{ nome }}</label>
-    {% endfor %}
+  <div class="so-semanal">
+    <label>Dias da semana</label>
+    <div class="dias">
+      {% for nome in weekday_names %}
+      <label><input type="checkbox" name="weekdays" value="{{ loop.index0 }}"> {{ nome }}</label>
+      {% endfor %}
+    </div>
   </div>
 
-  <label for="day_of_month">Dia do mês <span class="sub">(só vale para "uma vez por mês")</span></label>
-  <input type="number" id="day_of_month" name="day_of_month" min="1" max="31">
+  <div class="so-mensal">
+    <label for="day_of_month">Dia do mês</label>
+    <input type="number" id="day_of_month" name="day_of_month" min="1" max="31">
+  </div>
 
   <button type="submit">Criar tarefa</button>
 </form>
+{% endif %}
 
+{# O filtro troca só esta parte. Como <a href> ele recarregava a página inteira
+   e apagava o que já estava digitado no formulário acima. O href continua aí:
+   sem JavaScript, ou abrindo em outra aba, ele funciona como sempre. #}
+<div id="lista-tarefas"
+     hx-target="#lista-tarefas" hx-select="#lista-tarefas" hx-swap="outerHTML"
+     hx-push-url="true"
+     {# O botão de tema fica no cabeçalho, que não é trocado aqui: sem isto ele
+        guardaria o endereço de antes do filtro. #}
+     hx-select-oob="#tema-next">
+{% if children %}
 <div class="filtros">
-  <a href="/tarefas" class="{% if not selected_child %}ativo{% endif %}">Todos</a>
+  <a href="/tarefas" hx-get="/tarefas"
+     class="{% if not selected_child %}ativo{% endif %}">Todos</a>
   {% for c in children %}
-  <a href="/tarefas?child_id={{ c.id }}"
+  <a href="/tarefas?child_id={{ c.id }}" hx-get="/tarefas?child_id={{ c.id }}"
      class="{% if selected_child == c.id %}ativo{% endif %}">{{ c.display_name }}</a>
   {% endfor %}
 </div>
@@ -83,4 +99,5 @@
 {% elif children %}
   <div class="vazio">Nenhuma tarefa cadastrada.</div>
 {% endif %}
+</div>
 {% endblock %}

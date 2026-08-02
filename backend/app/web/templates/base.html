@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR"{% if tema and tema != 'sistema' %} data-tema="{{ tema }}"{% endif %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -20,6 +20,17 @@
     <a href="/contas" {% if pagina == 'contas' %}class="ativo"{% endif %}>Contas</a>
   </nav>
   <div class="direita">
+    {# Três botões em vez de um que alterna: com três estados, um botão só não
+       diz em qual deles você está. "Sistema" é o padrão e some do jeito certo
+       quando o computador muda de tema sozinho ao anoitecer. #}
+    <form method="post" action="/tema" class="tema">
+      {# Com a query junto: trocar de tema no meio de um filtro não pode
+         devolver você para a lista inteira. #}
+      <input type="hidden" id="tema-next" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+      {% for valor, rotulo in [('claro', 'Claro'), ('escuro', 'Escuro'), ('sistema', 'Sistema')] %}
+      <button name="valor" value="{{ valor }}" class="mini secundario{% if (tema or 'sistema') == valor %} ativo{% endif %}">{{ rotulo }}</button>
+      {% endfor %}
+    </form>
     <span>{{ user.display_name }}</span>
     <form method="post" action="/logout">
       <button class="mini secundario" style="background:transparent;color:inherit;border-color:currentColor">Sair</button>

@@ -42,10 +42,43 @@ def _parse_local(value: str) -> datetime:
     return datetime.fromisoformat(value).astimezone()
 
 
+TEMA_COOKIE = "trombadario_tema"
+TEMAS = ("sistema", "claro", "escuro")
+
+
+def _tema(request: Request) -> str:
+    """Nunca devolve o que veio no cookie sem conferir: esse valor vai parar
+    dentro de um atributo do <html>."""
+    escolhido = request.cookies.get(TEMA_COOKIE, "")
+    return escolhido if escolhido in TEMAS else "sistema"
+
+
 def _render(request: Request, template: str, user: User | None = None, **context) -> HTMLResponse:
     return templates.TemplateResponse(
-        request=request, name=template, context={"user": user, **context}
+        request=request,
+        name=template,
+        context={"user": user, "tema": _tema(request), **context},
     )
+
+
+@router.post("/tema")
+def tema_set(
+    request: Request,
+    valor: Annotated[str, Form()],
+    next: Annotated[str, Form()] = "/",
+):
+    # Só caminho de dentro de casa. Sem isso, um "next" com http:// ou //outro
+    # transformaria o botão de tema em redirecionamento para fora.
+    destino = next if next.startswith("/") and not next.startswith("//") else "/"
+
+    response = _redirect(destino)
+    if valor == "sistema":
+        response.delete_cookie(TEMA_COOKIE)
+    elif valor in TEMAS:
+        # Um ano: é preferência de aparência, não sessão. Sem HttpOnly de
+        # propósito - não protege nada e não custa nada.
+        response.set_cookie(TEMA_COOKIE, valor, max_age=31536000, samesite="strict")
+    return response
 
 
 # --------------------------------------------------------------------------

@@ -16,6 +16,9 @@ services:
       # Nada obrigatório: o servidor sobe, gera a própria SECRET_KEY e espera
       # você criar a conta do pai no navegador, no primeiro acesso.
       ACCESS_TOKEN_EXPIRE_MINUTES: 43200
+      # O fuso não é enfeite: o painel manda a hora digitada sem fuso nenhum e o
+      # servidor cola o dele. Em UTC, o que for cadastrado pela web sai errado.
+      TZ: America/Sao_Paulo
 x-casaos:
   architectures:
     - amd64

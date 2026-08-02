@@ -14,6 +14,11 @@ services:
       # SECRET_KEY e espera você criar a conta do pai pelo navegador.
       SECRET_KEY: ${SECRET_KEY:-}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-43200}
+      # Precisa estar certo, não é enfeite. O painel manda a hora que a pessoa
+      # digitou sem fuso nenhum (é o que o <input datetime-local> faz), e o
+      # servidor cola o fuso dele - que tem que ser o mesmo da casa. Em UTC, o
+      # campo "Quando" já abre 3h à frente e o que é gravado sai 3h errado.
+      TZ: ${TZ:-America/Sao_Paulo}
 
 # Sem este bloco o CasaOS instala como "Legacy App": sem ícone, sem nome e sem
 # botão de abrir na home do ZimaOS.
