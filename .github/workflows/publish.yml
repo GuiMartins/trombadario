@@ -38,7 +38,11 @@ jobs:
             # Explicitamente "main", não {{is_default_branch}}: o default deste
             # repo é develop, então o helper daria falso justo aqui e a tag
             # latest - a que o app store consome - nunca sairia.
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            #
+            # workflow_dispatch também marca latest: disparar isso na mão é um
+            # ato deliberado ("publica essa imagem agora"), e sem isso não dá
+            # pra instalar o app no CasaOS antes da primeira release.
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
