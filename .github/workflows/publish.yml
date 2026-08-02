@@ -1,0 +1,54 @@
+name: Publish image
+
+# A entrada no app store do CasaOS aponta pra uma imagem publicada
+# (ghcr.io/guimartins/trombadario), não pra um `build:` local - então ela
+# precisa existir antes de qualquer instalação pela loja.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # arm64 via QEMU: o ZimaOS de casa é amd64, mas o x-casaos anuncia as duas
+      # arquiteturas e uma imagem só-amd64 quebraria numa instalação em ARM.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/guimartins/trombadario
+          tags: |
+            # Explicitamente "main", não {{is_default_branch}}: o default deste
+            # repo é develop, então o helper daria falso justo aqui e a tag
+            # latest - a que o app store consome - nunca sairia.
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

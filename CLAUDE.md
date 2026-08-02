@@ -10,6 +10,16 @@ apaga.
 
 O nome é trocadilho de trombadinha + diário.
 
+## Regra que vale pra sempre
+
+**Toda funcionalidade da conta pai nasce nos dois lugares**: app Android **e**
+painel web. Não existe recurso do pai que só um dos dois tenha. Ao implementar
+qualquer coisa nova pro pai, os dois são parte do mesmo trabalho, não uma
+sequência de "depois eu faço no outro".
+
+O filho é o contrário: **só o app**. Ver a seção do painel web abaixo pro
+porquê.
+
 ## Princípios gerais
 
 - **Nada de gambiarra.** Toda escolha de ferramenta, biblioteca ou padrão
@@ -73,6 +83,70 @@ padrão**: só `AtHome` libera. Enquanto não for `AtHome`, o `NavHost` inteiro
 é substituído por `AwayFromHomeScreen` — troca de raiz, não diálogo por
 cima, então não existe tela com dado renderizada por baixo. O gate vem
 **antes do login**: fora de casa nem a tela de senha aparece.
+
+### Três conceitos distintos, que não se misturam
+
+- **Trombadice** — o que o filho fez. Tem data editável (`occurred_at`), porque
+  o pai registra depois do fato.
+- **Tarefa** — o que ele deveria fazer, com periodicidade (diária / dias da
+  semana / dia do mês / avulsa). Trocar a periodicidade **limpa** os campos que
+  deixaram de valer, senão a tela mostraria "diária, às segundas e quintas".
+- **Castigo** — o que veio depois. Aponta as trombadices que o causaram (N:N).
+
+Uma trombadice pode apontar a tarefa não cumprida (`task_id`), mas **só tarefa
+do mesmo filho** — o vínculo cruzado afirmaria algo falso. Mesma regra para as
+trombadices de um castigo.
+
+`ondelete` importa e não é acidente: `task_id` é **SET NULL** (apagar a tarefa
+não pode apagar o registro do que aconteceu por causa dela), `child_id` é
+CASCADE, `author_id` é RESTRICT (a história sobrevive à conta de quem escreveu).
+
+### Castigo ativo é calculado, nunca guardado
+
+`starts_at <= agora < ends_at` e `ended_early_at is null`
+(`Punishment.is_active_at`). Um booleano em coluna precisaria de algo rodando
+pra virá-lo e ficaria errado no intervalo entre execuções. Encerrar antes da
+hora grava `ended_early_at` e **preserva o `ends_at` original**, então o
+histórico mostra o que foi dado e o que foi cumprido.
+
+### O painel web é só do pai — e isso é segurança
+
+`app/web/`, Jinja2 + HTMX servidos pelo mesmo FastAPI. Zero Node, zero build
+step, mesma imagem.
+
+**Conta de filho não entra**, nem com token válido forjado no cookie: toda rota
+web passa por `require_admin_web`. O motivo é concreto — navegador tira print à
+vontade e não existe `FLAG_SECURE` na web. Deixar o filho entrar por aqui
+anularia o bloqueio de captura do app. Ele recebe uma página explicando que o
+acesso dele é pelo celular.
+
+**Autenticação por cookie, não Bearer**: navegador não manda `Authorization` em
+navegação normal. O mesmo JWT vai num cookie `HttpOnly` + `SameSite=Strict`
+(`Secure=False` porque é HTTP na LAN). A API continua Bearer pro Android — mesmo
+token, dois transportes.
+
+> **CSRF**: a defesa é `SameSite=Strict`, sem token de double-submit. O serviço
+> não é roteável de fora e `SameSite=Strict` impede qualquer site externo de
+> disparar um POST autenticado. **Se um dia isso sair da LAN, revisar.**
+
+Nada de CDN: CSS próprio e HTMX vendorizado em `app/web/static/`. O ZimaOS pode
+estar sem internet e a página tem que abrir do mesmo jeito.
+
+### A configuração começa no backend, pelo navegador
+
+Enquanto não existe **admin ativo**, o servidor está em modo setup e toda rota
+web redireciona pra `/setup`, que cria a conta do pai. Criada, `/setup` some.
+
+- A condição é derivada do banco (`app/setup_state.py`), **não** de uma flag em
+  disco — flag dessincroniza e ou tranca o dono pra fora, ou reabre o assistente
+  num app já em uso.
+- **Não existe seed por `.env`.** Ele só fazia sentido enquanto um humano
+  escrevia o arquivo por SSH; instalado pela loja do CasaOS ninguém vê um `.env`.
+- **`SECRET_KEY` é gerada e guardada no banco** na primeira subida
+  (`app/server_identity.py`), pelo mesmo motivo. Env sobrescreve se você quiser.
+  Um default fixo faria toda instalação do mundo assinar token com a mesma chave.
+- `GET /api/health` expõe `setup_required` pro app não oferecer um login que
+  ninguém consegue passar.
 
 ### Sem cache local — isso é segurança, não simplicidade
 

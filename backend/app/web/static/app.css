@@ -1,0 +1,157 @@
+/* Sem CDN em lugar nenhum: o ZimaOS pode estar sem internet e a página tem que
+   abrir do mesmo jeito. Mesma paleta âmbar do app Android. */
+:root {
+  --primary: #8a5100;
+  --primary-soft: #ffdcbe;
+  --on-primary: #ffffff;
+  --bg: #fffbff;
+  --surface: #f7efe7;
+  --border: #e5d5c6;
+  --text: #201b16;
+  --muted: #6b5a4d;
+  --danger: #ba1a1a;
+  --ok: #2e6b1f;
+  --radius: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #ffb86b;
+    --primary-soft: #693c00;
+    --on-primary: #4a2800;
+    --bg: #191410;
+    --surface: #241d17;
+    --border: #3a2f26;
+    --text: #ebe1d9;
+    --muted: #b8a695;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+header.topo {
+  background: var(--primary);
+  color: var(--on-primary);
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+header.topo .marca { font-weight: 700; font-size: 1.15rem; }
+header.topo nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+header.topo nav a {
+  color: var(--on-primary);
+  text-decoration: none;
+  opacity: 0.85;
+  padding: 0.25rem 0;
+  border-bottom: 2px solid transparent;
+}
+header.topo nav a:hover { opacity: 1; }
+header.topo nav a.ativo { opacity: 1; border-bottom-color: var(--on-primary); }
+header.topo .direita { margin-left: auto; display: flex; align-items: center; gap: 0.75rem; }
+
+main { max-width: 62rem; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+
+h1 { font-size: 1.5rem; margin: 0 0 1rem; }
+h2 { font-size: 1.1rem; margin: 2rem 0 0.75rem; }
+
+.cartao {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.cartao .quando { color: var(--primary); font-size: 0.85rem; font-weight: 600; }
+.cartao .titulo { font-weight: 600; margin: 0.15rem 0; }
+.cartao .sub { color: var(--muted); font-size: 0.9rem; }
+
+.linha { display: flex; gap: 1rem; align-items: flex-start; }
+.linha > .cresce { flex: 1; min-width: 0; }
+
+.etiqueta {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+.etiqueta.ativo { background: var(--danger); color: #fff; }
+.etiqueta.fim { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+
+form.bloco { background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.5rem; }
+
+label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.75rem 0 0.25rem; }
+
+input[type="text"], input[type="password"], input[type="number"],
+input[type="datetime-local"], select, textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+textarea { min-height: 5rem; resize: vertical; }
+
+.dias { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.25rem; }
+.dias label { display: flex; align-items: center; gap: 0.3rem; margin: 0; font-weight: 400; }
+
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  border: 0;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--on-primary);
+  cursor: pointer;
+  margin-top: 1rem;
+}
+button:hover { filter: brightness(1.1); }
+button.secundario { background: transparent; color: var(--primary); border: 1px solid var(--border); }
+button.perigo { background: transparent; color: var(--danger); border: 1px solid var(--border); }
+button.mini { padding: 0.3rem 0.7rem; font-size: 0.8rem; margin-top: 0; }
+
+.filtros { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.filtros a {
+  text-decoration: none;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.filtros a.ativo { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+
+.vazio { color: var(--muted); text-align: center; padding: 2.5rem 1rem; }
+.erro { color: var(--danger); font-size: 0.9rem; margin-top: 0.75rem; }
+.aviso { background: var(--primary-soft); color: var(--primary); padding: 0.75rem 1rem;
+  border-radius: var(--radius); font-size: 0.9rem; margin-bottom: 1rem; }
+
+/* Telas sem barra: setup, login, bloqueio */
+.centro { max-width: 24rem; margin: 4rem auto; padding: 0 1.25rem; }
+.centro h1 { text-align: center; color: var(--primary); }
+.centro p.intro { text-align: center; color: var(--muted); font-size: 0.92rem; }
+.centro button { width: 100%; }
+
+@media (max-width: 40rem) {
+  header.topo { gap: 0.75rem; }
+  header.topo .direita { width: 100%; margin-left: 0; }
+  .linha { flex-direction: column; gap: 0.5rem; }
+}

@@ -5,7 +5,13 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 from app.config import get_settings
 from app.database import Base
-from app.models import Event, ServerIdentity, User  # noqa: F401  (registers the tables)
+from app.models import (  # noqa: F401  (registers the tables)
+    Punishment,
+    ServerIdentity,
+    Task,
+    Trombadice,
+    User,
+)
 
 config = context.config
 

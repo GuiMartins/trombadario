@@ -6,11 +6,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    admin_username: str = "pai"
-    admin_password: str = "changeme"
-    admin_display_name: str = "Pai"
-
-    secret_key: str = "changeme"
+    # Empty means "generate one and keep it in the database" - see
+    # app/server_identity.py. There is deliberately no shipped default: the app
+    # is installable from the CasaOS store and has to come up secure with no
+    # configuration at all.
+    secret_key: str = ""
     algorithm: str = "HS256"
     # 30 days: this is a family app on a home LAN and the network gate already
     # blocks any use outside the house, so a short expiry would only mean

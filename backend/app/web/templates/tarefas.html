@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% set pagina = 'tarefas' %}
+{% block titulo %}Tarefas — Trombadário{% endblock %}
+
+{% block conteudo %}
+<h1>Tarefas</h1>
+
+{% if not children %}
+  <div class="aviso">Cadastre uma conta de filho em <a href="/contas">Contas</a> antes de criar tarefas.</div>
+{% else %}
+<form method="post" action="/tarefas" class="bloco">
+  <label for="name">Tarefa</label>
+  <input type="text" id="name" name="name" required maxlength="200" placeholder="Arrumar a cama">
+
+  <label for="description">Detalhes</label>
+  <textarea id="description" name="description"></textarea>
+
+  <label for="child_id">De quem</label>
+  <select id="child_id" name="child_id" required>
+    {% for c in children %}
+    <option value="{{ c.id }}">{{ c.display_name }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="periodicity">Com que frequência</label>
+  <select id="periodicity" name="periodicity" required>
+    <option value="daily">Todo dia</option>
+    <option value="weekly">Em dias da semana</option>
+    <option value="monthly">Uma vez por mês</option>
+    <option value="once">Uma vez só</option>
+  </select>
+
+  <label>Dias da semana <span class="sub">(só vale para "em dias da semana")</span></label>
+  <div class="dias">
+    {% for nome in weekday_names %}
+    <label><input type="checkbox" name="weekdays" value="{{ loop.index0 }}"> {{ nome }}</label>
+    {% endfor %}
+  </div>
+
+  <label for="day_of_month">Dia do mês <span class="sub">(só vale para "uma vez por mês")</span></label>
+  <input type="number" id="day_of_month" name="day_of_month" min="1" max="31">
+
+  <button type="submit">Criar tarefa</button>
+</form>
+
+<div class="filtros">
+  <a href="/tarefas" class="{% if not selected_child %}ativo{% endif %}">Todos</a>
+  {% for c in children %}
+  <a href="/tarefas?child_id={{ c.id }}"
+     class="{% if selected_child == c.id %}ativo{% endif %}">{{ c.display_name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if tasks %}
+  {% for t in tasks %}
+  <div class="cartao">
+    <div class="linha">
+      <div class="cresce">
+        <p class="titulo">{{ t.name }}{% if not t.is_active %} <span class="etiqueta fim">pausada</span>{% endif %}</p>
+        <p class="sub">
+          {{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else 'Filho' }} ·
+          {% if t.periodicity.value == 'daily' %}Todo dia
+          {% elif t.periodicity.value == 'weekly' %}
+            {% for d in t.weekdays.split(',') if d %}{{ weekday_names[d|int] }}{% if not loop.last %}, {% endif %}{% endfor %}
+          {% elif t.periodicity.value == 'monthly' %}Todo dia {{ t.day_of_month }} do mês
+          {% else %}Uma vez{% endif %}
+          {% if t.description %}— {{ t.description }}{% endif %}
+        </p>
+      </div>
+      <div style="display:flex;gap:0.4rem">
+        <form method="post" action="/tarefas/{{ t.id }}/toggle">
+          <button class="mini secundario">{{ 'Retomar' if not t.is_active else 'Pausar' }}</button>
+        </form>
+        <form method="post" action="/tarefas/{{ t.id }}/delete"
+              hx-confirm="Excluir a tarefa? As trombadices ligadas a ela continuam registradas.">
+          <button class="mini perigo">Excluir</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% elif children %}
+  <div class="vazio">Nenhuma tarefa cadastrada.</div>
+{% endif %}
+{% endblock %}

@@ -4,9 +4,9 @@ from collections.abc import Iterator
 import pytest
 
 # Must be set before app.config is imported anywhere, since Settings is cached.
+# An explicit SECRET_KEY also keeps the tests off the database-generated key,
+# which would otherwise be regenerated per in-memory database.
 os.environ.setdefault("SECRET_KEY", "test-secret")
-os.environ.setdefault("ADMIN_USERNAME", "pai")
-os.environ.setdefault("ADMIN_PASSWORD", "senha-do-pai")
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -18,7 +18,9 @@ from app.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Role, User  # noqa: E402
 from app.security import hash_password  # noqa: E402
-from app.seed import seed_admin  # noqa: E402
+
+ADMIN_PASSWORD = "senha-do-pai"
+CHILD_PASSWORD = "senha-do-filho"
 
 
 @pytest.fixture
@@ -47,19 +49,12 @@ def client(db: Session) -> Iterator[TestClient]:
     app.dependency_overrides.clear()
 
 
-@pytest.fixture
-def admin(db: Session) -> User:
-    seed_admin(db)
-    return db.query(User).filter(User.username == "pai").one()
-
-
-@pytest.fixture
-def child(db: Session) -> User:
+def make_user(db: Session, username: str, password: str, role: Role, name: str) -> User:
     user = User(
-        username="filho",
-        password_hash=hash_password("senha-do-filho"),
-        display_name="Filho",
-        role=Role.CHILD,
+        username=username,
+        password_hash=hash_password(password),
+        display_name=name,
+        role=role,
     )
     db.add(user)
     db.commit()
@@ -67,9 +62,30 @@ def child(db: Session) -> User:
     return user
 
 
+@pytest.fixture
+def admin(db: Session) -> User:
+    return make_user(db, "pai", ADMIN_PASSWORD, Role.ADMIN, "Pai")
+
+
+@pytest.fixture
+def child(db: Session) -> User:
+    return make_user(db, "filho", CHILD_PASSWORD, Role.CHILD, "Joao")
+
+
+@pytest.fixture
+def other_child(db: Session) -> User:
+    return make_user(db, "filha", "senha-da-filha", Role.CHILD, "Maria")
+
+
 def auth_header(client: TestClient, username: str, password: str) -> dict[str, str]:
-    response = client.post(
-        "/api/auth/login", data={"username": username, "password": password}
-    )
+    response = client.post("/api/auth/login", data={"username": username, "password": password})
     assert response.status_code == 200, response.text
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+def as_admin(client: TestClient) -> dict[str, str]:
+    return auth_header(client, "pai", ADMIN_PASSWORD)
+
+
+def as_child(client: TestClient) -> dict[str, str]:
+    return auth_header(client, "filho", CHILD_PASSWORD)

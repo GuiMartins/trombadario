@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% set pagina = 'trombadices' %}
+{% block titulo %}Trombadices — Trombadário{% endblock %}
+
+{% block conteudo %}
+<h1>Trombadices</h1>
+
+{% if not children %}
+  <div class="aviso">Cadastre uma conta de filho em <a href="/contas">Contas</a> antes de registrar trombadices.</div>
+{% else %}
+<form method="post" action="/trombadices" class="bloco">
+  <label for="title">O que aconteceu</label>
+  <input type="text" id="title" name="title" required maxlength="200">
+
+  <label for="description">Detalhes</label>
+  <textarea id="description" name="description"></textarea>
+
+  <label for="child_id">De quem</label>
+  <select id="child_id" name="child_id" required>
+    {% for c in children %}
+    <option value="{{ c.id }}">{{ c.display_name }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="occurred_at">Quando</label>
+  <input type="datetime-local" id="occurred_at" name="occurred_at" value="{{ agora }}" required>
+
+  <label for="task_id">Deixou de cumprir alguma tarefa? (opcional)</label>
+  <select id="task_id" name="task_id">
+    <option value="">Nenhuma</option>
+    {% for t in tasks %}
+    <option value="{{ t.id }}">{{ t.name }} — {{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else '' }}</option>
+    {% endfor %}
+  </select>
+
+  <button type="submit">Registrar</button>
+</form>
+
+<div class="filtros">
+  <a href="/trombadices" class="{% if not selected_child %}ativo{% endif %}">Todos</a>
+  {% for c in children %}
+  <a href="/trombadices?child_id={{ c.id }}"
+     class="{% if selected_child == c.id %}ativo{% endif %}">{{ c.display_name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if trombadices %}
+  {% for t in trombadices %}
+  <div class="cartao">
+    <div class="linha">
+      <div class="cresce">
+        <span class="quando">{{ t.occurred_at.astimezone().strftime('%d/%m/%Y às %H:%M') }}</span>
+        <p class="titulo">{{ t.title }}</p>
+        <p class="sub">
+          {{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else 'Filho' }}
+          {% if t.description %}— {{ t.description }}{% endif %}
+        </p>
+        {% if t.task %}<span class="etiqueta">não cumpriu: {{ t.task.name }}</span>{% endif %}
+      </div>
+      <form method="post" action="/trombadices/{{ t.id }}/delete"
+            hx-confirm="Excluir esta trombadice? Isso não tem volta.">
+        <button class="mini perigo">Excluir</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+{% elif children %}
+  <div class="vazio">Nada registrado ainda.</div>
+{% endif %}
+{% endblock %}

@@ -1,22 +1,21 @@
 name: trombadario
 services:
   trombadario:
-    build: ./backend
     image: ghcr.io/guimartins/trombadario:latest
     container_name: trombadario
     restart: unless-stopped
     ports:
-      - "${PORT:-8090}:8000"
+      - target: 8000
+        published: "8090"
+        protocol: tcp
     volumes:
-      - ./data:/data
+      - type: bind
+        source: /DATA/AppData/$AppID/data
+        target: /data
     environment:
-      # Tudo opcional: sem nenhuma variável o servidor sobe, gera a própria
-      # SECRET_KEY e espera você criar a conta do pai pelo navegador.
-      SECRET_KEY: ${SECRET_KEY:-}
-      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-43200}
-
-# Sem este bloco o CasaOS instala como "Legacy App": sem ícone, sem nome e sem
-# botão de abrir na home do ZimaOS.
+      # Nada obrigatório: o servidor sobe, gera a própria SECRET_KEY e espera
+      # você criar a conta do pai no navegador, no primeiro acesso.
+      ACCESS_TOKEN_EXPIRE_MINUTES: 43200
 x-casaos:
   architectures:
     - amd64
@@ -24,8 +23,8 @@ x-casaos:
   id: com.guimartins.trombadario
   main: trombadario
   description:
-    en_US: Log what your kids get up to. Parent registers, kid reads - on the home network only, with screenshots blocked in the Android app.
-    pt_BR: Registro dos acontecimentos do dia a dia como pai. O pai cadastra, o filho visualiza - só na rede de casa, e com print bloqueado no app Android.
+    en_US: Log what your kids get up to. Parent registers trombadices, tasks and groundings; kid only reads. Home network only, and the Android app blocks screenshots.
+    pt_BR: Registro dos acontecimentos do dia a dia como pai. O pai cadastra trombadices, tarefas e castigos; o filho só visualiza. Funciona só na rede de casa, e o app Android bloqueia print.
   tagline:
     en_US: The house record of what the kids did
     pt_BR: O diário das trombadices lá de casa
@@ -43,3 +42,8 @@ x-casaos:
     before_install:
       en_US: On first open, the browser walks you through creating the parent account. No environment variables needed.
       pt_BR: No primeiro acesso, o navegador te guia pra criar a conta do pai. Não precisa configurar variável nenhuma.
+  volumes:
+    - container: /data
+      description:
+        en_US: Database and app data
+        pt_BR: Banco de dados e dados do app

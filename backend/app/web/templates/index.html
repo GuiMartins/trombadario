@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% set pagina = 'painel' %}
+{% block titulo %}Painel — Trombadário{% endblock %}
+
+{% block conteudo %}
+<h1>Painel</h1>
+
+<h2>De castigo agora</h2>
+{% if ativos %}
+  {% for p in ativos %}
+  <div class="cartao">
+    <div class="linha">
+      <div class="cresce">
+        <span class="etiqueta ativo">de castigo</span>
+        <p class="titulo">{{ children[p.child_id].display_name if p.child_id in children else 'Filho' }}</p>
+        <p class="sub">
+          até {{ p.ends_at.astimezone().strftime('%d/%m/%Y às %H:%M') }}
+          {% if p.reason %}— {{ p.reason }}{% endif %}
+        </p>
+      </div>
+      <form method="post" action="/castigos/{{ p.id }}/encerrar">
+        <button class="mini secundario">Encerrar</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="cartao"><p class="sub">Ninguém de castigo. Dia bom.</p></div>
+{% endif %}
+
+<h2>Últimas trombadices</h2>
+{% if recentes %}
+  {% for t in recentes %}
+  <div class="cartao">
+    <span class="quando">{{ t.occurred_at.astimezone().strftime('%d/%m/%Y às %H:%M') }}</span>
+    <p class="titulo">{{ t.title }}</p>
+    <p class="sub">
+      {{ children[t.child_id].display_name if t.child_id in children else 'Filho' }}
+      {% if t.description %}— {{ t.description }}{% endif %}
+    </p>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="vazio">Nada registrado ainda.</div>
+{% endif %}
+
+<h2>Resumo</h2>
+<div class="cartao">
+  <p class="sub">
+    {{ children|length }} filho(s) · {{ total_tarefas }} tarefa(s) ativa(s)
+  </p>
+</div>
+{% endblock %}
