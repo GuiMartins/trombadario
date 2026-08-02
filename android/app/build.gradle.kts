@@ -103,7 +103,14 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 
+    androidTestImplementation(composeBom)
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test:runner:1.5.2")
     androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    // O teste da virada de página é a única forma de olhar a animação: a
+    // MainActivity é FLAG_SECURE, então captura de tela e gravação saem em
+    // branco. A activity do teste não é, e o relógio dela pode ser parado no
+    // meio do movimento.
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

@@ -53,6 +53,9 @@ class MainActivity : ComponentActivity() {
                 ) {
                     // A folha fica aqui, na raiz: desenhada uma vez, aparece
                     // em toda tela sem cada uma ter que se lembrar dela.
+                    // Dentro do MainNavHost cada tela desenha a sua por cima
+                    // desta, para poder virar; esta é a página de baixo, a que
+                    // aparece enquanto a de cima está levantada.
                     DeskBackground {
                         NotebookBackground {
                             AppNavigation(container)

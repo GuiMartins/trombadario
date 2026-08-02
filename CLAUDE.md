@@ -97,7 +97,9 @@ Ambas OFL; a licença acompanha os arquivos em `web/static/fonts/`.
 
 **A folha é desenhada, não é imagem.** No Android, `NotebookBackground` usa
 `drawBehind` e fica **na raiz** — desenhada uma vez, aparece em toda tela sem
-cada uma se lembrar dela. Por isso todo `Scaffold` e `TopAppBar` do app é
+cada uma se lembrar dela (dentro do `MainNavHost` cada tela também desenha a sua,
+para poder virar — ver "Trocar de tela é virar a página"). Por isso todo
+`Scaffold` e `TopAppBar` do app é
 `Color.Transparent`: um container opaco tapa a folha. Na web é
 `repeating-linear-gradient`. Nos dois casos as linhas acompanham qualquer altura
 sem esticar nem cortar.
@@ -122,6 +124,42 @@ de tudo. **Verificado num AVD de tablet real** (`trombadario_tablet`,
 **`secondaryContainer` precisa estar definido** no tema do Android. Sem ele o
 Material entrega o lilás padrão em chip selecionado e no indicador da nav bar —
 destoa de tudo e não é óbvio de onde vem.
+
+### Trocar de tela é virar a página
+
+A folha gira presa pela **lombada esquerda**, do lado da margem vermelha, e a de
+baixo assenta. Mesmos 360ms e mesmos ângulos nos dois lados — `PAGE_TURN_MS` no
+Android, `folha-virando`/`folha-assentando` na web.
+
+Três coisas aqui não são óbvias e quebram em silêncio se mexidas:
+
+**O `NavHost` declara `EnterTransition.None` de propósito.** As transições
+prontas do Compose não sabem rotacionar em 3D; quem anima é a `graphicsLayer` de
+cada tela, dentro do `PageSheet`. O que segura a tela viva durante a virada é a
+própria animação de ângulo — sem ela a troca vira corte seco. É o que o
+`PageTurnTest` protege.
+
+**A folha é desenhada dentro do `PageSheet`, não só na raiz.** Se a pauta e a
+margem ficassem paradas no fundo, o que se veria era o texto deslizando sobre um
+papel imóvel. A da raiz continua lá, e é ela que aparece como "próxima página"
+enquanto a de cima está levantada.
+
+**O sentido sai do nome da rota** (`pageDepth`), não de ida-e-volta na pilha:
+assim o botão "voltar" do sistema e o toque na aba anterior viram para o mesmo
+lado. Aba nova entra na tabela; tela que se abre de dentro de uma aba não
+precisa, cai no ramo "mais fundo".
+
+> **Como olhar a animação.** Não dá rodando o app: a `MainActivity` é
+> `FLAG_SECURE`, então captura e gravação saem em branco. O `PageTurnTest` roda
+> numa activity de teste, que não é secreta, para o relógio no meio do movimento
+> e grava o quadro no `cacheDir`. Para pegar o arquivo é preciso instalar os dois
+> APKs na mão e chamar `am instrument` — o `connectedAndroidTest` desinstala tudo
+> no fim e leva o cache junto.
+
+Na web é a mesma virada com `@view-transition`, em CSS puro. Navegador sem
+suporte simplesmente troca de página como antes — nada depende disso para
+funcionar. **Só foi conferida a olho no Android**; na web foi conferido que as
+regras são entendidas pelo navegador, não o movimento.
 
 ## Decisões de arquitetura (não reverter sem motivo)
 
