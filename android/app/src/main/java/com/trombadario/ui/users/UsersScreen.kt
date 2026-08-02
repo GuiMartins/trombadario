@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
@@ -47,12 +48,24 @@ import com.trombadario.ui.viewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UsersScreen(container: AppContainer, currentUser: UserDto) {
+fun UsersScreen(container: AppContainer, currentUser: UserDto, onBack: () -> Unit) {
     val viewModel: UsersViewModel = viewModel(factory = viewModelFactory { UsersViewModel(container) })
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.users_title)) }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.users_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.action_back),
+                        )
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = viewModel::startCreate) {
                 Icon(Icons.Default.Add, contentDescription = stringResource(R.string.users_new))

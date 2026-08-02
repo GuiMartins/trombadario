@@ -15,7 +15,10 @@ import com.trombadario.data.ApiResult
 import com.trombadario.data.HomeState
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.awayfromhome.AwayFromHomeScreen
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Dns
 import com.trombadario.ui.components.LoadingScreen
+import com.trombadario.ui.components.MessageScreen
 import com.trombadario.ui.login.LoginScreen
 import com.trombadario.ui.serversetup.ServerSetupScreen
 import kotlinx.coroutines.launch
@@ -54,6 +57,17 @@ fun AppNavigation(container: AppContainer) {
             wrongServer = true,
             onRetry = container.homeNetworkGate::refresh,
             onChangeServer = unpair,
+        )
+
+        is HomeState.SetupRequired -> MessageScreen(
+            icon = Icons.Default.Dns,
+            title = stringResource(R.string.setup_needed_title),
+            message = stringResource(
+                R.string.setup_needed_message,
+                (homeState as HomeState.SetupRequired).baseUrl,
+            ),
+            actionLabel = stringResource(R.string.action_retry),
+            onAction = container.homeNetworkGate::refresh,
         )
 
         HomeState.AtHome -> if (token == null) {
