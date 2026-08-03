@@ -99,6 +99,12 @@ class Periodicity(str, enum.Enum):
     ONCE = "once"
 
 
+class RequestStatus(str, enum.Enum):
+    PENDENTE = "pendente"
+    APROVADO = "aprovado"
+    NEGADO = "negado"
+
+
 def _utcnow() -> datetime:
     return datetime.now(UTC)
 
@@ -124,6 +130,11 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(120))
     role: Mapped[Role] = mapped_column(Enum(Role, native_enum=False), default=Role.CHILD)
     is_active: Mapped[bool] = mapped_column(default=True)
+    # Só o pai liga/desliga, por filho - se o filho pode iniciar um pedido (ou,
+    # desde a fase seguinte, propor uma conquista). Inline como is_active, não
+    # uma tabela de settings à parte: não existe outro flag por filho no
+    # schema que justificasse o padrão.
+    can_request: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
 
     trombadices_about_me: Mapped[list["Trombadice"]] = relationship(
@@ -340,3 +351,38 @@ class SplashMessage(Base):
 
     child: Mapped["User | None"] = relationship(foreign_keys=[child_id])
     author: Mapped[User] = relationship(foreign_keys=[author_id])
+
+
+class Pedido(Base):
+    """O filho pede, o pai aprova ou nega - com justificativa dos dois lados.
+
+    Duas colunas de "visto" em vez de reaproveitar `app/visto.py` como está:
+    aquele helper só cobre "o filho vê o que o pai cadastrou". Pedido precisa
+    das duas direções - o pai precisa saber que chegou um pedido novo, o
+    filho precisa saber que saiu uma decisão - e são fatos genuinamente
+    diferentes, não um único `seen_at` bidirecional.
+    """
+
+    __tablename__ = "pedidos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    justification: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[RequestStatus] = mapped_column(
+        Enum(RequestStatus, native_enum=False), default=RequestStatus.PENDENTE, index=True
+    )
+    # Escrito pelo pai, só quando decide. Vazio enquanto pendente.
+    decision_note: Mapped[str] = mapped_column(Text, default="")
+    decided_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    decided_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+
+    child_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+    seen_by_parent_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    seen_by_child_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
+    child: Mapped[User] = relationship(foreign_keys=[child_id])
+    decided_by: Mapped["User | None"] = relationship(foreign_keys=[decided_by_id])

@@ -39,3 +39,42 @@ def marcar_visto(db: Session, itens: list, current_user: User) -> None:
 
     if mudou:
         db.commit()
+
+
+def marcar_visto_pai(db: Session, itens: list) -> None:
+    """A direção contrária de `marcar_visto`: aqui é o pai vendo o que o
+    filho escreveu (um pedido novo). Não recebe `current_user` nem checa
+    papel - só é chamada de rota já protegida por `AdminUser`, então quem
+    está lendo já está garantido pelo tipo do parâmetro na rota.
+
+    Campo próprio (`seen_by_parent_at`), não o `seen_at` de trombadice/
+    castigo: "o pai viu que chegou um pedido" e "o filho viu a decisão" são
+    fatos diferentes, cada um com seu carimbo - reaproveitar um `seen_at` só
+    conflaria os dois."""
+    agora = datetime.now(UTC)
+    mudou = False
+    for item in itens:
+        if item.seen_by_parent_at is None:
+            item.seen_by_parent_at = agora
+            mudou = True
+
+    if mudou:
+        db.commit()
+
+
+def marcar_decisao_vista(db: Session, itens: list, current_user: User) -> None:
+    """O filho vendo que saiu uma decisão - simétrico a `marcar_visto`, mas
+    só carimba pedido já decidido (pendente não tem decisão pra ver)."""
+    if current_user.role is Role.ADMIN:
+        return
+
+    agora = datetime.now(UTC)
+    mudou = False
+    for item in itens:
+        decidido = item.decided_at is not None
+        if decidido and item.seen_by_child_at is None and item.child_id == current_user.id:
+            item.seen_by_child_at = agora
+            mudou = True
+
+    if mudou:
+        db.commit()

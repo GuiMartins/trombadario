@@ -1,8 +1,17 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models import Category, Kind, Periodicity, Role, categoria_combina, categoria_padrao
+from app.models import (
+    Category,
+    Kind,
+    Periodicity,
+    RequestStatus,
+    Role,
+    categoria_combina,
+    categoria_padrao,
+)
 
 
 class Token(BaseModel):
@@ -18,6 +27,9 @@ class UserOut(BaseModel):
     display_name: str
     role: Role
     is_active: bool
+    # Só faz sentido pro filho, mas mandado sempre - o pai lê o próprio valor
+    # como "true" e nunca usa.
+    can_request: bool
     created_at: datetime
 
 
@@ -32,6 +44,7 @@ class UserUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
     password: str | None = Field(default=None, min_length=6, max_length=128)
     is_active: bool | None = None
+    can_request: bool | None = None
 
 
 class SetupRequest(BaseModel):
@@ -292,3 +305,30 @@ class SplashMessageUpdate(BaseModel):
     text: str | None = Field(default=None, min_length=1, max_length=300)
     child_id: int | None = None
     is_active: bool | None = None
+
+
+class PedidoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    justification: str
+    status: RequestStatus
+    decision_note: str
+    decided_at: datetime | None
+    decided_by_id: int | None
+    child_id: int
+    created_at: datetime
+    seen_by_parent_at: datetime | None
+    seen_by_child_at: datetime | None
+
+
+class PedidoCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    justification: str = Field(default="", max_length=1000)
+
+
+class PedidoDecision(BaseModel):
+    # Nunca PENDENTE aqui - decidir é sair de pendente, não voltar pra ele.
+    status: Literal[RequestStatus.APROVADO, RequestStatus.NEGADO]
+    decision_note: str = Field(default="", max_length=1000)

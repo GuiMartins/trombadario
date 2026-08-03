@@ -274,6 +274,15 @@ private fun UserEditorDialog(
                         )
                         Text(stringResource(R.string.users_form_active))
                     }
+                    if (!editor.isAdmin) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = editor.canRequest,
+                                onCheckedChange = { value -> onChange { it.copy(canRequest = value) } },
+                            )
+                            Text(stringResource(R.string.users_form_can_request))
+                        }
+                    }
                 }
 
                 val message = validationError?.let { stringResource(it) } ?: serverError

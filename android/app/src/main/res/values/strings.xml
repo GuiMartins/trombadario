@@ -72,6 +72,7 @@
     <string name="users_form_new_password_hint">Deixe em branco pra manter a senha atual</string>
     <string name="users_form_role">Tipo de conta</string>
     <string name="users_form_active">Conta ativa</string>
+    <string name="users_form_can_request">Pode fazer pedidos</string>
     <string name="users_delete_confirm_title">Excluir conta?</string>
     <string name="users_delete_confirm_message">As anotações, tarefas e castigos dessa pessoa também somem.</string>
     <string name="users_error_password_too_short">A senha precisa de pelo menos 6 caracteres</string>
@@ -94,6 +95,7 @@
     <string name="nav_feed">Anotações</string>
     <string name="nav_tasks">Tarefas</string>
     <string name="nav_punishment">Castigo</string>
+    <string name="nav_pedidos">Pedidos</string>
     <string name="nav_users">Contas</string>
     <string name="nav_settings">Ajustes</string>
 
@@ -149,6 +151,23 @@
     <string name="punishment_reaction_label">Como você tá se sentindo?</string>
     <string name="punishment_reaction_placeholder">Conte pro seu pai…</string>
     <string name="punishment_reaction_send">Enviar</string>
+
+    <!-- Pedidos -->
+    <string name="pedidos_title">Pedidos</string>
+    <string name="pedidos_new">Novo pedido</string>
+    <string name="pedidos_empty">Nenhum pedido ainda.</string>
+    <string name="pedidos_empty_admin">Nenhum pedido ainda.</string>
+    <string name="pedidos_status_pendente">pendente</string>
+    <string name="pedidos_status_aprovado">aprovado</string>
+    <string name="pedidos_status_negado">negado</string>
+    <string name="pedidos_resposta">Resposta: %1$s</string>
+    <string name="pedidos_resposta_placeholder">Justificativa (opcional)</string>
+    <string name="pedidos_aprovar">Aprovar</string>
+    <string name="pedidos_negar">Negar</string>
+    <string name="pedidos_form_title">O que você quer pedir</string>
+    <string name="pedidos_form_justification">Por quê (opcional)</string>
+    <string name="pedidos_send">Enviar</string>
+    <string name="pedidos_bloqueado">Pedidos não estão liberados pra essa conta</string>
     <string name="punishment_error_end_before_start">O castigo precisa terminar depois de começar</string>
 
     <!-- Formulário de trombadice -->
