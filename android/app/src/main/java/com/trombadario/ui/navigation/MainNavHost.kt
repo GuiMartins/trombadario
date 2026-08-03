@@ -138,6 +138,7 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
                 PageSheet(turn.forward) {
                     SplashMessagesScreen(
                         container = container,
+                        currentUser = currentUser,
                         onBack = navController::popBackStack,
                     )
                 }
@@ -164,7 +165,7 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
             }
             composable(Routes.REPORT) {
                 PageSheet(turn.forward) {
-                    ReportScreen(container = container)
+                    ReportScreen(container = container, currentUser = currentUser)
                 }
             }
             composable(Routes.TROMBADICE_DETAIL) { entry ->
@@ -195,6 +196,7 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
                 PageSheet(turn.forward) {
                     TrombadiceFormScreen(
                         container = container,
+                        currentUser = currentUser,
                         trombadiceId = trombadiceId,
                         onDone = {
                             // Back to the feed, dropping the detail screen of an

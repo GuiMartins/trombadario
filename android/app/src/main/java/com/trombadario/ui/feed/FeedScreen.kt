@@ -29,7 +29,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -47,12 +46,11 @@ import com.trombadario.R
 import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.components.AppTopBar
 import com.trombadario.ui.components.FiltroBar
 import com.trombadario.ui.components.corDaConquista
 import com.trombadario.ui.components.ehConquista
 import com.trombadario.ui.components.rotuloDaCategoria
-import com.trombadario.ui.theme.NotebookGutter
-import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.components.MessageScreen
 import com.trombadario.ui.components.formatDateTime
@@ -78,10 +76,7 @@ fun FeedScreen(
 
     Scaffold(
         containerColor = Color.Transparent,
-        topBar = { TopAppBar(
-                colors = transparentTopBar(),
-                modifier = Modifier.padding(start = NotebookGutter),
-                title = { Text(stringResource(R.string.feed_title)) }) },
+        topBar = { AppTopBar(title = stringResource(R.string.feed_title), currentUser = currentUser) },
         floatingActionButton = {
             if (currentUser.isAdmin) {
                 FloatingActionButton(

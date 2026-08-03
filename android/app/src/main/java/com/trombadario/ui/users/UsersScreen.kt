@@ -30,7 +30,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -46,8 +45,7 @@ import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
-import com.trombadario.ui.theme.NotebookGutter
-import com.trombadario.ui.components.transparentTopBar
+import com.trombadario.ui.components.AppTopBar
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.viewModelFactory
 
@@ -60,10 +58,9 @@ fun UsersScreen(container: AppContainer, currentUser: UserDto, onBack: () -> Uni
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                colors = transparentTopBar(),
-                modifier = Modifier.padding(start = NotebookGutter),
-                title = { Text(stringResource(R.string.users_title)) },
+            AppTopBar(
+                title = stringResource(R.string.users_title),
+                currentUser = currentUser,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
