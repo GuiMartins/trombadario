@@ -15,6 +15,9 @@ import kotlinx.coroutines.launch
 
 data class FeedState(
     val loading: Boolean = true,
+    /** Puxar-pra-atualizar: diferente de `loading`, que é a tela cheia da
+     *  primeira entrada. Os dois nunca ficam `true` ao mesmo tempo. */
+    val refreshing: Boolean = false,
     val events: List<TrombadiceDto> = emptyList(),
     /** Only populated for the admin, to label and filter the feed. */
     val children: List<UserDto> = emptyList(),
@@ -49,8 +52,11 @@ class FeedViewModel(
     // instead. The ViewModel survives navigating to the form or the detail, so
     // loading once at construction would leave the feed stale after creating,
     // editing or deleting an event.
-    fun load() {
-        _state.update { it.copy(loading = true, error = false) }
+    fun load(isRefresh: Boolean = false) {
+        _state.update {
+            if (isRefresh) it.copy(refreshing = true, error = false)
+            else it.copy(loading = true, error = false)
+        }
         viewModelScope.launch {
             if (currentUser.isAdmin) {
                 val users = container.repository.listUsers()
@@ -91,12 +97,12 @@ class FeedViewModel(
             )
             when (result) {
                 is ApiResult.Success -> _state.update {
-                    it.copy(loading = false, events = result.data, error = false)
+                    it.copy(loading = false, refreshing = false, events = result.data, error = false)
                 }
                 // Unreachable already flipped the gate, which replaces this whole
                 // screen - showing an error here too would just flash.
-                ApiResult.Unreachable -> _state.update { it.copy(loading = false) }
-                else -> _state.update { it.copy(loading = false, error = true) }
+                ApiResult.Unreachable -> _state.update { it.copy(loading = false, refreshing = false) }
+                else -> _state.update { it.copy(loading = false, refreshing = false, error = true) }
             }
         }
     }

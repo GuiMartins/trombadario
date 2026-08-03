@@ -31,6 +31,9 @@ data class PunishmentEditor(
 
 data class PunishmentState(
     val loading: Boolean = true,
+    /** Puxar-pra-atualizar: diferente de `loading`, que é a tela cheia da
+     *  primeira entrada. Os dois nunca ficam `true` ao mesmo tempo. */
+    val refreshing: Boolean = false,
     /** Ativos agora - é a resposta que a tela do filho existe pra dar. */
     val active: List<PunishmentDto> = emptyList(),
     val history: List<PunishmentDto> = emptyList(),
@@ -49,8 +52,8 @@ class PunishmentViewModel(
     private val _state = MutableStateFlow(PunishmentState())
     val state: StateFlow<PunishmentState> = _state.asStateFlow()
 
-    fun load() {
-        _state.update { it.copy(loading = true) }
+    fun load(isRefresh: Boolean = false) {
+        _state.update { if (isRefresh) it.copy(refreshing = true) else it.copy(loading = true) }
         viewModelScope.launch {
             if (currentUser.isAdmin) {
                 (container.repository.listUsers() as? ApiResult.Success)?.let { users ->
@@ -65,6 +68,7 @@ class PunishmentViewModel(
             _state.update {
                 it.copy(
                     loading = false,
+                    refreshing = false,
                     // isActive vem calculado do servidor: o relógio do celular
                     // não decide se alguém está de castigo.
                     active = all.filter { p -> p.isActive },
