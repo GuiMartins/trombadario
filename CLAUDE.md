@@ -403,6 +403,27 @@ página não quebra, só não escurece. Um bloco `@media` separado obrigaria a m
 duas listas de cores em sincronia na mão. O alternador do topo só muda
 `color-scheme`; sem escolha feita, quem manda é o sistema.
 
+> **Cor que carrega texto ou delimita campo precisa dos dois valores, e
+> `tests/test_contraste.py` cobra isso.** Acento de tema único parece inofensivo
+> porque passa no tema em que foi olhado — o teal das conquistas entrou com o tom
+> cru do mockup (`#40a4a1`), dava 8,3:1 no escuro e **2,9:1 no claro**, como
+> texto e como borda do cartão. Ninguém viu porque quem cadastrou a primeira
+> conquista estava no escuro, e o app Android já tinha o par certo
+> (`ConquistaTeal`/`ConquistaTealDark`) — a web é que herdou errado. O teste lê o
+> `:root`, resolve os `light-dark()` e refaz a conta nos **dois** temas. Par novo
+> que vá para a tela entra na tabela dele; o que não entrar, ninguém mede.
+
+Duas armadilhas de contraste que não são cor da paleta e por isso escapam de
+qualquer revisão de variável:
+
+- **`opacity` para esmaecer texto.** O dia sem registro no calendário era
+  `--ink-soft` a 55%, o que dá 2,4:1 no claro e 3,0:1 no escuro — e o calendário
+  é quase todo feito desses dias. Quem separa o dia que tem coisa já é a pílula
+  (fundo, borda e negrito), então o esmaecimento só custava legibilidade.
+- **`::placeholder` não segue o tema sozinho.** O Chrome pinta um cinza fixo
+  (`#757575`), que dá 3,2:1 sobre o card escuro. Tem regra própria no CSS, com
+  `opacity: 1` por causa do Firefox, que aplica 0.54 por cima.
+
 > **`TZ` no compose não é enfeite.** O `<input type="datetime-local">` manda a
 > hora que a pessoa digitou **sem fuso nenhum**, e o servidor cola o dele. Em UTC
 > — o padrão do container — o campo "Quando" abre 3h à frente e o que é cadastrado
