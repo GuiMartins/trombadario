@@ -34,29 +34,29 @@
 
     <!-- Fora de casa -->
     <string name="away_title">Você precisa estar em casa</string>
-    <string name="away_message">O Trombadário só funciona dentro da rede de casa. Conecte no Wi-Fi de casa pra ver as trombadices.</string>
+    <string name="away_message">O Trombadário só funciona dentro da rede de casa. Conecte no Wi-Fi de casa pra ver as anotações.</string>
     <string name="away_checking">Procurando o servidor de casa…</string>
 
     <!-- Feed -->
-    <string name="feed_title">Trombadices</string>
+    <string name="feed_title">Anotações</string>
     <string name="feed_empty">Nada registrado ainda.</string>
     <string name="feed_empty_admin">Nada registrado ainda. Toque no + pra cadastrar a primeira.</string>
-    <string name="feed_new">Nova trombadice</string>
+    <string name="feed_new">Nova anotação</string>
     <string name="feed_filter_all">Todos</string>
-    <string name="feed_error">Não consegui carregar as trombadices</string>
+    <string name="feed_error">Não consegui carregar as anotações</string>
 
     <!-- Detalhe / formulário -->
-    <string name="trombadice_detail_title">Trombadice</string>
-    <string name="trombadice_form_new_title">Nova trombadice</string>
-    <string name="trombadice_form_edit_title">Editar trombadice</string>
+    <string name="trombadice_detail_title">Anotação</string>
+    <string name="trombadice_form_new_title">Nova anotação</string>
+    <string name="trombadice_form_edit_title">Editar anotação</string>
     <string name="trombadice_form_title_label">Título</string>
     <string name="trombadice_form_description_label">Descrição</string>
     <string name="trombadice_form_child_label">De quem</string>
     <string name="trombadice_form_date_label">Data</string>
     <string name="trombadice_form_time_label">Hora</string>
     <string name="trombadice_form_error_title_required">O título não pode ficar vazio</string>
-    <string name="trombadice_form_error_no_children">Cadastre uma conta de filho antes de registrar uma trombadice.</string>
-    <string name="trombadice_delete_confirm_title">Excluir trombadice?</string>
+    <string name="trombadice_form_error_no_children">Cadastre uma conta de filho antes de registrar uma anotação.</string>
+    <string name="trombadice_delete_confirm_title">Excluir anotação?</string>
     <string name="trombadice_delete_confirm_message">Isso não tem volta.</string>
 
     <!-- Usuários -->
@@ -73,7 +73,7 @@
     <string name="users_form_role">Tipo de conta</string>
     <string name="users_form_active">Conta ativa</string>
     <string name="users_delete_confirm_title">Excluir conta?</string>
-    <string name="users_delete_confirm_message">As trombadices, tarefas e castigos dessa pessoa também somem.</string>
+    <string name="users_delete_confirm_message">As anotações, tarefas e castigos dessa pessoa também somem.</string>
     <string name="users_error_password_too_short">A senha precisa de pelo menos 6 caracteres</string>
     <string name="users_error_username_too_short">O usuário precisa de pelo menos 3 caracteres</string>
 
@@ -91,7 +91,7 @@
     <string name="settings_change_server_warning">Você vai precisar entrar de novo.</string>
 
     <!-- Navegação -->
-    <string name="nav_feed">Trombadices</string>
+    <string name="nav_feed">Anotações</string>
     <string name="nav_tasks">Tarefas</string>
     <string name="nav_punishment">Castigo</string>
     <string name="nav_users">Contas</string>
