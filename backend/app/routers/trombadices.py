@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import date
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import or_, select
@@ -7,6 +7,7 @@ from app.deps import AdminUser, CurrentUser, DbSession
 from app.models import Category, Role, Task, Trombadice, User
 from app.periodo import data_local, intervalo
 from app.schemas import DatasComRegistro, TrombadiceCreate, TrombadiceOut, TrombadiceUpdate
+from app.visto import marcar_visto
 
 router = APIRouter(prefix="/api/trombadices", tags=["trombadices"])
 
@@ -77,7 +78,10 @@ def list_trombadices(
 ) -> list[Trombadice]:
     query = select(Trombadice).order_by(Trombadice.occurred_at.desc(), Trombadice.id.desc())
     query = _filtros(_escopo(query, current_user, child_id), category, de, ate, q)
-    return list(db.scalars(query))
+    achadas = list(db.scalars(query))
+    # O feed do filho está aberto na frente dele: isto é o "visto".
+    marcar_visto(db, achadas, current_user)
+    return achadas
 
 
 @router.get("/datas", response_model=DatasComRegistro)
@@ -106,6 +110,7 @@ def get_trombadice(trombadice_id: int, current_user: CurrentUser, db: DbSession)
         # 404, not 403: a child probing ids shouldn't learn that a trombadice
         # about someone else exists.
         raise NOT_FOUND
+    marcar_visto(db, [trombadice], current_user)
     return trombadice
 
 
@@ -152,28 +157,6 @@ def update_trombadice(
         setattr(trombadice, field, value)
     db.commit()
     db.refresh(trombadice)
-    return trombadice
-
-
-@router.post("/{trombadice_id}/visto", response_model=TrombadiceOut)
-def mark_seen(trombadice_id: int, current_user: CurrentUser, db: DbSession) -> Trombadice:
-    """O filho abriu o detalhe. É a única escrita que uma conta de filho faz no
-    app inteiro, e ela não muda nada que ele possa querer mudar: só carimba a
-    hora, uma vez.
-
-    Idempotente e sem volta - a primeira vez é que vale. Reabrir a tela não
-    reescreve o carimbo, senão "visto às 20h" viraria a hora da última olhada e
-    o pai perderia justamente o que queria saber."""
-    trombadice = _get_or_404(db, trombadice_id)
-    if trombadice.child_id != current_user.id:
-        # Inclusive para o pai: quem "vê" é o filho de quem é a trombadice.
-        # 404 e não 403 pelo mesmo motivo do GET.
-        raise NOT_FOUND
-
-    if trombadice.seen_at is None:
-        trombadice.seen_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(trombadice)
     return trombadice
 
 
