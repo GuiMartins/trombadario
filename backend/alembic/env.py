@@ -19,7 +19,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# Quem chama pode mandar o banco explicitamente (é o que os testes de migration
+# fazem). Sem isso vale o do app, que é o caso de sempre - em produção ninguém
+# passa nada e continua sendo o DATABASE_URL.
+if not config.get_main_option("sqlalchemy.url", None):
+    config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
 target_metadata = Base.metadata
 

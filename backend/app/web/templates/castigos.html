@@ -8,26 +8,30 @@
 {% if not children %}
   <div class="aviso">Cadastre uma conta de filho em <a href="/contas">Contas</a> antes de aplicar castigos.</div>
 {% else %}
-<form method="post" action="/castigos" class="bloco">
+{% set e = editando %}
+<form id="editar" method="post" action="{{ '/castigos/' ~ e.id ~ '/editar' if e else '/castigos' }}" class="bloco">
+  {% if e %}<h2>Corrigindo o castigo</h2>{% endif %}
+
   <label for="child_id">Quem</label>
   <select id="child_id" name="child_id" required>
     {% for c in children %}
-    <option value="{{ c.id }}">{{ c.display_name }}</option>
+    <option value="{{ c.id }}" {% if e and e.child_id == c.id %}selected{% endif %}>{{ c.display_name }}</option>
     {% endfor %}
   </select>
 
   <label for="ends_at">Até quando</label>
-  <input type="datetime-local" id="ends_at" name="ends_at" value="{{ fim_sugerido }}" required>
+  <input type="datetime-local" id="ends_at" name="ends_at"
+         value="{{ e.ends_at | hora_local if e else fim_sugerido }}" required>
 
   <label for="reason">Motivo</label>
-  <textarea id="reason" name="reason" placeholder="O que pesou na decisão"></textarea>
+  <textarea id="reason" name="reason" placeholder="O que pesou na decisão">{{ e.reason if e else '' }}</textarea>
 
   {% if trombadices %}
   <label>Por causa de quais trombadices</label>
   <div class="dias" style="flex-direction:column;gap:0.4rem;max-height:14rem;overflow-y:auto">
     {% for t in trombadices %}
     <label>
-      <input type="checkbox" name="trombadice_ids" value="{{ t.id }}">
+      <input type="checkbox" name="trombadice_ids" value="{{ t.id }}" {% if t.id in editando_trombadices %}checked{% endif %}>
       {{ t.occurred_at.astimezone().strftime('%d/%m') }} —
       {{ t.title }}
       <span class="sub">({{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else '' }})</span>
@@ -39,7 +43,15 @@
   </p>
   {% endif %}
 
-  <button type="submit">Aplicar castigo</button>
+  {% if e %}
+  <p class="sub" style="margin-top:0.75rem">
+    Quando começou não se edita — isso é fato. Para soltar antes da hora, use
+    Encerrar, que guarda o prazo original.
+  </p>
+  {% endif %}
+
+  <button type="submit">{{ 'Salvar correção' if e else 'Aplicar castigo' }}</button>
+  {% if e %}<a href="/castigos" class="cancelar">Cancelar</a>{% endif %}
 </form>
 {% endif %}
 
@@ -68,7 +80,8 @@
           <span class="etiqueta">{{ t.title }}</span>
         {% endfor %}
       </div>
-      <div style="display:flex;gap:0.4rem">
+      <div class="acoes">
+        <a class="mini secundario" href="/castigos?editar={{ p.id }}#editar">Editar</a>
         {% if ativo %}
         <form method="post" action="/castigos/{{ p.id }}/encerrar">
           <button class="mini secundario">Encerrar</button>

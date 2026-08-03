@@ -11,20 +11,24 @@
   escritas para um irmão.
 </div>
 
-<form method="post" action="/frases" class="bloco">
+{% set e = editando %}
+<form id="editar" method="post" action="{{ '/frases/' ~ e.id ~ '/editar' if e else '/frases' }}" class="bloco">
+  {% if e %}<h2>Corrigindo a frase</h2>{% endif %}
+
   <label for="text">Frase</label>
   <textarea id="text" name="text" required maxlength="300"
-            placeholder="Arruma essa cama antes de sair, hein"></textarea>
+            placeholder="Arruma essa cama antes de sair, hein">{{ e.text if e else '' }}</textarea>
 
   <label for="child_id">Pra quem</label>
   <select id="child_id" name="child_id">
     <option value="">Todos os filhos</option>
     {% for c in children %}
-    <option value="{{ c.id }}">{{ c.display_name }}</option>
+    <option value="{{ c.id }}" {% if e and e.child_id == c.id %}selected{% endif %}>{{ c.display_name }}</option>
     {% endfor %}
   </select>
 
-  <button type="submit">Adicionar frase</button>
+  <button type="submit">{{ 'Salvar correção' if e else 'Adicionar frase' }}</button>
+  {% if e %}<a href="/frases" class="cancelar">Cancelar</a>{% endif %}
 </form>
 
 {% if messages %}
@@ -42,7 +46,8 @@
         {% if not m.is_active %}<span class="etiqueta fim">pausada</span>{% endif %}
         <p class="titulo">{{ m.text }}</p>
       </div>
-      <div style="display:flex;gap:0.4rem">
+      <div class="acoes">
+        <a class="mini secundario" href="/frases?editar={{ m.id }}#editar">Editar</a>
         <form method="post" action="/frases/{{ m.id }}/toggle">
           <button class="mini secundario">{{ 'Retomar' if not m.is_active else 'Pausar' }}</button>
         </form>

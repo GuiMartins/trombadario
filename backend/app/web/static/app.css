@@ -315,6 +315,31 @@ button.secundario { background: transparent; color: var(--marker-ink); }
 button.perigo { background: transparent; color: var(--danger); border-color: var(--danger); }
 button.mini { padding: 0.3rem 0.9rem; font-size: 0.8rem; margin-top: 0; border-width: 1px; }
 
+/* Um <a> que precisa parecer botão: editar recarrega a página (o formulário lá
+   de cima tem que vir preenchido), então é link e não submit. */
+a.mini {
+  display: inline-block;
+  text-decoration: none;
+  font-weight: 800;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.9rem;
+  border: 1px solid var(--marker-ink);
+  border-radius: 999px;
+  color: var(--marker-ink);
+  background: transparent;
+  white-space: nowrap;
+}
+a.mini:hover { background: var(--note); }
+
+.acoes { display: flex; gap: 0.4rem; align-items: flex-start; }
+
+.cancelar {
+  margin-left: 0.75rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 .filtros { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .filtros a {
   text-decoration: none;

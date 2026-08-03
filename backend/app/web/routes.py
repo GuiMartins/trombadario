@@ -27,6 +27,24 @@ def _redirect(url: str) -> RedirectResponse:
     return RedirectResponse(url, status_code=303)
 
 
+def _tarefa_do_filho(db: DbSession, task_id: str, child_id: int) -> int | None:
+    """Só aceita a tarefa se ela for daquele filho - atrelar a tarefa de um
+    irmão faria o registro afirmar uma coisa falsa. Na dúvida, sem tarefa."""
+    if not task_id:
+        return None
+    task = db.get(Task, int(task_id))
+    return task.id if task is not None and task.child_id == child_id else None
+
+
+def _filho_valido(db: DbSession, child_id: str) -> int | None:
+    """Vazio, ou qualquer coisa que não seja uma conta de filho de verdade,
+    quer dizer "pra todos os filhos"."""
+    if not child_id:
+        return None
+    child = db.get(User, int(child_id))
+    return child.id if child is not None and child.role is Role.CHILD else None
+
+
 def _children(db: DbSession) -> list[User]:
     return list(db.scalars(select(User).where(User.role == Role.CHILD).order_by(User.display_name)))
 
@@ -34,6 +52,11 @@ def _children(db: DbSession) -> list[User]:
 def _local_input(moment: datetime) -> str:
     """Formats for <input type="datetime-local">, which has no timezone."""
     return moment.astimezone().strftime("%Y-%m-%dT%H:%M")
+
+
+# Para os formulários de edição preencherem o campo de data sem cada rota ter
+# que formatar tudo de novo antes de renderizar.
+templates.env.filters["hora_local"] = _local_input
 
 
 def _parse_local(value: str) -> datetime:
@@ -206,7 +229,13 @@ def dashboard(request: Request, db: DbSession, user: AdminWeb):
 
 
 @router.get("/trombadices", response_class=HTMLResponse)
-def trombadices_page(request: Request, db: DbSession, user: AdminWeb, child_id: int | None = None):
+def trombadices_page(
+    request: Request,
+    db: DbSession,
+    user: AdminWeb,
+    child_id: int | None = None,
+    editar: int | None = None,
+):
     query = select(Trombadice).order_by(Trombadice.occurred_at.desc(), Trombadice.id.desc())
     if child_id:
         query = query.where(Trombadice.child_id == child_id)
@@ -221,6 +250,9 @@ def trombadices_page(request: Request, db: DbSession, user: AdminWeb, child_id: 
         tasks=list(db.scalars(select(Task).where(Task.is_active).order_by(Task.name))),
         selected_child=child_id,
         agora=_local_input(datetime.now(UTC)),
+        # Editar reaproveita o formulário de cima em vez de abrir uma página
+        # nova: é o mesmo formulário, com os campos preenchidos.
+        editando=db.get(Trombadice, editar) if editar else None,
     )
 
 
@@ -234,22 +266,45 @@ def trombadice_create(
     description: Annotated[str, Form()] = "",
     task_id: Annotated[str, Form()] = "",
 ):
-    task = int(task_id) if task_id else None
-    if task is not None:
-        found = db.get(Task, task)
-        if found is None or found.child_id != child_id:
-            task = None
-
     db.add(
         Trombadice(
             title=title.strip(),
             description=description.strip(),
             occurred_at=_parse_local(occurred_at),
             child_id=child_id,
-            task_id=task,
+            task_id=_tarefa_do_filho(db, task_id, child_id),
             author_id=user.id,
         )
     )
+    db.commit()
+    return _redirect("/trombadices")
+
+
+@router.post("/trombadices/{trombadice_id}/editar")
+def trombadice_edit(
+    trombadice_id: int,
+    db: DbSession,
+    user: AdminWeb,
+    title: Annotated[str, Form()],
+    child_id: Annotated[int, Form()],
+    occurred_at: Annotated[str, Form()],
+    description: Annotated[str, Form()] = "",
+    task_id: Annotated[str, Form()] = "",
+):
+    """Corrigir o que já foi cadastrado - um "machou" que era "machucou".
+
+    Só o pai chega aqui: `AdminWeb` é a mesma dependência de todo o painel, e o
+    painel inteiro é admin-only por decisão de segurança (ver CLAUDE.md)."""
+    trombadice = db.get(Trombadice, trombadice_id)
+    if trombadice is None:
+        return _redirect("/trombadices")
+
+    trombadice.title = title.strip()
+    trombadice.description = description.strip()
+    trombadice.occurred_at = _parse_local(occurred_at)
+    trombadice.child_id = child_id
+    trombadice.task_id = _tarefa_do_filho(db, task_id, child_id)
+    # `author_id` fica como está: quem cadastrou continua sendo quem cadastrou.
     db.commit()
     return _redirect("/trombadices")
 
@@ -268,11 +323,18 @@ def trombadice_delete(trombadice_id: int, db: DbSession, user: AdminWeb):
 
 
 @router.get("/tarefas", response_class=HTMLResponse)
-def tasks_page(request: Request, db: DbSession, user: AdminWeb, child_id: int | None = None):
+def tasks_page(
+    request: Request,
+    db: DbSession,
+    user: AdminWeb,
+    child_id: int | None = None,
+    editar: int | None = None,
+):
     query = select(Task).order_by(Task.is_active.desc(), Task.name)
     if child_id:
         query = query.where(Task.child_id == child_id)
     children = _children(db)
+    editando = db.get(Task, editar) if editar else None
     return _render(
         request,
         "tarefas.html",
@@ -282,6 +344,12 @@ def tasks_page(request: Request, db: DbSession, user: AdminWeb, child_id: int | 
         children_by_id={c.id: c for c in children},
         selected_child=child_id,
         weekday_names=WEEKDAY_NAMES,
+        editando=editando,
+        # A lista de dias vem pronta: comparar dentro do template com o campo
+        # "0,2,4" cru dava um `in` que casava "1" com "10,12".
+        editando_dias=(
+            [int(d) for d in editando.weekdays.split(",") if d] if editando else []
+        ),
     )
 
 
@@ -315,6 +383,41 @@ def task_create(
     return _redirect("/tarefas")
 
 
+@router.post("/tarefas/{task_id}/editar")
+def task_edit(
+    task_id: int,
+    db: DbSession,
+    user: AdminWeb,
+    name: Annotated[str, Form()],
+    child_id: Annotated[int, Form()],
+    periodicity: Annotated[str, Form()],
+    description: Annotated[str, Form()] = "",
+    weekdays: Annotated[list[int] | None, Form()] = None,
+    day_of_month: Annotated[str, Form()] = "",
+):
+    task = db.get(Task, task_id)
+    if task is None:
+        return _redirect("/tarefas")
+
+    period = Periodicity(periodicity)
+    task.name = name.strip()
+    task.description = description.strip()
+    task.periodicity = period
+    # Zera o campo que a nova periodicidade não usa, senão sobra lixo de antes:
+    # uma tarefa "todo dia" guardando "segunda e quarta" de quando era semanal.
+    task.weekdays = (
+        ",".join(str(d) for d in sorted(set(weekdays or [])))
+        if period is Periodicity.WEEKLY
+        else ""
+    )
+    task.day_of_month = (
+        int(day_of_month) if period is Periodicity.MONTHLY and day_of_month else None
+    )
+    task.child_id = child_id
+    db.commit()
+    return _redirect("/tarefas")
+
+
 @router.post("/tarefas/{task_id}/toggle")
 def task_toggle(task_id: int, db: DbSession, user: AdminWeb):
     if (task := db.get(Task, task_id)) is not None:
@@ -337,10 +440,11 @@ def task_delete(task_id: int, db: DbSession, user: AdminWeb):
 
 
 @router.get("/castigos", response_class=HTMLResponse)
-def punishments_page(request: Request, db: DbSession, user: AdminWeb):
+def punishments_page(request: Request, db: DbSession, user: AdminWeb, editar: int | None = None):
     now = datetime.now(UTC)
     children = _children(db)
     punishments = list(db.scalars(select(Punishment).order_by(Punishment.starts_at.desc())))
+    editando = db.get(Punishment, editar) if editar else None
     return _render(
         request,
         "castigos.html",
@@ -352,6 +456,8 @@ def punishments_page(request: Request, db: DbSession, user: AdminWeb):
             db.scalars(select(Trombadice).order_by(Trombadice.occurred_at.desc()).limit(50))
         ),
         fim_sugerido=_local_input(datetime.now(UTC) + timedelta(days=1)),
+        editando=editando,
+        editando_trombadices=[t.id for t in editando.trombadices] if editando else [],
     )
 
 
@@ -381,6 +487,36 @@ def punishment_create(
     return _redirect("/castigos")
 
 
+@router.post("/castigos/{punishment_id}/editar")
+def punishment_edit(
+    punishment_id: int,
+    db: DbSession,
+    user: AdminWeb,
+    child_id: Annotated[int, Form()],
+    ends_at: Annotated[str, Form()],
+    reason: Annotated[str, Form()] = "",
+    trombadice_ids: Annotated[list[int] | None, Form()] = None,
+):
+    punishment = db.get(Punishment, punishment_id)
+    if punishment is None:
+        return _redirect("/castigos")
+
+    punishment.reason = reason.strip()
+    punishment.ends_at = _parse_local(ends_at)
+    punishment.child_id = child_id
+    chosen = (
+        list(db.scalars(select(Trombadice).where(Trombadice.id.in_(trombadice_ids))))
+        if trombadice_ids
+        else []
+    )
+    punishment.trombadices = [t for t in chosen if t.child_id == child_id]
+    # `starts_at` não se edita: quando o castigo começou é fato, não opinião.
+    # Para soltar antes da hora existe o botão Encerrar, que preserva o
+    # `ends_at` original.
+    db.commit()
+    return _redirect("/castigos")
+
+
 @router.post("/castigos/{punishment_id}/encerrar")
 def punishment_end(punishment_id: int, db: DbSession, user: AdminWeb):
     if (punishment := db.get(Punishment, punishment_id)) is not None:
@@ -403,7 +539,7 @@ def punishment_delete(punishment_id: int, db: DbSession, user: AdminWeb):
 
 
 @router.get("/frases", response_class=HTMLResponse)
-def splash_page(request: Request, db: DbSession, user: AdminWeb):
+def splash_page(request: Request, db: DbSession, user: AdminWeb, editar: int | None = None):
     children = _children(db)
     return _render(
         request,
@@ -412,6 +548,7 @@ def splash_page(request: Request, db: DbSession, user: AdminWeb):
         messages=list(db.scalars(select(SplashMessage).order_by(SplashMessage.id.desc()))),
         children=children,
         children_by_id={c.id: c for c in children},
+        editando=db.get(SplashMessage, editar) if editar else None,
     )
 
 
@@ -422,14 +559,25 @@ def splash_create(
     text: Annotated[str, Form()],
     child_id: Annotated[str, Form()] = "",
 ):
-    # Vazio = pra todos os filhos.
-    alvo = int(child_id) if child_id else None
-    if alvo is not None:
-        child = db.get(User, alvo)
-        if child is None or child.role is not Role.CHILD:
-            alvo = None
+    db.add(SplashMessage(text=text.strip(), child_id=_filho_valido(db, child_id), author_id=user.id))
+    db.commit()
+    return _redirect("/frases")
 
-    db.add(SplashMessage(text=text.strip(), child_id=alvo, author_id=user.id))
+
+@router.post("/frases/{message_id}/editar")
+def splash_edit(
+    message_id: int,
+    db: DbSession,
+    user: AdminWeb,
+    text: Annotated[str, Form()],
+    child_id: Annotated[str, Form()] = "",
+):
+    message = db.get(SplashMessage, message_id)
+    if message is None:
+        return _redirect("/frases")
+
+    message.text = text.strip()
+    message.child_id = _filho_valido(db, child_id)
     db.commit()
     return _redirect("/frases")
 
@@ -487,6 +635,21 @@ def user_create(
         )
     )
     db.commit()
+    return _redirect("/contas")
+
+
+@router.post("/contas/{user_id}/editar")
+def user_edit(
+    user_id: int,
+    db: DbSession,
+    user: AdminWeb,
+    display_name: Annotated[str, Form()],
+):
+    """Corrigir o nome. O `username` não entra: é o login, e trocar ele deixaria
+    a criança trancada para fora sem aviso nenhum."""
+    if (target := db.get(User, user_id)) is not None and display_name.strip():
+        target.display_name = display_name.strip()
+        db.commit()
     return _redirect("/contas")
 
 
