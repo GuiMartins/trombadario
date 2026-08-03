@@ -349,6 +349,17 @@ token, dois transportes.
 Nada de CDN: CSS próprio e HTMX vendorizado em `app/web/static/`. O ZimaOS pode
 estar sem internet e a página tem que abrir do mesmo jeito.
 
+**O calendário só deixa clicar em dia que tem coisa**, e respeitando os outros
+filtros: com "agressão" ligado, só acende dia que teve agressão — acender um dia
+vazio levaria a uma lista vazia, e acender um dia sem agressão seria mentira.
+Dia sem registro é `<span>`, não link, e a cor diz isso antes do clique.
+
+Os filtros de trombadice e de castigo são o **mesmo bloco** (`_filtros.html`):
+as duas telas fazem as mesmas quatro perguntas. Ele vive dentro do `<div>` que o
+HTMX troca e herda de lá o `hx-target`; quem inclui passa o `url()`. Montar
+endereço no template vira sopa de `if` com um `&` esquecido em algum ramo, então
+isso é feito em Python (`_construtor_de_url`).
+
 **Filtro troca só a lista, nunca a página inteira.** Os `<a>` de filtro têm
 `href` **e** `hx-get`: sem JavaScript o link funciona como sempre, com ele só o
 `#lista-*` é trocado. Não é enfeite — como navegação normal, o filtro recarregava

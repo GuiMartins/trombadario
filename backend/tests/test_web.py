@@ -4,7 +4,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Periodicity, Punishment, Role, SplashMessage, Task, Trombadice, User
+from app.models import (
+    Category,
+    Periodicity,
+    Punishment,
+    Role,
+    SplashMessage,
+    Task,
+    Trombadice,
+    User,
+)
 from app.security import create_access_token
 from app.web.deps import SESSION_COOKIE
 from tests.conftest import ADMIN_PASSWORD, CHILD_PASSWORD, make_user
@@ -414,3 +423,175 @@ def test_filho_nao_edita_nada(client: TestClient, db: Session, admin: User, chil
 
     db.refresh(trombadice)
     assert trombadice.title == "original"
+
+
+# --------------------------------------------------------------------------
+# Categoria, filtros, calendário e relatório no painel
+# --------------------------------------------------------------------------
+
+
+def _cria_trombadice(client: TestClient, child_id: int, **campos) -> None:
+    dados = {
+        "child_id": child_id,
+        "occurred_at": "2026-08-02T11:30",
+        "title": "algo",
+        "category": "outra",
+        **campos,
+    }
+    resposta = client.post("/trombadices", data=dados, follow_redirects=False)
+    assert resposta.status_code == 303, resposta.text
+
+
+def test_categoria_escolhida_e_gravada(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    _cria_trombadice(client, child.id, title="Empurrou", category="agressao")
+
+    assert db.scalars(select(Trombadice)).one().category is Category.AGRESSAO
+
+
+def test_categoria_invalida_vira_outra(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    _cria_trombadice(client, child.id, category="coisa-inventada")
+
+    # Nada de 500 e nada de gravar lixo: cai no valor neutro.
+    assert db.scalars(select(Trombadice)).one().category is Category.OUTRA
+
+
+def test_com_tarefa_o_titulo_e_o_filho_vem_da_tarefa(
+    client: TestClient, db: Session, admin: User, child: User, other_child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post(
+        "/tarefas",
+        data={"name": "Arrumar a cama", "child_id": child.id, "periodicity": "daily"},
+    )
+    tarefa = db.scalars(select(Task)).one()
+
+    # O formulário manda o outro filho no campo escondido; a tarefa tem que
+    # ganhar, senão o registro afirmaria uma coisa falsa.
+    _cria_trombadice(client, other_child.id, title="", task_id=str(tarefa.id))
+
+    registrada = db.scalars(select(Trombadice)).one()
+    assert registrada.title == "Arrumar a cama"
+    assert registrada.child_id == child.id
+
+
+def test_sem_titulo_e_sem_tarefa_nao_grava_nada(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    _cria_trombadice(client, child.id, title="   ")
+
+    assert db.scalars(select(Trombadice)).all() == []
+
+
+def test_filtro_de_categoria_no_painel(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _cria_trombadice(client, child.id, title="Empurrou", category="agressao")
+    _cria_trombadice(client, child.id, title="Mentiu", category="mentira")
+
+    corpo = client.get("/trombadices?category=agressao").text
+
+    assert "Empurrou" in corpo
+    assert "Mentiu" not in corpo
+
+
+def test_busca_por_palavra_no_painel(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _cria_trombadice(client, child.id, title="Bagunca na sala")
+    _cria_trombadice(client, child.id, title="Nada a ver")
+
+    corpo = client.get("/trombadices?q=sala").text
+
+    assert "Bagunca na sala" in corpo
+    assert "Nada a ver" not in corpo
+
+
+def test_calendario_so_deixa_clicar_em_dia_com_registro(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _cria_trombadice(client, child.id, occurred_at="2026-08-05T10:00")
+
+    corpo = client.get("/trombadices?mes=2026-08").text
+
+    # O dia 5 vira link; o 6, que não tem nada, não.
+    assert "dia=2026-08-05" in corpo
+    assert "dia=2026-08-06" not in corpo
+
+
+def test_calendario_respeita_o_filtro_de_categoria(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _cria_trombadice(client, child.id, occurred_at="2026-08-05T10:00", category="agressao")
+    _cria_trombadice(client, child.id, occurred_at="2026-08-07T10:00", category="mentira")
+
+    corpo = client.get("/trombadices?mes=2026-08&category=agressao").text
+
+    # Acender um dia sem nenhuma agressão seria mentira.
+    assert "dia=2026-08-05" in corpo
+    assert "dia=2026-08-07" not in corpo
+
+
+def test_filtrar_por_dia_mostra_so_aquele_dia(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _cria_trombadice(client, child.id, title="Do dia 5", occurred_at="2026-08-05T10:00")
+    _cria_trombadice(client, child.id, title="Do dia 7", occurred_at="2026-08-07T10:00")
+
+    corpo = client.get("/trombadices?dia=2026-08-05").text
+
+    assert "Do dia 5" in corpo
+    assert "Do dia 7" not in corpo
+
+
+def test_painel_mostra_se_o_filho_ja_viu(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _cria_trombadice(client, child.id)
+
+    assert "ainda não viu" in client.get("/trombadices").text
+
+
+def test_relatorio_e_so_do_pai(client: TestClient, admin: User, child: User) -> None:
+    resposta = client.get("/relatorio", follow_redirects=False)
+
+    assert resposta.status_code == 303
+    assert resposta.headers["location"] == "/login"
+
+
+def test_relatorio_conta_o_que_foi_cadastrado(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    hoje = datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M")
+    _cria_trombadice(client, child.id, occurred_at=hoje, category="mentira")
+
+    corpo = client.get("/relatorio?dias=7").text
+
+    assert "Mentira" in corpo
+    assert "Relatório" in corpo
+
+
+def test_relatorio_ignora_janela_inventada(
+    client: TestClient, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    # Cai na janela padrão em vez de aceitar qualquer número da barra de
+    # endereços.
+    assert client.get("/relatorio?dias=99999").status_code == 200
