@@ -180,3 +180,72 @@ def test_pai_ve_castigo_ativo_de_todos_os_filhos(
     ativos = client.get("/api/punishments/current", headers=as_admin(client)).json()
 
     assert len(ativos) == 2
+
+
+def test_filho_reage_ao_proprio_castigo(client: TestClient, admin: User, child: User) -> None:
+    punishment = punish(client, child.id)
+
+    response = client.patch(
+        f"/api/punishments/{punishment['id']}/reaction",
+        headers=as_child(client),
+        json={"reaction_text": "😢 não foi justo"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["reaction_text"] == "😢 não foi justo"
+    assert response.json()["reaction_at"] is not None
+
+
+def test_filho_apaga_a_propria_reacao(client: TestClient, admin: User, child: User) -> None:
+    punishment = punish(client, child.id)
+    headers = as_child(client)
+    client.patch(
+        f"/api/punishments/{punishment['id']}/reaction", headers=headers, json={"reaction_text": "😢"}
+    )
+
+    response = client.patch(
+        f"/api/punishments/{punishment['id']}/reaction", headers=headers, json={"reaction_text": "   "}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["reaction_text"] is None
+    assert response.json()["reaction_at"] is None
+
+
+def test_filho_nao_reage_ao_castigo_do_irmao(
+    client: TestClient, admin: User, child: User, other_child: User
+) -> None:
+    da_outra = punish(client, other_child.id)
+
+    response = client.patch(
+        f"/api/punishments/{da_outra['id']}/reaction",
+        headers=as_child(client),
+        json={"reaction_text": "😢"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_pai_nao_pode_reagir_a_castigo(client: TestClient, admin: User, child: User) -> None:
+    punishment = punish(client, child.id)
+
+    response = client.patch(
+        f"/api/punishments/{punishment['id']}/reaction",
+        headers=as_admin(client),
+        json={"reaction_text": "😢"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_reacao_do_filho_aparece_pro_pai(client: TestClient, admin: User, child: User) -> None:
+    punishment = punish(client, child.id)
+    client.patch(
+        f"/api/punishments/{punishment['id']}/reaction",
+        headers=as_child(client),
+        json={"reaction_text": "😠 injusto"},
+    )
+
+    response = client.get(f"/api/punishments/{punishment['id']}", headers=as_admin(client))
+
+    assert response.json()["reaction_text"] == "😠 injusto"

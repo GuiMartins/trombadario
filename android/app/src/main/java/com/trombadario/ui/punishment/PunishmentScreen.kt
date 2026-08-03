@@ -129,7 +129,10 @@ private fun ChildAnswer(state: PunishmentState, viewModel: PunishmentViewModel) 
     val atual = state.active.firstOrNull()
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -195,9 +198,58 @@ private fun ChildAnswer(state: PunishmentState, viewModel: PunishmentViewModel) 
                     }
                 }
             }
+            Spacer(Modifier.height(32.dp))
+            ReactionSection(
+                reactionText = atual.reactionText,
+                onSend = { texto -> viewModel.react(atual.id, texto) },
+            )
         }
     }
 }
+
+/**
+ * Fileira de emoji prontos pra toque único + campo de texto livre - o pedido
+ * foi explicitamente os dois, não só um. Tocar num emoji insere no campo em
+ * vez de mandar na hora, pra dar pra combinar emoji com palavras.
+ */
+@Composable
+private fun ReactionSection(reactionText: String?, onSend: (String) -> Unit) {
+    var texto by remember(reactionText) { mutableStateOf(reactionText.orEmpty()) }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = stringResource(R.string.punishment_reaction_label),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            REACTION_EMOJIS.forEach { emoji ->
+                TextButton(onClick = { texto += emoji }) {
+                    Text(emoji, style = MaterialTheme.typography.headlineSmall)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = texto,
+            onValueChange = { if (it.length <= REACTION_MAX_LENGTH) texto = it },
+            placeholder = { Text(stringResource(R.string.punishment_reaction_placeholder)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        TextButton(onClick = { onSend(texto) }) {
+            Text(stringResource(R.string.punishment_reaction_send))
+        }
+    }
+}
+
+// Mesmo limite do backend (String(256)) - ver PunishmentReaction em schemas.py.
+private const val REACTION_MAX_LENGTH = 256
+private val REACTION_EMOJIS = listOf("😢", "😠", "😐", "😔", "😳")
 
 @Composable
 private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
@@ -286,6 +338,15 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
             p.trombadiceIds.mapNotNull(viewModel::trombadiceTitle).forEach { titulo ->
                 Text(
                     text = "• $titulo",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // O filho escreveu, o pai só lê - mesmo peso visual da lista de
+            // anotações acima, não escondido.
+            if (!p.reactionText.isNullOrBlank()) {
+                Text(
+                    text = "💬 ${p.reactionText}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

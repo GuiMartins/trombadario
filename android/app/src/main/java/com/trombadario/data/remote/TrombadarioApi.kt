@@ -111,6 +111,12 @@ interface TrombadarioApi {
     @DELETE("api/punishments/{id}")
     suspend fun deletePunishment(@Path("id") id: Int): Response<Unit>
 
+    @PATCH("api/punishments/{id}/reaction")
+    suspend fun reactToPunishment(
+        @Path("id") id: Int,
+        @Body reaction: PunishmentReactionDto,
+    ): Response<PunishmentDto>
+
     @GET("api/splash-messages")
     suspend fun listSplashMessages(): Response<List<SplashMessageDto>>
 

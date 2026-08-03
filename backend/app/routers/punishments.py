@@ -3,13 +3,14 @@ from datetime import UTC, date, datetime
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
-from app.deps import AdminUser, CurrentUser, DbSession
+from app.deps import AdminUser, ChildUser, CurrentUser, DbSession
 from app.models import Category, Kind, Punishment, Role, Trombadice, User
 from app.periodo import data_local, intervalo
 from app.schemas import (
     DatasComRegistro,
     PunishmentCreate,
     PunishmentOut,
+    PunishmentReaction,
     PunishmentUpdate,
     TrombadiceOut,
 )
@@ -28,6 +29,8 @@ def _serialize(punishment: Punishment, now: datetime) -> PunishmentOut:
         ends_at=punishment.ends_at,
         ended_early_at=punishment.ended_early_at,
         seen_at=punishment.seen_at,
+        reaction_text=punishment.reaction_text,
+        reaction_at=punishment.reaction_at,
         child_id=punishment.child_id,
         author_id=punishment.author_id,
         created_at=punishment.created_at,
@@ -152,6 +155,26 @@ def get_punishment(punishment_id: int, current_user: CurrentUser, db: DbSession)
     if current_user.role is not Role.ADMIN and punishment.child_id != current_user.id:
         raise NOT_FOUND
     marcar_visto(db, [punishment], current_user)
+    return _serialize(punishment, datetime.now(UTC))
+
+
+@router.patch("/{punishment_id}/reaction", response_model=PunishmentOut)
+def react_to_punishment(
+    punishment_id: int, payload: PunishmentReaction, child: ChildUser, db: DbSession
+) -> PunishmentOut:
+    """A primeira escrita de verdade do filho no schema inteiro. `ChildUser`,
+    não `AdminUser` - é o filho quem reage, o pai só lê."""
+    punishment = _get_or_404(db, punishment_id)
+    if punishment.child_id != child.id:
+        # 404, não 403: mesmo padrão de toda leitura de item único - sondar id
+        # não pode confirmar que o castigo de um irmão existe.
+        raise NOT_FOUND
+
+    texto = (payload.reaction_text or "").strip()
+    punishment.reaction_text = texto or None
+    punishment.reaction_at = datetime.now(UTC) if texto else None
+    db.commit()
+    db.refresh(punishment)
     return _serialize(punishment, datetime.now(UTC))
 
 

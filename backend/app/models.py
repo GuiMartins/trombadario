@@ -246,6 +246,12 @@ class Punishment(Base):
     # seen_at da trombadice.
     seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
+    # A primeira coluna gravável pelo filho no schema inteiro - texto livre (o
+    # teclado já tem seletor de emoji) ou um dos emojis prontos da tela. O pai
+    # nunca escreve aqui, só lê.
+    reaction_text: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    reaction_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
     child_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
 
