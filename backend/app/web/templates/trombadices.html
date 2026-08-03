@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% set pagina = 'trombadices' %}
+{% block titulo %}Trombadices — Trombadário{% endblock %}
+
+{% block conteudo %}
+<h1>Trombadices</h1>
+
+{% if not children %}
+  <div class="aviso">Cadastre uma conta de filho em <a href="/contas">Contas</a> antes de registrar trombadices.</div>
+{% else %}
+{# O mesmo formulário serve para cadastrar e para corrigir: com `editando` ele
+   vem preenchido e grava por cima. Formulário separado significaria dois
+   lugares para lembrar de mexer. #}
+{% set e = editando %}
+<form id="editar" method="post" action="{{ '/trombadices/' ~ e.id ~ '/editar' if e else '/trombadices' }}" class="bloco">
+  {% if e %}<h2>Corrigindo o que foi cadastrado</h2>{% endif %}
+
+  {# Trombadice ou conquista. O tipo vem antes de tudo porque muda a lista de
+     categorias e some com o campo de tarefa - conquista não se atrela a uma.
+
+     Editando, o tipo não muda: trombadice não vira conquista. Errou o tipo,
+     apaga e cadastra de novo, que é mais honesto do que reescrever o
+     significado de um registro que a criança já pode ter visto. #}
+  {% if e %}
+    <p class="sub">Tipo: <strong>{{ tipos[e.kind] }}</strong> — isso não muda na edição.</p>
+  {% else %}
+  <label>O que foi</label>
+  <div class="tipos">
+    {% for valor, rotulo in tipos.items() %}
+    <label class="tipo tipo-{{ valor.value }}">
+      <input type="radio" name="kind" value="{{ valor.value }}" {% if loop.first %}checked{% endif %}>
+      <span>{{ rotulo }}</span>
+    </label>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# A tarefa vem primeiro porque ela responde duas das perguntas de baixo - de
+     quem é e qual é o título - e some com elas da tela. Só para trombadice:
+     tarefa registra o que **não** foi cumprido. #}
+  <div class="so-trombadice">
+    <label for="task_id">Deixou de cumprir alguma tarefa?</label>
+    <select id="task_id" name="task_id">
+      <option value="">Não, foi outra coisa</option>
+      {% for t in tasks %}
+      <option value="{{ t.id }}" {% if e and e.task_id == t.id %}selected{% endif %}>{{ t.name }} — {{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else '' }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="sem-tarefa">
+    <label for="title">O que aconteceu</label>
+    <input type="text" id="title" name="title" maxlength="200" value="{{ e.title if e else '' }}">
+
+    <label for="child_id">De quem</label>
+    <select id="child_id" name="child_id">
+      {% for c in children %}
+      <option value="{{ c.id }}" {% if e and e.child_id == c.id %}selected{% endif %}>{{ c.display_name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  {# Duas listas, uma por tipo. O CSS esconde a que não vale e o servidor lê só
+     a do tipo escolhido - assim nenhuma precisa ser desabilitada, e sem
+     `:has()` as duas aparecem e continua funcionando. #}
+  <div class="so-trombadice">
+    <label for="categoria_trombadice">Que tipo de coisa foi</label>
+    <select id="categoria_trombadice" name="categoria_trombadice">
+      {% for valor, rotulo in categorias_trombadice.items() %}
+      <option value="{{ valor.value }}" {% if e and e.category == valor %}selected{% endif %}>{{ rotulo }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="so-conquista">
+    <label for="categoria_conquista">Que tipo de coisa boa foi</label>
+    <select id="categoria_conquista" name="categoria_conquista">
+      {% for valor, rotulo in categorias_conquista.items() %}
+      <option value="{{ valor.value }}" {% if e and e.category == valor %}selected{% endif %}>{{ rotulo }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <label for="occurred_at">Quando</label>
+  <input type="datetime-local" id="occurred_at" name="occurred_at"
+         value="{{ e.occurred_at | hora_local if e else agora }}" required>
+
+  <label for="description">Detalhes</label>
+  <textarea id="description" name="description">{{ e.description if e else '' }}</textarea>
+
+  <button type="submit">{{ 'Salvar correção' if e else 'Registrar' }}</button>
+  {% if e %}<a href="/trombadices" class="cancelar">Cancelar</a>{% endif %}
+</form>
+{% endif %}
+
+{# Os filtros trocam só esta parte, senão a página recarrega e apaga o que já
+   estava digitado no formulário acima. O href continua valendo sem JavaScript. #}
+<div id="lista-trombadices"
+     hx-target="#lista-trombadices" hx-select="#lista-trombadices" hx-swap="outerHTML"
+     hx-push-url="true"
+     {# O botão de tema fica no cabeçalho, que não é trocado aqui: sem isto ele
+        guardaria o endereço de antes do filtro. #}
+     hx-select-oob="#tema-next">
+{% if children %}
+  {% with pagina_url = '/trombadices', placeholder_busca = 'Buscar no título ou nos detalhes' %}
+    {% include "_filtros.html" %}
+  {% endwith %}
+{% endif %}
+
+{% if trombadices %}
+  {% for t in trombadices %}
+  <div class="cartao {{ 'conquista' if t.kind.value == 'conquista' else '' }}">
+    <div class="linha">
+      <div class="cresce">
+        <span class="quando">{% if t.kind.value == 'conquista' %}★ {% endif %}{{ t.occurred_at.astimezone().strftime('%d/%m/%Y às %H:%M') }}</span>
+        <p class="titulo">{{ t.title }}</p>
+        <p class="sub">
+          {{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else 'Filho' }}
+          {% if t.description %}— {{ t.description }}{% endif %}
+        </p>
+        <span class="etiqueta">{{ categorias[t.category] }}</span>
+        {% if t.task %}<span class="etiqueta">não cumpriu: {{ t.task.name }}</span>{% endif %}
+        {% if t.seen_at %}
+          <span class="etiqueta visto">visto {{ t.seen_at.astimezone().strftime('%d/%m às %H:%M') }}</span>
+        {% else %}
+          <span class="etiqueta fim">ainda não viu</span>
+        {% endif %}
+      </div>
+      <div class="acoes">
+        {# Link comum de propósito: o HTMX aqui em volta só troca a lista, e
+           editar precisa recarregar a página para o formulário lá de cima vir
+           preenchido. Leva os filtros junto para não voltar pra lista inteira. #}
+        <a class="mini secundario" href="{{ url(editar=t.id) }}#editar">Editar</a>
+        <form method="post" action="/trombadices/{{ t.id }}/delete"
+              hx-confirm="Excluir esta trombadice? Isso não tem volta.">
+          <button class="mini perigo">Excluir</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% elif children %}
+  <div class="vazio">Nada por aqui com esses filtros.</div>
+{% endif %}
+</div>
+{% endblock %}

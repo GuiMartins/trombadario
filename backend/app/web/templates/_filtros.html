@@ -1,0 +1,77 @@
+{# Filtros de trombadices e de castigos - as duas páginas fazem as mesmas
+   perguntas (de quem, que tipo, que dia, que palavra), então o bloco é um só.
+
+   Fica sempre dentro do `<div>` que o HTMX troca, e por isso não precisa saber
+   qual é: os atributos `hx-target`/`hx-select` vêm por herança de lá. O `url()`
+   também vem de fora, já apontando para a página certa. #}
+
+<div class="filtros">
+  <a href="{{ url(child_id=None) }}" hx-get="{{ url(child_id=None) }}"
+     class="{% if not selected_child %}ativo{% endif %}">Todos</a>
+  {% for c in children %}
+  <a href="{{ url(child_id=c.id) }}" hx-get="{{ url(child_id=c.id) }}"
+     class="{% if selected_child == c.id %}ativo{% endif %}">{{ c.display_name }}</a>
+  {% endfor %}
+</div>
+
+{# Só na tela de trombadices: castigo sempre vem de trombadice, então filtrar
+   castigo por tipo não faria pergunta nenhuma. #}
+{% if tipos %}
+<div class="filtros">
+  <a href="{{ url(kind=None) }}" hx-get="{{ url(kind=None) }}"
+     class="{% if not tipo_escolhido %}ativo{% endif %}">Tudo</a>
+  {% for valor, rotulo in tipos.items() %}
+  <a href="{{ url(kind=valor.value, category=None) }}" hx-get="{{ url(kind=valor.value, category=None) }}"
+     class="{% if tipo_escolhido == valor %}ativo{% endif %}">{{ rotulo }}s</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="filtros">
+  <a href="{{ url(category=None) }}" hx-get="{{ url(category=None) }}"
+     class="{% if not categoria_escolhida %}ativo{% endif %}">Qualquer tipo</a>
+  {% for valor, rotulo in categorias.items() %}
+  <a href="{{ url(category=valor.value) }}" hx-get="{{ url(category=valor.value) }}"
+     class="{% if categoria_escolhida == valor %}ativo{% endif %}">{{ rotulo }}</a>
+  {% endfor %}
+</div>
+
+{# Busca por palavra. GET comum e não HTMX: quem está buscando não está
+   cadastrando, então recarregar a página aqui não custa nada. #}
+<form method="get" action="{{ pagina_url }}" class="busca">
+  {% if selected_child %}<input type="hidden" name="child_id" value="{{ selected_child }}">{% endif %}
+  {% if categoria_escolhida %}<input type="hidden" name="category" value="{{ categoria_escolhida.value }}">{% endif %}
+  <input type="text" name="q" value="{{ busca }}" placeholder="{{ placeholder_busca }}">
+  <button class="mini secundario">Buscar</button>
+  {% if busca %}<a class="mini secundario" href="{{ url(q=None) }}">Limpar</a>{% endif %}
+</form>
+
+{# Calendário: só o dia que tem registro é clicável. Os outros são texto morto
+   de propósito - clicar num dia vazio só levaria a uma lista vazia. E os dias
+   clicáveis já respeitam os outros filtros: com "agressão" ligado, só acende
+   dia que teve agressão. #}
+<div class="calendario">
+  <div class="cabeca">
+    <a class="mini secundario" href="{{ url(mes=mes_anterior) }}" hx-get="{{ url(mes=mes_anterior) }}">‹</a>
+    <span>{{ mes_nome }}</span>
+    <a class="mini secundario" href="{{ url(mes=mes_seguinte) }}" hx-get="{{ url(mes=mes_seguinte) }}">›</a>
+  </div>
+  <div class="grade">
+    {% for inicial in iniciais %}<span class="cabecalho">{{ inicial }}</span>{% endfor %}
+    {% for semana in semanas %}
+      {% for d in semana %}
+        {% if d is none %}
+          <span class="fora"></span>
+        {% elif d in dias_com_registro %}
+          <a href="{{ url(dia=d) }}" hx-get="{{ url(dia=d) }}"
+             class="tem {% if dia_escolhido == d %}escolhido{% endif %}{% if d == hoje %} hoje{% endif %}">{{ d.day }}</a>
+        {% else %}
+          <span class="vazio {% if d == hoje %}hoje{% endif %}">{{ d.day }}</span>
+        {% endif %}
+      {% endfor %}
+    {% endfor %}
+  </div>
+  {% if dia_escolhido %}
+  <a class="mini secundario" href="{{ url(dia=None) }}" hx-get="{{ url(dia=None) }}">Ver todos os dias</a>
+  {% endif %}
+</div>

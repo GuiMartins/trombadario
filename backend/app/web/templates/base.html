@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR"{% if tema and tema != 'sistema' %} data-tema="{{ tema }}"{% endif %}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Trombadário{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js" defer></script>
+</head>
+<body>
+{% if user %}
+<header class="topo">
+  <span class="marca">Trombadário</span>
+  <nav>
+    <a href="/" {% if pagina == 'painel' %}class="ativo"{% endif %}>Painel</a>
+    <a href="/trombadices" {% if pagina == 'trombadices' %}class="ativo"{% endif %}>Trombadices</a>
+    <a href="/tarefas" {% if pagina == 'tarefas' %}class="ativo"{% endif %}>Tarefas</a>
+    <a href="/castigos" {% if pagina == 'castigos' %}class="ativo"{% endif %}>Castigos</a>
+    <a href="/relatorio" {% if pagina == 'relatorio' %}class="ativo"{% endif %}>Relatório</a>
+    <a href="/frases" {% if pagina == 'frases' %}class="ativo"{% endif %}>Frases</a>
+    <a href="/contas" {% if pagina == 'contas' %}class="ativo"{% endif %}>Contas</a>
+  </nav>
+  <div class="direita">
+    {# Três botões em vez de um que alterna: com três estados, um botão só não
+       diz em qual deles você está. "Sistema" é o padrão e some do jeito certo
+       quando o computador muda de tema sozinho ao anoitecer. #}
+    <form method="post" action="/tema" class="tema">
+      {# Com a query junto: trocar de tema no meio de um filtro não pode
+         devolver você para a lista inteira. #}
+      <input type="hidden" id="tema-next" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+      {% for valor, rotulo in [('claro', 'Claro'), ('escuro', 'Escuro'), ('sistema', 'Sistema')] %}
+      <button name="valor" value="{{ valor }}" class="mini secundario{% if (tema or 'sistema') == valor %} ativo{% endif %}">{{ rotulo }}</button>
+      {% endfor %}
+    </form>
+    <span>{{ user.display_name }}</span>
+    <form method="post" action="/logout">
+      <button class="mini secundario" style="background:transparent;color:inherit;border-color:currentColor">Sair</button>
+    </form>
+  </div>
+</header>
+{% endif %}
+
+<main>
+{% block conteudo %}{% endblock %}
+</main>
+</body>
+</html>

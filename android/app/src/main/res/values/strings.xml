@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Trombadário</string>
+
+    <!-- Comum -->
+    <string name="action_retry">Tentar de novo</string>
+    <string name="action_save">Salvar</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_delete">Excluir</string>
+    <string name="action_edit">Editar</string>
+    <string name="action_back">Voltar</string>
+    <string name="loading">Carregando…</string>
+
+    <!-- Configuração do servidor -->
+    <string name="server_setup_title">Servidor</string>
+    <string name="server_setup_intro">Endereço do servidor de casa. Você encontra no ZimaOS.</string>
+    <string name="server_setup_url_label">Endereço</string>
+    <string name="server_setup_url_placeholder">http://192.168.31.172:8090</string>
+    <string name="server_setup_connect">Conectar</string>
+    <string name="server_setup_checking">Procurando o servidor…</string>
+    <string name="server_setup_error_invalid_url">Endereço inválido. Use algo como http://192.168.31.172:8090</string>
+    <string name="server_setup_error_unreachable">Não achei o servidor nesse endereço. Confira o IP e se você está no Wi-Fi de casa.</string>
+    <string name="server_setup_error_not_trombadario">Tem alguma coisa respondendo nesse endereço, mas não é o Trombadário.</string>
+
+    <!-- Login -->
+    <string name="login_title">Entrar</string>
+    <string name="login_username">Usuário</string>
+    <string name="login_password">Senha</string>
+    <string name="login_submit">Entrar</string>
+    <string name="login_error_invalid">Usuário ou senha inválidos</string>
+    <string name="login_error_network">Não consegui falar com o servidor</string>
+    <string name="login_show_password">Mostrar senha</string>
+    <string name="login_hide_password">Ocultar senha</string>
+
+    <!-- Fora de casa -->
+    <string name="away_title">Você precisa estar em casa</string>
+    <string name="away_message">O Trombadário só funciona dentro da rede de casa. Conecte no Wi-Fi de casa pra ver as trombadices.</string>
+    <string name="away_checking">Procurando o servidor de casa…</string>
+
+    <!-- Feed -->
+    <string name="feed_title">Trombadices</string>
+    <string name="feed_empty">Nada registrado ainda.</string>
+    <string name="feed_empty_admin">Nada registrado ainda. Toque no + pra cadastrar a primeira.</string>
+    <string name="feed_new">Nova trombadice</string>
+    <string name="feed_filter_all">Todos</string>
+    <string name="feed_error">Não consegui carregar as trombadices</string>
+
+    <!-- Detalhe / formulário -->
+    <string name="trombadice_detail_title">Trombadice</string>
+    <string name="trombadice_form_new_title">Nova trombadice</string>
+    <string name="trombadice_form_edit_title">Editar trombadice</string>
+    <string name="trombadice_form_title_label">Título</string>
+    <string name="trombadice_form_description_label">Descrição</string>
+    <string name="trombadice_form_child_label">De quem</string>
+    <string name="trombadice_form_date_label">Data</string>
+    <string name="trombadice_form_time_label">Hora</string>
+    <string name="trombadice_form_error_title_required">O título não pode ficar vazio</string>
+    <string name="trombadice_form_error_no_children">Cadastre uma conta de filho antes de registrar uma trombadice.</string>
+    <string name="trombadice_delete_confirm_title">Excluir trombadice?</string>
+    <string name="trombadice_delete_confirm_message">Isso não tem volta.</string>
+
+    <!-- Usuários -->
+    <string name="users_title">Contas</string>
+    <string name="users_new">Nova conta</string>
+    <string name="users_role_admin">Pai</string>
+    <string name="users_role_child">Filho</string>
+    <string name="users_inactive">desativada</string>
+    <string name="users_form_username">Usuário</string>
+    <string name="users_form_display_name">Nome</string>
+    <string name="users_form_password">Senha</string>
+    <string name="users_form_new_password">Nova senha</string>
+    <string name="users_form_new_password_hint">Deixe em branco pra manter a senha atual</string>
+    <string name="users_form_role">Tipo de conta</string>
+    <string name="users_form_active">Conta ativa</string>
+    <string name="users_delete_confirm_title">Excluir conta?</string>
+    <string name="users_delete_confirm_message">As trombadices, tarefas e castigos dessa pessoa também somem.</string>
+    <string name="users_error_password_too_short">A senha precisa de pelo menos 6 caracteres</string>
+    <string name="users_error_username_too_short">O usuário precisa de pelo menos 3 caracteres</string>
+
+    <!-- Configurações -->
+    <string name="settings_title">Configurações</string>
+    <string name="settings_section_account">Conta</string>
+    <string name="settings_section_appearance">Aparência</string>
+    <string name="settings_section_server">Servidor</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_system">Do sistema</string>
+    <string name="settings_theme_light">Claro</string>
+    <string name="settings_theme_dark">Escuro</string>
+    <string name="settings_logout">Sair</string>
+    <string name="settings_change_server">Trocar de servidor</string>
+    <string name="settings_change_server_warning">Você vai precisar entrar de novo.</string>
+
+    <!-- Navegação -->
+    <string name="nav_feed">Trombadices</string>
+    <string name="nav_tasks">Tarefas</string>
+    <string name="nav_punishment">Castigo</string>
+    <string name="nav_users">Contas</string>
+    <string name="nav_settings">Ajustes</string>
+
+    <!-- Servidor ainda não configurado -->
+    <string name="setup_needed_title">Servidor ainda não configurado</string>
+    <string name="setup_needed_message">Abra %1$s no navegador de um computador e crie a conta do pai. Depois volte aqui.</string>
+
+    <!-- Tarefas -->
+    <string name="tasks_title">Tarefas</string>
+    <string name="tasks_empty">Nenhuma tarefa cadastrada.</string>
+    <string name="tasks_empty_admin">Nenhuma tarefa ainda. Toque no + pra criar a primeira.</string>
+    <string name="tasks_new">Nova tarefa</string>
+    <string name="tasks_edit">Editar tarefa</string>
+    <string name="tasks_name">Tarefa</string>
+    <string name="tasks_description">Detalhes</string>
+    <string name="tasks_periodicity">Com que frequência</string>
+    <string name="tasks_period_daily">Todo dia</string>
+    <string name="tasks_period_weekly">Em dias da semana</string>
+    <string name="tasks_period_monthly">Uma vez por mês</string>
+    <string name="tasks_period_once">Uma vez só</string>
+    <string name="tasks_weekdays">Dias da semana</string>
+    <string name="tasks_day_of_month">Dia do mês</string>
+    <string name="tasks_paused">pausada</string>
+    <string name="tasks_pause">Pausar</string>
+    <string name="tasks_resume">Retomar</string>
+    <string name="tasks_error_weekday_required">Escolha pelo menos um dia da semana</string>
+    <string name="tasks_error_day_required">Escolha o dia do mês</string>
+    <string name="tasks_delete_confirm_title">Excluir tarefa?</string>
+    <string name="tasks_delete_confirm_message">As trombadices ligadas a ela continuam registradas.</string>
+
+    <!-- Castigo -->
+    <string name="punishment_title">Castigo</string>
+    <string name="punishment_free">Você não está de castigo</string>
+    <string name="punishment_free_sub">Continua assim.</string>
+    <string name="punishment_grounded">Você está de castigo</string>
+    <string name="punishment_until">até %1$s</string>
+    <string name="punishment_because">Por causa de:</string>
+    <string name="punishment_admin_empty">Ninguém de castigo agora.</string>
+    <string name="punishment_new">Aplicar castigo</string>
+    <string name="punishment_who">Quem</string>
+    <string name="punishment_until_label">Até quando</string>
+    <string name="punishment_reason">Motivo</string>
+    <string name="punishment_pick_trombadices">Por causa de quais trombadices</string>
+    <string name="punishment_end_now">Encerrar agora</string>
+    <string name="punishment_ended_early">encerrado antes</string>
+    <string name="punishment_served">cumprido</string>
+    <string name="punishment_active">de castigo</string>
+    <string name="punishment_history">Histórico</string>
+    <string name="punishment_error_end_before_start">O castigo precisa terminar depois de começar</string>
+
+    <!-- Formulário de trombadice -->
+    <string name="trombadice_form_task_label">Deixou de cumprir alguma tarefa?</string>
+    <string name="trombadice_form_task_none">Nenhuma</string>
+    <string name="trombadice_form_broke_task">não cumpriu: %1$s</string>
+
+    <!-- Frases de abertura -->
+    <string name="splash_title">Frases de abertura</string>
+    <string name="splash_intro">Quando o filho abre o app, uma destas aparece como tela de carregamento, sorteada na hora. Ele vê só as dele e as que valem pra todos.</string>
+    <string name="splash_empty">Nenhuma frase cadastrada — o app abre direto.</string>
+    <string name="splash_new">Nova frase</string>
+    <string name="splash_edit">Editar frase</string>
+    <string name="splash_text">Frase</string>
+    <string name="splash_target">Pra quem</string>
+    <string name="splash_target_all">Todos os filhos</string>
+    <string name="splash_paused">pausada</string>
+    <string name="splash_error_empty">A frase não pode ficar vazia</string>
+    <string name="splash_delete_confirm_title">Excluir frase?</string>
+
+    <string-array name="weekday_names">
+        <item>Segunda</item>
+        <item>Terça</item>
+        <item>Quarta</item>
+        <item>Quinta</item>
+        <item>Sexta</item>
+        <item>Sábado</item>
+        <item>Domingo</item>
+    </string-array>
+    <string-array name="weekday_short">
+        <item>Seg</item>
+        <item>Ter</item>
+        <item>Qua</item>
+        <item>Qui</item>
+        <item>Sex</item>
+        <item>Sáb</item>
+        <item>Dom</item>
+    </string-array>
+
+    <!-- Categorias. Mesma ordem do enum do backend, que é a ordem da tela. -->
+    <string name="categoria_desrespeito">Falta de respeito</string>
+    <string name="categoria_educacao">Falta de educação</string>
+    <string name="categoria_nao_fez">Não fez o que devia</string>
+    <string name="categoria_mentira">Mentira</string>
+    <string name="categoria_birra">Birra / descontrole</string>
+    <string name="categoria_escola">Escola</string>
+    <string name="categoria_agressao">Agressão</string>
+    <string name="categoria_outra">Outra</string>
+    <string name="categoria_ajudou">Ajudou sem pedir</string>
+    <string name="categoria_responsabilidade">Foi responsável</string>
+    <string name="categoria_estudou">Mandou bem na escola</string>
+    <string name="categoria_gentileza">Foi gentil</string>
+    <string name="categoria_iniciativa">Teve iniciativa</string>
+    <string name="categoria_superou">Superou uma dificuldade</string>
+    <string name="categoria_cuidou">Cuidou bem das coisas</string>
+    <string name="categoria_outra_boa">Outra coisa boa</string>
+    <string name="categoria_qualquer">Qualquer tipo</string>
+
+    <!-- Trombadice x conquista -->
+    <string name="tipo_trombadice">Trombadice</string>
+    <string name="tipo_conquista">Conquista</string>
+    <string name="tipo_trombadices">Trombadices</string>
+    <string name="tipo_conquistas">Conquistas</string>
+    <string name="tipo_tudo">Tudo</string>
+    <string name="trombadice_form_kind_label">O que foi</string>
+    <string name="report_conquistas">conquistas</string>
+    <string name="report_conquistas_por_tipo">Conquistas por tipo</string>
+    <string name="trombadice_form_category_label">Que tipo de coisa foi</string>
+
+    <!-- Filtros e busca -->
+    <string name="filtro_buscar">Buscar</string>
+    <string name="filtro_busca_dica">Buscar no título ou nos detalhes</string>
+    <string name="filtro_limpar">Limpar filtros</string>
+    <string name="filtro_por_dia">Filtrar por dia</string>
+    <string name="filtro_dia_escolhido">Dia %1$s</string>
+    <string name="filtro_ver_todos_os_dias">Ver todos os dias</string>
+    <string name="filtro_nenhum_resultado">Nada por aqui com esses filtros.</string>
+
+    <!-- Visto pelo filho -->
+    <string name="visto_em">Visto %1$s</string>
+    <string name="visto_ainda_nao">Ainda não viu</string>
+
+    <!-- Relatório -->
+    <string name="nav_report">Relatório</string>
+    <string name="report_title">Relatório</string>
+    <string name="report_janela_7">7 dias</string>
+    <string name="report_janela_30">30 dias</string>
+    <string name="report_janela_90">3 meses</string>
+    <string name="report_periodo">De %1$s a %2$s</string>
+    <string name="report_total">trombadices</string>
+    <string name="report_sequencia_limpa">dias seguidos sem nenhuma</string>
+    <string name="report_dias_com_registro">dias com alguma coisa</string>
+    <string name="report_media">por dia, nos dias em que teve</string>
+    <string name="report_dias_castigo">dias de castigo cumpridos</string>
+    <string name="report_nao_vistas">que o filho ainda não viu</string>
+    <string name="report_por_dia">Por dia</string>
+    <string name="report_por_tipo">Por tipo</string>
+    <string name="report_por_filho">Por filho</string>
+    <string name="report_por_tarefa">Tarefas mais descumpridas</string>
+    <string name="report_dia_mais_pesado">Dia mais pesado: %1$s (%2$d)</string>
+    <string name="report_vazio">Nada registrado nesse período. Bom sinal.</string>
+</resources>

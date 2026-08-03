@@ -18,9 +18,11 @@ venv/
 .pytest_cache/
 .ruff_cache/
 
-# Banco SQLite e o que mais o container escrever - dado real, nunca comitar
-backend/data/
-data/
+# Banco SQLite e o que mais o container escrever - dado real, nunca comitar.
+# Com barra na frente: sem ela, `data/` casaria em qualquer profundidade e
+# engoliria o pacote Kotlin com/trombadario/data/ inteiro.
+/backend/data/
+/data/
 *.db
 *.db-wal
 *.db-shm

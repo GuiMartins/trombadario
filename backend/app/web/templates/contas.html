@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% set pagina = 'contas' %}
+{% block titulo %}Contas — Trombadário{% endblock %}
+
+{% block conteudo %}
+<h1>Contas</h1>
+
+<form method="post" action="/contas" class="bloco">
+  <label for="username">Usuário</label>
+  <input type="text" id="username" name="username" required minlength="3" autocomplete="off">
+
+  <label for="display_name">Nome</label>
+  <input type="text" id="display_name" name="display_name" required>
+
+  <label for="password">Senha</label>
+  <input type="password" id="password" name="password" required minlength="6" autocomplete="new-password">
+
+  <label for="role">Tipo</label>
+  <select id="role" name="role">
+    <option value="child">Filho</option>
+    <option value="admin">Pai</option>
+  </select>
+
+  <button type="submit">Criar conta</button>
+</form>
+
+{% for u in users %}
+<div class="cartao">
+  <div class="linha">
+    <div class="cresce">
+      <p class="titulo">
+        {{ u.display_name }}
+        <span class="etiqueta">{{ 'Pai' if u.role.value == 'admin' else 'Filho' }}</span>
+        {% if not u.is_active %}<span class="etiqueta fim">desativada</span>{% endif %}
+      </p>
+      <p class="sub">{{ u.username }}</p>
+
+      {# Renomear fica aqui do lado da senha, e não no formulário lá de cima:
+         é a mesma conta, e o de cima é para criar conta nova. O usuário não
+         aparece como campo porque é o login - trocar trancaria a criança
+         para fora sem aviso. #}
+      <form method="post" action="/contas/{{ u.id }}/editar" class="linha" style="gap:0.5rem;margin-top:0.5rem">
+        <input type="text" name="display_name" value="{{ u.display_name }}" required
+               maxlength="120" style="max-width:16rem">
+        <button class="mini secundario">Salvar nome</button>
+      </form>
+
+      <form method="post" action="/contas/{{ u.id }}/senha" class="linha" style="gap:0.5rem;margin-top:0.5rem">
+        <input type="password" name="password" placeholder="Nova senha" minlength="6"
+               autocomplete="new-password" style="max-width:16rem">
+        <button class="mini secundario">Trocar senha</button>
+      </form>
+    </div>
+    {% if u.id != user.id %}
+    <form method="post" action="/contas/{{ u.id }}/toggle">
+      <button class="mini secundario">{{ 'Reativar' if not u.is_active else 'Desativar' }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

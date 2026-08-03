@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block titulo %}Só o pai — Trombadário{% endblock %}
+
+{% block conteudo %}
+<div class="centro">
+  <h1>Este painel é do pai</h1>
+  <p class="intro">
+    Contas de filho usam o aplicativo no celular. Lá o conteúdo fica protegido
+    contra captura de tela — coisa que um navegador não consegue garantir.
+  </p>
+  <form method="post" action="/logout">
+    <button type="submit">Sair</button>
+  </form>
+</div>
+{% endblock %}

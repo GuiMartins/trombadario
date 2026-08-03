@@ -1,0 +1,52 @@
+name: trombadario
+services:
+  trombadario:
+    image: ghcr.io/guimartins/trombadario:latest
+    container_name: trombadario
+    restart: unless-stopped
+    ports:
+      - target: 8000
+        published: "8090"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: /DATA/AppData/$AppID/data
+        target: /data
+    environment:
+      # Nada obrigatório: o servidor sobe, gera a própria SECRET_KEY e espera
+      # você criar a conta do pai no navegador, no primeiro acesso.
+      ACCESS_TOKEN_EXPIRE_MINUTES: 43200
+      # O fuso não é enfeite: o painel manda a hora digitada sem fuso nenhum e o
+      # servidor cola o dele. Em UTC, o que for cadastrado pela web sai errado.
+      TZ: America/Sao_Paulo
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  id: com.guimartins.trombadario
+  main: trombadario
+  description:
+    en_US: Log what your kids get up to. Parent registers trombadices, tasks and groundings; kid only reads. Home network only, and the Android app blocks screenshots.
+    pt_BR: Registro dos acontecimentos do dia a dia como pai. O pai cadastra trombadices, tarefas e castigos; o filho só visualiza. Funciona só na rede de casa, e o app Android bloqueia print.
+  tagline:
+    en_US: The house record of what the kids did
+    pt_BR: O diário das trombadices lá de casa
+  developer: GuiMartins
+  author: GuiMartins
+  icon: https://raw.githubusercontent.com/GuiMartins/trombadario/main/Apps/trombadario/icon.svg
+  thumbnail: ""
+  title:
+    en_US: Trombadário
+  category: Family
+  port_map: "8090"
+  scheme: http
+  index: /
+  tips:
+    before_install:
+      en_US: On first open, the browser walks you through creating the parent account. No environment variables needed.
+      pt_BR: No primeiro acesso, o navegador te guia pra criar a conta do pai. Não precisa configurar variável nenhuma.
+  volumes:
+    - container: /data
+      description:
+        en_US: Database and app data
+        pt_BR: Banco de dados e dados do app

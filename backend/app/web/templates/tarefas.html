@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% set pagina = 'tarefas' %}
+{% block titulo %}Tarefas — Trombadário{% endblock %}
+
+{% block conteudo %}
+<h1>Tarefas</h1>
+
+{% if not children %}
+  <div class="aviso">Cadastre uma conta de filho em <a href="/contas">Contas</a> antes de criar tarefas.</div>
+{% else %}
+{% set e = editando %}
+<form id="editar" method="post" action="{{ '/tarefas/' ~ e.id ~ '/editar' if e else '/tarefas' }}" class="bloco">
+  {% if e %}<h2>Corrigindo a tarefa</h2>{% endif %}
+
+  <label for="name">Tarefa</label>
+  <input type="text" id="name" name="name" required maxlength="200" placeholder="Arrumar a cama" value="{{ e.name if e else '' }}">
+
+  <label for="description">Detalhes</label>
+  <textarea id="description" name="description">{{ e.description if e else '' }}</textarea>
+
+  <label for="child_id">De quem</label>
+  <select id="child_id" name="child_id" required>
+    {% for c in children %}
+    <option value="{{ c.id }}" {% if e and e.child_id == c.id %}selected{% endif %}>{{ c.display_name }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="periodicity">Com que frequência</label>
+  <select id="periodicity" name="periodicity" required>
+    {% for valor, rotulo in [('daily', 'Todo dia'), ('weekly', 'Em dias da semana'), ('monthly', 'Uma vez por mês'), ('once', 'Uma vez só')] %}
+    <option value="{{ valor }}" {% if e and e.periodicity.value == valor %}selected{% endif %}>{{ rotulo }}</option>
+    {% endfor %}
+  </select>
+
+  <div class="so-semanal">
+    <label>Dias da semana</label>
+    <div class="dias">
+      {% for nome in weekday_names %}
+      <label><input type="checkbox" name="weekdays" value="{{ loop.index0 }}" {% if loop.index0 in editando_dias %}checked{% endif %}> {{ nome }}</label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="so-mensal">
+    <label for="day_of_month">Dia do mês</label>
+    <input type="number" id="day_of_month" name="day_of_month" min="1" max="31" value="{{ e.day_of_month if e and e.day_of_month else '' }}">
+  </div>
+
+  <button type="submit">{{ 'Salvar correção' if e else 'Criar tarefa' }}</button>
+  {% if e %}<a href="/tarefas" class="cancelar">Cancelar</a>{% endif %}
+</form>
+{% endif %}
+
+{# O filtro troca só esta parte. Como <a href> ele recarregava a página inteira
+   e apagava o que já estava digitado no formulário acima. O href continua aí:
+   sem JavaScript, ou abrindo em outra aba, ele funciona como sempre. #}
+<div id="lista-tarefas"
+     hx-target="#lista-tarefas" hx-select="#lista-tarefas" hx-swap="outerHTML"
+     hx-push-url="true"
+     {# O botão de tema fica no cabeçalho, que não é trocado aqui: sem isto ele
+        guardaria o endereço de antes do filtro. #}
+     hx-select-oob="#tema-next">
+{% if children %}
+<div class="filtros">
+  <a href="/tarefas" hx-get="/tarefas"
+     class="{% if not selected_child %}ativo{% endif %}">Todos</a>
+  {% for c in children %}
+  <a href="/tarefas?child_id={{ c.id }}" hx-get="/tarefas?child_id={{ c.id }}"
+     class="{% if selected_child == c.id %}ativo{% endif %}">{{ c.display_name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if tasks %}
+  {% for t in tasks %}
+  <div class="cartao">
+    <div class="linha">
+      <div class="cresce">
+        <p class="titulo">{{ t.name }}{% if not t.is_active %} <span class="etiqueta fim">pausada</span>{% endif %}</p>
+        <p class="sub">
+          {{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else 'Filho' }} ·
+          {% if t.periodicity.value == 'daily' %}Todo dia
+          {% elif t.periodicity.value == 'weekly' %}
+            {% for d in t.weekdays.split(',') if d %}{{ weekday_names[d|int] }}{% if not loop.last %}, {% endif %}{% endfor %}
+          {% elif t.periodicity.value == 'monthly' %}Todo dia {{ t.day_of_month }} do mês
+          {% else %}Uma vez{% endif %}
+          {% if t.description %}— {{ t.description }}{% endif %}
+        </p>
+      </div>
+      <div class="acoes">
+        <a class="mini secundario"
+           href="/tarefas?{% if selected_child %}child_id={{ selected_child }}&amp;{% endif %}editar={{ t.id }}#editar">Editar</a>
+        <form method="post" action="/tarefas/{{ t.id }}/toggle">
+          <button class="mini secundario">{{ 'Retomar' if not t.is_active else 'Pausar' }}</button>
+        </form>
+        <form method="post" action="/tarefas/{{ t.id }}/delete"
+              hx-confirm="Excluir a tarefa? As trombadices ligadas a ela continuam registradas.">
+          <button class="mini perigo">Excluir</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% elif children %}
+  <div class="vazio">Nenhuma tarefa cadastrada.</div>
+{% endif %}
+</div>
+{% endblock %}

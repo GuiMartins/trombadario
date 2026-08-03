@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% set pagina = 'relatorio' %}
+{% block titulo %}Relatório — Trombadário{% endblock %}
+
+{% macro barras(itens, total_maximo) %}
+{# Barra em CSS puro, sem biblioteca de gráfico: não pode haver CDN (o ZimaOS
+   pode estar sem internet) e uma barra é uma div com largura. #}
+<div class="barras">
+  {% for i in itens %}
+  <div class="barra">
+    <span class="rotulo">{{ i.rotulo }}</span>
+    <span class="trilho"><span class="preenchido" style="width: {{ (i.total / total_maximo * 100) if total_maximo else 0 }}%"></span></span>
+    <span class="valor">{{ i.total }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% block conteudo %}
+<h1>Relatório</h1>
+
+<div class="filtros">
+  <a href="/relatorio?dias={{ dias }}" class="{% if not selected_child %}ativo{% endif %}">Todos</a>
+  {% for c in children %}
+  <a href="/relatorio?dias={{ dias }}&child_id={{ c.id }}"
+     class="{% if selected_child == c.id %}ativo{% endif %}">{{ c.display_name }}</a>
+  {% endfor %}
+</div>
+
+<div class="filtros">
+  {% for n, rotulo in janelas.items() %}
+  <a href="/relatorio?dias={{ n }}{% if selected_child %}&child_id={{ selected_child }}{% endif %}"
+     class="{% if dias == n %}ativo{% endif %}">{{ rotulo }}</a>
+  {% endfor %}
+</div>
+
+<p class="sub">
+  De {{ dados.de.strftime('%d/%m/%Y') }} a {{ dados.ate.strftime('%d/%m/%Y') }}.
+</p>
+
+<div class="numerao">
+  <div class="numero">
+    <strong>{{ dados.total }}</strong>
+    <span>trombadice{{ '' if dados.total == 1 else 's' }}</span>
+  </div>
+  <div class="numero">
+    <strong>{{ dados.maior_sequencia_limpa }}</strong>
+    <span>dias seguidos sem nenhuma</span>
+  </div>
+  <div class="numero">
+    <strong>{{ dados.dias_com_registro }}</strong>
+    <span>dias com alguma coisa</span>
+  </div>
+  <div class="numero">
+    <strong>{{ dados.media_por_dia_com_registro }}</strong>
+    <span>por dia, nos dias em que teve</span>
+  </div>
+  <div class="numero">
+    <strong>{{ dados.dias_de_castigo }}</strong>
+    <span>dias de castigo cumpridos</span>
+  </div>
+  <div class="numero {% if dados.nao_vistas %}alerta{% endif %}">
+    <strong>{{ dados.nao_vistas }}</strong>
+    <span>que o filho ainda não viu</span>
+  </div>
+  {# Contada à parte de propósito: somar coisa boa com coisa ruim daria um
+     número que não responde nenhuma das duas perguntas. #}
+  <div class="numero conquista">
+    <strong>{{ dados.conquistas }}</strong>
+    <span>conquista{{ '' if dados.conquistas == 1 else 's' }}</span>
+  </div>
+</div>
+
+{% if dados.conquistas %}
+  <h2>Conquistas por tipo</h2>
+  {% set boas = [] %}
+  {% for c in dados.conquistas_por_categoria %}{% set _ = boas.append({'rotulo': categorias.get(c.rotulo, c.rotulo), 'total': c.total}) %}{% endfor %}
+  {{ barras(boas, dados.conquistas_por_categoria[0].total) }}
+{% endif %}
+
+{% if dados.total %}
+  <h2>Por dia</h2>
+  {# Um traço por dia, incluindo os zerados: é o vazio que mostra a sequência
+     limpa, que é a notícia boa. #}
+  <div class="serie">
+    {% for d in dados.por_dia %}
+    <span class="dia" title="{{ d.rotulo }}: {{ d.total }}">
+      <span class="coluna" style="height: {{ (d.total / pico * 100) if pico else 0 }}%"></span>
+    </span>
+    {% endfor %}
+  </div>
+  <p class="sub">
+    Dia mais pesado:
+    {% if dados.dia_mais_pesado %}
+      {{ dados.dia_mais_pesado.rotulo }} ({{ dados.dia_mais_pesado.total }})
+    {% else %}—{% endif %}
+  </p>
+
+  <h2>Por tipo</h2>
+  {% set por_tipo = [] %}
+  {% for c in dados.por_categoria %}{% set _ = por_tipo.append({'rotulo': categorias.get(c.rotulo, c.rotulo), 'total': c.total}) %}{% endfor %}
+  {{ barras(por_tipo, dados.por_categoria[0].total) }}
+
+  {% if dados.por_filho|length > 1 %}
+  <h2>Por filho</h2>
+  {{ barras(dados.por_filho, dados.por_filho[0].total) }}
+  {% endif %}
+
+  {% if dados.por_tarefa %}
+  <h2>Tarefas mais descumpridas</h2>
+  {{ barras(dados.por_tarefa, dados.por_tarefa[0].total) }}
+  {% endif %}
+
+  {% if dados.por_semana|length > 1 %}
+  <h2>Por semana</h2>
+  {{ barras(dados.por_semana, dados.por_semana|map(attribute='total')|max) }}
+  {% endif %}
+
+  {% if dados.por_mes|length > 1 %}
+  <h2>Por mês</h2>
+  {{ barras(dados.por_mes, dados.por_mes|map(attribute='total')|max) }}
+  {% endif %}
+{% else %}
+  <div class="vazio">Nada registrado nesse período. Bom sinal.</div>
+{% endif %}
+{% endblock %}
