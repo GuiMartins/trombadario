@@ -108,27 +108,28 @@ fun FeedScreen(
                 )
 
                 else -> Column(Modifier.fillMaxSize()) {
-                    // Filtro só pro pai: o filho vê o que é dele e pronto, e uma
-                    // barra de filtros na conta dele só daria trabalho.
-                    if (currentUser.isAdmin) {
-                        FiltroBar(
-                            children = state.children,
-                            selectedChildId = state.selectedChildId,
-                            onSelectChild = viewModel::selectChild,
-                            kind = state.kind,
-                            onSelectKind = viewModel::selectKind,
-                            category = state.category,
-                            onSelectCategory = viewModel::selectCategory,
-                            busca = state.busca,
-                            onBuscaChange = viewModel::onBuscaChange,
-                            onBuscar = viewModel::buscar,
-                            dia = state.dia,
-                            diasComRegistro = state.diasComRegistro,
-                            onSelectDia = viewModel::selectDia,
-                            filtrando = state.filtrando,
-                            onLimpar = viewModel::limparFiltros,
-                        )
-                    }
+                    // Visão diária com calendário, filtro de tipo (bom/ruim) e
+                    // busca - pro filho também, não só pro pai. A fileira de
+                    // "qual filho" dentro do FiltroBar não aparece sozinha:
+                    // state.children só é populado no ramo admin de load(), e
+                    // o FiltroBar já esconde essa fileira com um filho só.
+                    FiltroBar(
+                        children = state.children,
+                        selectedChildId = state.selectedChildId,
+                        onSelectChild = viewModel::selectChild,
+                        kind = state.kind,
+                        onSelectKind = viewModel::selectKind,
+                        category = state.category,
+                        onSelectCategory = viewModel::selectCategory,
+                        busca = state.busca,
+                        onBuscaChange = viewModel::onBuscaChange,
+                        onBuscar = viewModel::buscar,
+                        dia = state.dia,
+                        diasComRegistro = state.diasComRegistro,
+                        onSelectDia = viewModel::selectDia,
+                        filtrando = state.filtrando,
+                        onLimpar = viewModel::limparFiltros,
+                    )
 
                     if (state.events.isEmpty()) {
                         MessageScreen(
