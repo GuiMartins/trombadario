@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.ChecklistRtl
 import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -35,6 +36,7 @@ import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.trombadicedetail.TrombadiceDetailScreen
 import com.trombadario.ui.trombadiceform.TrombadiceFormScreen
 import com.trombadario.ui.feed.FeedScreen
+import com.trombadario.ui.pedidos.PedidosScreen
 import com.trombadario.ui.punishment.PunishmentScreen
 import com.trombadario.ui.report.ReportScreen
 import com.trombadario.ui.tasks.TasksScreen
@@ -46,6 +48,7 @@ object Routes {
     const val FEED = "feed"
     const val TASKS = "tasks"
     const val PUNISHMENT = "punishment"
+    const val PEDIDOS = "pedidos"
     const val USERS = "users"
     const val SPLASH_MESSAGES = "splash_messages"
     const val REPORT = "report"
@@ -64,13 +67,15 @@ private data class Tab(val route: String, val icon: ImageVector, val labelRes: I
 fun MainNavHost(container: AppContainer, currentUser: UserDto) {
     val navController = rememberNavController()
 
-    // Four tabs for everyone. Accounts is admin-only but lives inside Settings
-    // instead of the bar: a fifth item is the Material3 maximum and reads as
-    // cramped on a phone.
+    // Cinco abas - o teto do NavigationBar do Material3, decisão consciente do
+    // usuário (o padrão anterior era 4, com Contas dentro de Configurações).
+    // Pedidos quis ficar sempre visível em vez de escondido, mesmo sabendo que
+    // a barra fica mais apertada num celular estreito.
     val tabs = listOf(
         Tab(Routes.FEED, Icons.AutoMirrored.Filled.List, R.string.nav_feed),
         Tab(Routes.TASKS, Icons.Default.ChecklistRtl, R.string.nav_tasks),
         Tab(Routes.PUNISHMENT, Icons.Default.Gavel, R.string.nav_punishment),
+        Tab(Routes.PEDIDOS, Icons.Default.QuestionAnswer, R.string.nav_pedidos),
         Tab(Routes.SETTINGS, Icons.Default.Settings, R.string.nav_settings),
     )
 
@@ -132,6 +137,11 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
             composable(Routes.PUNISHMENT) {
                 PageSheet(turn.forward) {
                     PunishmentScreen(container = container, currentUser = currentUser)
+                }
+            }
+            composable(Routes.PEDIDOS) {
+                PageSheet(turn.forward) {
+                    PedidosScreen(container = container, currentUser = currentUser)
                 }
             }
             composable(Routes.SPLASH_MESSAGES) {

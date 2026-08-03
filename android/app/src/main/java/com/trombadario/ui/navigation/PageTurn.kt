@@ -110,7 +110,8 @@ internal fun pageDepth(route: String?): Int = when (route?.substringBefore('?'))
     Routes.FEED -> 0
     Routes.TASKS -> 1
     Routes.PUNISHMENT -> 2
-    Routes.SETTINGS -> 3
+    Routes.PEDIDOS -> 3
+    Routes.SETTINGS -> 4
     // Detalhe, formulário, contas e frases: tudo que se abre a partir de uma aba
     // está mais fundo que qualquer aba, e volta virando para trás.
     else -> 10

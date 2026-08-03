@@ -25,6 +25,8 @@ data class UserDto(
     @SerialName("display_name") val displayName: String,
     val role: String,
     @SerialName("is_active") val isActive: Boolean,
+    // Só faz sentido pro filho; o pai lê o próprio valor como true e nunca usa.
+    @SerialName("can_request") val canRequest: Boolean = true,
 ) {
     val isAdmin: Boolean get() = role == ROLE_ADMIN
 
@@ -47,6 +49,7 @@ data class UserUpdateDto(
     @SerialName("display_name") val displayName: String? = null,
     val password: String? = null,
     @SerialName("is_active") val isActive: Boolean? = null,
+    @SerialName("can_request") val canRequest: Boolean? = null,
 )
 
 @Serializable
@@ -316,3 +319,38 @@ data class ReportDto(
 
 @Serializable
 data class DatasComRegistroDto(val datas: List<String> = emptyList())
+
+// --------------------------------------------------------------------------
+// Pedidos
+// --------------------------------------------------------------------------
+
+@Serializable
+data class PedidoDto(
+    val id: Int,
+    val title: String,
+    val justification: String,
+    /** pendente | aprovado | negado. */
+    val status: String,
+    @SerialName("decision_note") val decisionNote: String = "",
+    @SerialName("decided_at") val decidedAt: String? = null,
+    @SerialName("child_id") val childId: Int,
+    @SerialName("created_at") val createdAt: String,
+) {
+    companion object {
+        const val PENDENTE = "pendente"
+        const val APROVADO = "aprovado"
+        const val NEGADO = "negado"
+    }
+}
+
+@Serializable
+data class PedidoCreateDto(
+    val title: String,
+    val justification: String = "",
+)
+
+@Serializable
+data class PedidoDecisionDto(
+    val status: String,
+    @SerialName("decision_note") val decisionNote: String = "",
+)

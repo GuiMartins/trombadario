@@ -140,6 +140,31 @@ def test_task_completion_trava_um_por_periodo(tmp_path: Path) -> None:
     conexao.close()
 
 
+def test_pedido_pendente_legivel_pelo_orm(banco_antigo: str) -> None:
+    """`status` é enum `native_enum=False` - mesma pegadinha do `category`:
+    a migration escreve "PENDENTE" (o nome do membro), não "pendente" (o
+    valor). Errar isso passaria em toda a suíte (que usa create_all) e só
+    estouraria LookupError na primeira leitura em produção."""
+    command.upgrade(_alembic(banco_antigo), "head")
+
+    agora = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
+    conexao = sqlite3.connect(banco_antigo.removeprefix("sqlite:///"))
+    conexao.execute(
+        "insert into pedidos (title,justification,status,decision_note,child_id,created_at)"
+        " values ('Ir na casa do amigo','fim de semana',?,'',2,?)",
+        ("PENDENTE", agora),
+    )
+    conexao.commit()
+    conexao.close()
+
+    with sessionmaker(bind=create_engine(banco_antigo))() as sessao:
+        from app.models import Pedido, RequestStatus
+
+        pedido = sessao.scalars(select(Pedido)).one()
+        assert pedido.status is RequestStatus.PENDENTE
+        assert pedido.child_id == 2
+
+
 def test_ida_e_volta_da_migration(banco_antigo: str) -> None:
     config = _alembic(banco_antigo)
     command.upgrade(config, "head")

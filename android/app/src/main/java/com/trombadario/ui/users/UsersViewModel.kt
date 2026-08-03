@@ -23,6 +23,7 @@ data class UserEditor(
     val password: String = "",
     val isAdmin: Boolean = false,
     val isActive: Boolean = true,
+    val canRequest: Boolean = true,
 )
 
 data class UsersState(
@@ -69,6 +70,7 @@ class UsersViewModel(private val container: AppContainer) : ViewModel() {
                 displayName = user.displayName,
                 isAdmin = user.isAdmin,
                 isActive = user.isActive,
+                canRequest = user.canRequest,
             ),
             validationError = null,
             serverError = null,
@@ -119,6 +121,7 @@ class UsersViewModel(private val container: AppContainer) : ViewModel() {
                         displayName = editor.displayName.trim().ifBlank { null },
                         password = editor.password.ifBlank { null },
                         isActive = editor.isActive,
+                        canRequest = editor.canRequest,
                     )
                 )
             }

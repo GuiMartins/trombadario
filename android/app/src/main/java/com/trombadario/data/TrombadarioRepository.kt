@@ -7,6 +7,9 @@ import com.trombadario.data.remote.TrombadiceCreateDto
 import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.TrombadiceUpdateDto
 import com.trombadario.data.remote.PunishmentCreateDto
+import com.trombadario.data.remote.PedidoCreateDto
+import com.trombadario.data.remote.PedidoDecisionDto
+import com.trombadario.data.remote.PedidoDto
 import com.trombadario.data.remote.PunishmentDto
 import com.trombadario.data.remote.PunishmentReactionDto
 import com.trombadario.data.remote.PunishmentUpdateDto
@@ -149,6 +152,15 @@ class TrombadarioRepository(
 
     suspend fun listTaskCompletions(taskId: Int): ApiResult<List<TaskCompletionDto>> =
         call { it.listTaskCompletions(taskId) }
+
+    suspend fun listPedidos(childId: Int? = null): ApiResult<List<PedidoDto>> =
+        call { it.listPedidos(childId) }
+
+    suspend fun createPedido(pedido: PedidoCreateDto): ApiResult<PedidoDto> =
+        call { it.createPedido(pedido) }
+
+    suspend fun decidePedido(id: Int, decision: PedidoDecisionDto): ApiResult<PedidoDto> =
+        call { it.decidePedido(id, decision) }
 
     suspend fun markTaskDone(
         taskId: Int,
