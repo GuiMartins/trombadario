@@ -149,6 +149,20 @@ class TaskUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class TaskCompletionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    task_id: int
+    child_id: int
+    note: str
+    completed_at: datetime
+
+
+class TaskCompletionCreate(BaseModel):
+    note: str = Field(default="", max_length=500)
+
+
 class PunishmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

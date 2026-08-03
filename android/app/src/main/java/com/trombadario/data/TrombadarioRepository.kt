@@ -14,6 +14,8 @@ import com.trombadario.data.remote.SplashMessageCreateDto
 import com.trombadario.data.remote.SplashMessageDto
 import com.trombadario.data.remote.SplashMessageRandomDto
 import com.trombadario.data.remote.SplashMessageUpdateDto
+import com.trombadario.data.remote.TaskCompletionCreateDto
+import com.trombadario.data.remote.TaskCompletionDto
 import com.trombadario.data.remote.TaskCreateDto
 import com.trombadario.data.remote.TaskDto
 import com.trombadario.data.remote.TaskUpdateDto
@@ -144,6 +146,14 @@ class TrombadarioRepository(
         call { it.updateTask(id, task) }
 
     suspend fun deleteTask(id: Int): ApiResult<Unit> = callNoContent { it.deleteTask(id) }
+
+    suspend fun listTaskCompletions(taskId: Int): ApiResult<List<TaskCompletionDto>> =
+        call { it.listTaskCompletions(taskId) }
+
+    suspend fun markTaskDone(
+        taskId: Int,
+        completion: TaskCompletionCreateDto,
+    ): ApiResult<TaskCompletionDto> = call { it.markTaskDone(taskId, completion) }
 
     suspend fun listPunishments(childId: Int? = null): ApiResult<List<PunishmentDto>> =
         call { it.listPunishments(childId) }

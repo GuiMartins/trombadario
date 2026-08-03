@@ -83,6 +83,15 @@ interface TrombadarioApi {
     @DELETE("api/tasks/{id}")
     suspend fun deleteTask(@Path("id") id: Int): Response<Unit>
 
+    @GET("api/tasks/{id}/completions")
+    suspend fun listTaskCompletions(@Path("id") id: Int): Response<List<TaskCompletionDto>>
+
+    @POST("api/tasks/{id}/completions")
+    suspend fun markTaskDone(
+        @Path("id") id: Int,
+        @Body completion: TaskCompletionCreateDto,
+    ): Response<TaskCompletionDto>
+
     @GET("api/reports")
     suspend fun report(
         @Query("child_id") childId: Int? = null,

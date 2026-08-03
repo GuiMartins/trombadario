@@ -86,6 +86,12 @@
           {% else %}Uma vez{% endif %}
           {% if t.description %}— {{ t.description }}{% endif %}
         </p>
+        {# Só leitura: quem marca é o filho, pelo app. #}
+        {% for c in t.completions | sort(attribute='completed_at', reverse=true) %}
+          <span class="etiqueta visto">
+            feito {{ c.completed_at.astimezone().strftime('%d/%m às %H:%M') }}{% if c.note %} — {{ c.note }}{% endif %}
+          </span>
+        {% endfor %}
       </div>
       <div class="acoes">
         <a class="mini secundario"

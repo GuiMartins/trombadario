@@ -1,9 +1,13 @@
+from datetime import UTC, date, datetime
+
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
-from app.deps import AdminUser, CurrentUser, DbSession
-from app.models import Periodicity, Role, Task, User
-from app.schemas import TaskCreate, TaskOut, TaskUpdate
+from app.deps import AdminUser, ChildUser, CurrentUser, DbSession
+from app.models import Periodicity, Role, Task, TaskCompletion, User
+from app.periodo import chave_do_periodo, hoje_local
+from app.schemas import TaskCompletionCreate, TaskCompletionOut, TaskCreate, TaskOut, TaskUpdate
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -39,6 +43,16 @@ def _normalize_schedule(
         return "", day_of_month
 
     return "", None
+
+
+def _dia_agendado(task: Task, dia: date) -> bool:
+    """Só importa pra semanal: os outros três tipos não têm 'dia certo' -
+    diária vale todo dia, mensal já é conferida pela chave do período, e
+    avulsa trava sozinha na primeira vez."""
+    if task.periodicity is not Periodicity.WEEKLY:
+        return True
+    agendados = {int(d) for d in task.weekdays.split(",") if d.strip()}
+    return dia.weekday() in agendados
 
 
 @router.get("", response_model=list[TaskOut])
@@ -117,3 +131,57 @@ def delete_task(task_id: int, admin: AdminUser, db: DbSession) -> None:
     # what happened survives the task that caused it.
     db.delete(_get_or_404(db, task_id))
     db.commit()
+
+
+@router.get("/{task_id}/completions", response_model=list[TaskCompletionOut])
+def list_completions(task_id: int, current_user: CurrentUser, db: DbSession) -> list[TaskCompletion]:
+    task = _get_or_404(db, task_id)
+    if current_user.role is not Role.ADMIN and task.child_id != current_user.id:
+        raise NOT_FOUND
+    return list(
+        db.scalars(
+            select(TaskCompletion)
+            .where(TaskCompletion.task_id == task_id)
+            .order_by(TaskCompletion.completed_at.desc())
+        )
+    )
+
+
+@router.post(
+    "/{task_id}/completions", response_model=TaskCompletionOut, status_code=status.HTTP_201_CREATED
+)
+def mark_done(
+    task_id: int, payload: TaskCompletionCreate, child: ChildUser, db: DbSession
+) -> TaskCompletion:
+    task = _get_or_404(db, task_id)
+    if task.child_id != child.id:
+        # 404, não 403 - mesmo padrão de toda leitura/escrita de item único.
+        raise NOT_FOUND
+    if not task.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tarefa não está ativa")
+
+    hoje = hoje_local()
+    if not _dia_agendado(task, hoje):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Essa tarefa não é hoje"
+        )
+
+    completion = TaskCompletion(
+        task_id=task_id,
+        child_id=child.id,
+        note=payload.note,
+        period_key=chave_do_periodo(task.periodicity, hoje),
+        completed_at=datetime.now(UTC),
+    )
+    db.add(completion)
+    try:
+        db.commit()
+    except IntegrityError:
+        # A UniqueConstraint(task_id, period_key) é quem trava de verdade -
+        # esta checagem em Python só evita a viagem ao banco no caso comum.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Já marcado como feito nesse período"
+        ) from None
+    db.refresh(completion)
+    return completion

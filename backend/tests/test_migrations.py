@@ -96,6 +96,50 @@ def test_o_que_ja_existia_sobrevive(banco_antigo: str) -> None:
         conexao.close()
 
 
+def test_task_completion_trava_um_por_periodo(tmp_path: Path) -> None:
+    """`UniqueConstraint(task_id, period_key)` não é enum - a pegadinha do
+    `native_enum=False` não se aplica aqui. O que só a migration real garante
+    é que a constraint existe de fato no banco, não só no `create_all` que o
+    resto da suíte usa. Sem isso, "uma vez por período" seria só uma promessa
+    da rota, quebrável por qualquer segunda escrita concorrente."""
+    arquivo = tmp_path / "novo.db"
+    url = f"sqlite:///{arquivo}"
+    command.upgrade(_alembic(url), "head")
+
+    agora = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
+    conexao = sqlite3.connect(arquivo)
+    conexao.execute(
+        "insert into users (username,password_hash,display_name,role,is_active,created_at)"
+        " values ('pai','x','Pai','ADMIN',1,?)",
+        (agora,),
+    )
+    conexao.execute(
+        "insert into users (username,password_hash,display_name,role,is_active,created_at)"
+        " values ('filho','x','Joao','CHILD',1,?)",
+        (agora,),
+    )
+    conexao.execute(
+        "insert into tasks (name,description,periodicity,weekdays,day_of_month,child_id,"
+        "author_id,is_active,created_at,updated_at) values "
+        "('Arrumar a cama','','DAILY','',null,2,1,1,?,?)",
+        (agora, agora),
+    )
+    conexao.execute(
+        "insert into task_completions (task_id,child_id,note,period_key,completed_at)"
+        " values (1,2,'','2026-08-03',?)",
+        (agora,),
+    )
+    conexao.commit()
+
+    with pytest.raises(sqlite3.IntegrityError):
+        conexao.execute(
+            "insert into task_completions (task_id,child_id,note,period_key,completed_at)"
+            " values (1,2,'de novo','2026-08-03',?)",
+            (agora,),
+        )
+    conexao.close()
+
+
 def test_ida_e_volta_da_migration(banco_antigo: str) -> None:
     config = _alembic(banco_antigo)
     command.upgrade(config, "head")

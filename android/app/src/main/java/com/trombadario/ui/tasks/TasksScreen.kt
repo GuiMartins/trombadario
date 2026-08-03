@@ -49,8 +49,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trombadario.AppContainer
 import com.trombadario.R
+import com.trombadario.data.remote.TaskCompletionDto
 import com.trombadario.data.remote.TaskDto
 import com.trombadario.data.remote.UserDto
+import com.trombadario.ui.components.formatDateTime
+import com.trombadario.ui.components.parseInstant
 import com.trombadario.ui.components.AdaptiveScreen
 import com.trombadario.ui.components.AppTopBar
 import com.trombadario.ui.components.LoadingScreen
@@ -145,9 +148,11 @@ fun TasksScreen(container: AppContainer, currentUser: UserDto) {
                                     null
                                 },
                                 isAdmin = currentUser.isAdmin,
+                                completions = state.completions[task.id].orEmpty(),
                                 onClick = { if (currentUser.isAdmin) viewModel.startEdit(task) },
                                 onToggle = { viewModel.toggleActive(task) },
                                 onDelete = { viewModel.askDelete(task) },
+                                onMarkDone = { viewModel.startMarkDone(task) },
                             )
                         }
                     }
@@ -186,6 +191,38 @@ fun TasksScreen(container: AppContainer, currentUser: UserDto) {
             },
         )
     }
+
+    state.markingDoneFor?.let { task ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelMarkDone,
+            title = { Text(task.name) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = state.markDoneNote,
+                        onValueChange = viewModel::onMarkDoneNoteChange,
+                        label = { Text(stringResource(R.string.tasks_mark_done_note)) },
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    state.markDoneError?.let {
+                        Spacer(Modifier.height(8.dp))
+                        Text(it, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmMarkDone) {
+                    Text(stringResource(R.string.tasks_mark_done_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelMarkDone) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
 }
 
 @Composable
@@ -202,9 +239,11 @@ private fun TaskCard(
     schedule: String,
     childName: String?,
     isAdmin: Boolean,
+    completions: List<TaskCompletionDto>,
     onClick: () -> Unit,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
+    onMarkDone: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(enabled = isAdmin, onClick = onClick),
@@ -249,6 +288,17 @@ private fun TaskCard(
                     )
                 }
             }
+            // Só leitura pro pai; quem marca é o filho, pelo botão abaixo.
+            completions.forEach { c ->
+                Text(
+                    text = stringResource(
+                        R.string.tasks_done_at,
+                        parseInstant(c.completedAt).formatDateTime(),
+                    ) + if (c.note.isNotBlank()) " — ${c.note}" else "",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (isAdmin) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = onToggle) {
@@ -259,6 +309,10 @@ private fun TaskCard(
                         )
                     }
                     TextButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
+                }
+            } else if (task.isActive) {
+                TextButton(onClick = onMarkDone) {
+                    Text(stringResource(R.string.tasks_mark_done))
                 }
             }
         }
