@@ -57,8 +57,17 @@
   --marker-ink: light-dark(#c13a14, #ff8a5e);
   --on-marker: #ffffff;
   --on-marker: light-dark(#ffffff, #4a1600);
-  --teal: #40a4a1;
+  /* Os mesmos dois tons do app (`ConquistaTeal`/`ConquistaTealDark`). O teal do
+     mockup (#40a4a1) foi usado cru aqui e reprovava no claro: 2,9:1 sobre o
+     card, tanto como texto ("★ 02/08 às 09:00") quanto como borda do cartão de
+     conquista. Estes dão 4,7 no claro e 8,3 no escuro. */
+  --teal: #2e7d7b;
+  --teal: light-dark(#2e7d7b, #6fd3d0);
   --amber: #e0a030;
+  /* O âmbar é o mesmo nos dois temas, então o que se escreve em cima dele
+     também é. Seguindo `--ink`, o dia com registro sob o mouse dava 1,9:1 no
+     escuro - a letra sumia no meio do amarelo. */
+  --on-amber: #3a2e22;
   --coral: #e4634f;
   --danger: #b3261e;
   --danger: light-dark(#b3261e, #ffb4ab);
@@ -281,6 +290,11 @@ input:focus, select:focus, textarea:focus {
 }
 textarea { min-height: 5rem; resize: vertical; }
 
+/* O navegador pinta o placeholder com um cinza fixo (#757575 no Chrome) que não
+   acompanha o tema: 3,2:1 sobre o card escuro, contra 4,5 de mínimo. O
+   `opacity: 1` é por causa do Firefox, que ainda aplica 0.54 por cima. */
+::placeholder { color: var(--ink-soft); opacity: 1; }
+
 /* Campo que só aparece quando a escolha ao lado pede por ele. Sem JavaScript:
    `:checked` acompanha o <select> em tempo real e `:has()` deixa o formulário
    reagir sozinho.
@@ -413,8 +427,11 @@ a.mini:hover { background: var(--note); }
   line-height: 1.2;
 }
 .calendario .cabecalho { color: var(--ink-soft); font-weight: 800; font-size: 0.7rem; }
-/* Dia sem registro não é link, e a cor diz isso antes do clique. */
-.calendario .vazio { color: var(--ink-soft); opacity: 0.55; }
+/* Dia sem registro não é link, e a cor diz isso antes do clique.
+   Sem `opacity`: a 55% o número dava 2,4:1 no claro e 3,0:1 no escuro, e o
+   calendário é quase todo feito desses dias. Quem separa o dia que tem coisa
+   não é o esmaecimento e sim a pílula logo abaixo - fundo, borda e negrito. */
+.calendario .vazio { color: var(--ink-soft); }
 .calendario .fora { visibility: hidden; }
 .calendario .hoje { outline: 1px dashed var(--marker-ink); }
 .calendario a.tem {
@@ -424,7 +441,7 @@ a.mini:hover { background: var(--note); }
   background: var(--note);
   border: 1px solid var(--note-border);
 }
-.calendario a.tem:hover { background: var(--amber); color: var(--ink); }
+.calendario a.tem:hover { background: var(--amber); color: var(--on-amber); }
 .calendario a.tem.escolhido {
   background: var(--marker-ink);
   color: var(--on-marker);
