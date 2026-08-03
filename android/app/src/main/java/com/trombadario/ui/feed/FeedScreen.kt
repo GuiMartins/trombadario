@@ -200,7 +200,7 @@ private fun EventCard(
                         imageVector = Icons.Default.Star,
                         contentDescription = stringResource(R.string.tipo_conquista),
                         tint = destaque,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
                 Text(

@@ -9,7 +9,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 
-private val LightColors = lightColorScheme(
+internal val LightColors = lightColorScheme(
     primary = MarkerInk,
     onPrimary = OnMarkerRed,
     primaryContainer = NoteLight,
@@ -21,6 +21,9 @@ private val LightColors = lightColorScheme(
     secondaryContainer = NoteLight,
     onSecondaryContainer = InkLight,
     tertiary = AccentAmber,
+    // Faltava - ver o comentário de AccentAmber em Color.kt. Sem isto o
+    // Material usava o branco padrão dele, ilegível sobre o âmbar.
+    onTertiary = InkLight,
     background = PaperLight,
     onBackground = InkLight,
     // Card branco sobre a folha - é o "papelzinho colado no caderno".
@@ -34,16 +37,19 @@ private val LightColors = lightColorScheme(
     error = ErrorLight,
 )
 
-private val DarkColors = darkColorScheme(
+internal val DarkColors = darkColorScheme(
     primary = MarkerRedDark,
     onPrimary = OnMarkerRedDark,
     primaryContainer = NoteDark,
     onPrimaryContainer = InkDark,
-    secondary = AccentTeal,
+    secondary = AccentTealDark,
     onSecondary = OnMarkerRedDark,
     secondaryContainer = NoteDark,
     onSecondaryContainer = InkDark,
     tertiary = AccentAmber,
+    // Mesmo valor do claro: é o próprio tom do âmbar que não muda entre os
+    // temas, não o texto (ver Color.kt).
+    onTertiary = InkLight,
     background = PaperDark,
     onBackground = InkDark,
     surface = CardDark,
