@@ -94,18 +94,20 @@ class TrombadarioRepository(
 
     suspend fun listTrombadices(
         childId: Int? = null,
+        kind: String? = null,
         category: String? = null,
         de: String? = null,
         ate: String? = null,
         q: String? = null,
     ): ApiResult<List<TrombadiceDto>> =
-        call { it.listTrombadices(childId, category, de, ate, q) }
+        call { it.listTrombadices(childId, kind, category, de, ate, q) }
 
     suspend fun trombadiceDates(
         childId: Int? = null,
+        kind: String? = null,
         category: String? = null,
         q: String? = null,
-    ): ApiResult<DatasComRegistroDto> = call { it.trombadiceDates(childId, category, q) }
+    ): ApiResult<DatasComRegistroDto> = call { it.trombadiceDates(childId, kind, category, q) }
 
     suspend fun report(
         childId: Int? = null,

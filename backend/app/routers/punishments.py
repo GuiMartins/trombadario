@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.deps import AdminUser, CurrentUser, DbSession
-from app.models import Category, Punishment, Role, Trombadice, User
+from app.models import Category, Kind, Punishment, Role, Trombadice, User
 from app.periodo import data_local, intervalo
 from app.schemas import DatasComRegistro, PunishmentCreate, PunishmentOut, PunishmentUpdate
 from app.visto import marcar_visto
@@ -47,6 +47,12 @@ def _resolve_trombadices(db: DbSession, ids: list[int], child_id: int) -> list[T
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Trombadice inválida para esse filho",
+        )
+    if any(t.kind is not Kind.TROMBADICE for t in found):
+        # Castigo por conquista não é castigo, é engano de digitação.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Conquista não causa castigo",
         )
     return found
 

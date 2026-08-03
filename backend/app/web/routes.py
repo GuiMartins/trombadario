@@ -10,7 +10,9 @@ from sqlalchemy import or_, select
 
 from app.deps import DbSession
 from app.models import (
+    CATEGORIAS_POR_TIPO,
     Category,
+    Kind,
     Periodicity,
     Punishment,
     Role,
@@ -18,6 +20,8 @@ from app.models import (
     Task,
     Trombadice,
     User,
+    categoria_combina,
+    categoria_padrao,
 )
 from app.periodo import (
     data_local,
@@ -59,7 +63,21 @@ CATEGORIA_ROTULOS = {
     Category.ESCOLA: "Escola",
     Category.AGRESSAO: "Agressão",
     Category.OUTRA: "Outra",
+    Category.AJUDOU: "Ajudou sem pedir",
+    Category.RESPONSABILIDADE: "Foi responsável",
+    Category.ESTUDOU: "Mandou bem na escola",
+    Category.GENTILEZA: "Foi gentil",
+    Category.INICIATIVA: "Teve iniciativa",
+    Category.SUPEROU: "Superou uma dificuldade",
+    Category.CUIDOU: "Cuidou bem das coisas",
+    Category.OUTRA_BOA: "Outra coisa boa",
 }
+
+TIPO_ROTULOS = {Kind.TROMBADICE: "Trombadice", Kind.CONQUISTA: "Conquista"}
+
+
+def _rotulos_do_tipo(kind: Kind) -> dict:
+    return {c: CATEGORIA_ROTULOS[c] for c in CATEGORIAS_POR_TIPO[kind]}
 
 
 def _redirect(url: str) -> RedirectResponse:
@@ -78,8 +96,14 @@ def _tarefa_do_filho(db: DbSession, task_id: str, child_id: int) -> int | None:
 
 
 def _campos_da_trombadice(
-    db: DbSession, title: str, child_id: int, task_id: str, category: str
-) -> tuple[str, int, int | None, Category]:
+    db: DbSession,
+    title: str,
+    child_id: int,
+    task_id: str,
+    categoria_trombadice: str,
+    categoria_conquista: str,
+    kind: str,
+) -> tuple[str, int, int | None, Category, Kind]:
     """Resolve título, filho, tarefa e categoria a partir do que o formulário
     mandou.
 
@@ -91,13 +115,27 @@ def _campos_da_trombadice(
     No caso de edição o título continua vindo preenchido no campo escondido,
     então corrigir um "machou" com tarefa atrelada preserva a correção.
     """
-    tarefa = db.get(Task, int(task_id)) if task_id else None
+    tipo = Kind(kind) if kind in {k.value for k in Kind} else Kind.TROMBADICE
+
+    # Conquista não se atrela a tarefa: o vínculo existe pra dizer o que **não**
+    # foi cumprido, e diria o contrário do que significa.
+    tarefa = db.get(Task, int(task_id)) if task_id and tipo is Kind.TROMBADICE else None
     if tarefa is not None:
         child_id = tarefa.child_id
 
-    categoria = Category(category) if category in {c.value for c in Category} else Category.OUTRA
+    # O formulário manda as duas listas de categoria, e só a do tipo escolhido
+    # é a que vale. Assim nenhuma delas precisa ser desabilitada no navegador -
+    # o CSS esconde a outra e o servidor ignora o que ela mandou.
+    bruto = categoria_conquista if tipo is Kind.CONQUISTA else categoria_trombadice
+    escolhida = Category(bruto) if bruto in {c.value for c in Category} else None
+    categoria = (
+        escolhida
+        if escolhida is not None and categoria_combina(escolhida, tipo)
+        else categoria_padrao(tipo)
+    )
+
     titulo = title.strip() or (tarefa.name if tarefa is not None else "")
-    return titulo, child_id, (tarefa.id if tarefa is not None else None), categoria
+    return titulo, child_id, (tarefa.id if tarefa is not None else None), categoria, tipo
 
 
 def _filho_valido(db: DbSession, child_id: str) -> int | None:
@@ -309,6 +347,7 @@ def trombadices_page(
     db: DbSession,
     user: AdminWeb,
     child_id: int | None = None,
+    kind: str | None = None,
     category: str | None = None,
     dia: date | None = None,
     q: str | None = None,
@@ -316,10 +355,13 @@ def trombadices_page(
     editar: int | None = None,
 ):
     categoria = Category(category) if category in {c.value for c in Category} else None
+    tipo = Kind(kind) if kind in {k.value for k in Kind} else None
 
     base = select(Trombadice)
     if child_id:
         base = base.where(Trombadice.child_id == child_id)
+    if tipo is not None:
+        base = base.where(Trombadice.kind == tipo)
     if categoria is not None:
         base = base.where(Trombadice.category == categoria)
     if q and (termo := q.strip()):
@@ -347,8 +389,17 @@ def trombadices_page(
         children_by_id={c.id: c for c in children},
         tasks=list(db.scalars(select(Task).where(Task.is_active).order_by(Task.name))),
         selected_child=child_id,
-        categorias=CATEGORIA_ROTULOS,
+        # Os chips de categoria seguem o tipo filtrado: com "Conquistas" ligado,
+        # oferecer "falta de respeito" seria oferecer um filtro que nunca acha
+        # nada. Sem tipo escolhido, valem as dezesseis.
+        categorias=_rotulos_do_tipo(tipo) if tipo else CATEGORIA_ROTULOS,
         categoria_escolhida=categoria,
+        # Cada tipo com a sua lista: "falta de respeito" não descreve coisa boa,
+        # e "ajudou sem pedir" não descreve trombadice.
+        categorias_trombadice=_rotulos_do_tipo(Kind.TROMBADICE),
+        categorias_conquista=_rotulos_do_tipo(Kind.CONQUISTA),
+        tipos=TIPO_ROTULOS,
+        tipo_escolhido=tipo,
         busca=q or "",
         dia_escolhido=dia,
         agora=_local_input(datetime.now(UTC)),
@@ -359,6 +410,7 @@ def trombadices_page(
             "/trombadices",
             {
                 "child_id": child_id,
+                "kind": tipo.value if tipo else None,
                 "category": categoria.value if categoria else None,
                 "q": q,
                 "dia": dia,
@@ -407,10 +459,12 @@ def trombadice_create(
     title: Annotated[str, Form()] = "",
     description: Annotated[str, Form()] = "",
     task_id: Annotated[str, Form()] = "",
-    category: Annotated[str, Form()] = "outra",
+    kind: Annotated[str, Form()] = "trombadice",
+    categoria_trombadice: Annotated[str, Form()] = "outra",
+    categoria_conquista: Annotated[str, Form()] = "outra_boa",
 ):
-    titulo, filho, tarefa, categoria = _campos_da_trombadice(
-        db, title, child_id, task_id, category
+    titulo, filho, tarefa, categoria, tipo = _campos_da_trombadice(
+        db, title, child_id, task_id, categoria_trombadice, categoria_conquista, kind
     )
     if not titulo:
         # Sem tarefa e sem título não sobra registro nenhum: volta sem gravar.
@@ -420,6 +474,7 @@ def trombadice_create(
         Trombadice(
             title=titulo,
             description=description.strip(),
+            kind=tipo,
             category=categoria,
             occurred_at=_parse_local(occurred_at),
             child_id=filho,
@@ -441,7 +496,8 @@ def trombadice_edit(
     title: Annotated[str, Form()] = "",
     description: Annotated[str, Form()] = "",
     task_id: Annotated[str, Form()] = "",
-    category: Annotated[str, Form()] = "outra",
+    categoria_trombadice: Annotated[str, Form()] = "outra",
+    categoria_conquista: Annotated[str, Form()] = "outra_boa",
 ):
     """Corrigir o que já foi cadastrado - um "machou" que era "machucou".
 
@@ -451,8 +507,11 @@ def trombadice_edit(
     if trombadice is None:
         return _redirect("/trombadices")
 
-    titulo, filho, tarefa, categoria = _campos_da_trombadice(
-        db, title, child_id, task_id, category
+    # O tipo não se edita - trombadice não vira conquista. Vale o que já está
+    # gravado, e a categoria tem que ser da lista dele.
+    titulo, filho, tarefa, categoria, _ = _campos_da_trombadice(
+        db, title, child_id, task_id, categoria_trombadice, categoria_conquista,
+        trombadice.kind.value,
     )
     if not titulo:
         return _redirect("/trombadices")
@@ -656,8 +715,11 @@ def punishments_page(
         editando=editando,
         editando_trombadices=[t.id for t in editando.trombadices] if editando else [],
         selected_child=child_id,
-        categorias=CATEGORIA_ROTULOS,
+        # Castigo só vem de trombadice, então só a lista dela faz sentido aqui.
+        categorias=_rotulos_do_tipo(Kind.TROMBADICE),
         categoria_escolhida=categoria,
+        tipos=None,
+        tipo_escolhido=None,
         busca=q or "",
         dia_escolhido=dia,
         url=_construtor_de_url(

@@ -48,7 +48,10 @@ import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.remote.Categoria
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.data.remote.Tipo
+import com.trombadario.ui.components.ehConquista
 import com.trombadario.ui.components.rotuloDaCategoria
+import com.trombadario.ui.components.rotuloDoTipo
 import com.trombadario.ui.theme.NotebookGutter
 import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
@@ -116,10 +119,31 @@ fun TrombadiceFormScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(24.dp),
             ) {
-                // A tarefa vem primeiro porque responde duas das perguntas de
-                // baixo - de quem é e qual é o título - e some com elas da tela.
-                // Mesma regra do painel web.
-                if (state.tasks.isNotEmpty()) {
+                // O tipo vem antes de tudo: muda a lista de categorias e some
+                // com o campo de tarefa. Na edição não aparece - trombadice não
+                // vira conquista, e reescrever isso mudaria o significado de um
+                // registro que a criança já pode ter visto.
+                if (trombadiceId == null) {
+                    Text(
+                        text = stringResource(R.string.trombadice_form_kind_label),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Tipo.TODOS.forEach { valor ->
+                            FilterChip(
+                                selected = state.kind == valor,
+                                onClick = { viewModel.onKindChange(valor) },
+                                label = { Text(stringResource(rotuloDoTipo(valor))) },
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(24.dp))
+                }
+
+                // A tarefa responde duas das perguntas de baixo - de quem é e
+                // qual é o título - e some com elas da tela. Só para trombadice.
+                if (state.tasks.isNotEmpty() && !ehConquista(state.kind)) {
                     Text(
                         text = stringResource(R.string.trombadice_form_task_label),
                         style = MaterialTheme.typography.labelLarge,
@@ -190,7 +214,7 @@ fun TrombadiceFormScreen(
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Categoria.TODAS.forEach { valor ->
+                    Categoria.de(state.kind).forEach { valor ->
                         FilterChip(
                             selected = state.category == valor,
                             onClick = { viewModel.onCategoryChange(valor) },

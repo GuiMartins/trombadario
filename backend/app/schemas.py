@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models import Category, Periodicity, Role
+from app.models import Category, Kind, Periodicity, Role, categoria_combina, categoria_padrao
 
 
 class Token(BaseModel):
@@ -48,6 +48,7 @@ class TrombadiceOut(BaseModel):
     id: int
     title: str
     description: str
+    kind: Kind
     category: Category
     occurred_at: datetime
     child_id: int
@@ -63,7 +64,10 @@ class TrombadiceCreate(BaseModel):
     # não foi cumprida, e obrigar a repetir isso na mão só produz divergência.
     title: str = Field(default="", max_length=200)
     description: str = ""
-    category: Category = Category.OUTRA
+    kind: Kind = Kind.TROMBADICE
+    # Nulo = usa a padrão do tipo. Sem isso, quem manda uma conquista sem
+    # categoria receberia "Outra" de trombadice, que é de outra lista.
+    category: Category | None = None
     # AwareDatetime, not datetime: a naive value would be ambiguous and the
     # storage layer rejects it anyway (see app/types.py). Better a 422 than a
     # 500, and better an explicit offset than a silent 3-hour shift.
@@ -72,15 +76,26 @@ class TrombadiceCreate(BaseModel):
     task_id: int | None = None
 
     @model_validator(mode="after")
-    def titulo_ou_tarefa(self) -> "TrombadiceCreate":
+    def coerente(self) -> "TrombadiceCreate":
         if not self.title.strip() and self.task_id is None:
             raise ValueError("sem tarefa atrelada, o título é obrigatório")
+        if self.kind is Kind.CONQUISTA and self.task_id is not None:
+            # Tarefa existe para registrar o que **não** foi cumprido. Conquista
+            # atrelada a tarefa diria o contrário do que o vínculo significa.
+            raise ValueError("conquista não se atrela a tarefa")
+        if self.category is None:
+            self.category = categoria_padrao(self.kind)
+        elif not categoria_combina(self.category, self.kind):
+            raise ValueError("essa categoria não é desse tipo de registro")
         return self
 
 
 class TrombadiceUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
+    # O tipo não se edita: trombadice não vira conquista nem o contrário. Errou
+    # o tipo, apaga e cadastra de novo - é mais honesto que reescrever o
+    # significado de um registro que a criança já pode ter visto.
     category: Category | None = None
     occurred_at: AwareDatetime | None = None
     task_id: int | None = None
@@ -209,6 +224,11 @@ class Report(BaseModel):
     dias_de_castigo: float
     maior_sequencia_limpa: int
     nao_vistas: int
+
+    # Contadas à parte de propósito: somar coisa boa com coisa ruim daria um
+    # número que não responde nenhuma das duas perguntas.
+    conquistas: int = 0
+    conquistas_por_categoria: list[Contagem] = Field(default_factory=list)
 
 
 class DatasComRegistro(BaseModel):

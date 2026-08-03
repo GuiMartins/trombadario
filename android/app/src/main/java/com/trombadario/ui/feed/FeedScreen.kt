@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SentimentDissatisfied
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,6 +47,8 @@ import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
 import com.trombadario.ui.components.FiltroBar
+import com.trombadario.ui.components.corDaConquista
+import com.trombadario.ui.components.ehConquista
 import com.trombadario.ui.components.rotuloDaCategoria
 import com.trombadario.ui.theme.NotebookGutter
 import com.trombadario.ui.components.transparentTopBar
@@ -111,6 +115,8 @@ fun FeedScreen(
                             children = state.children,
                             selectedChildId = state.selectedChildId,
                             onSelectChild = viewModel::selectChild,
+                            kind = state.kind,
+                            onSelectKind = viewModel::selectKind,
                             category = state.category,
                             onSelectCategory = viewModel::selectCategory,
                             busca = state.busca,
@@ -173,17 +179,36 @@ private fun EventCard(
     mostrarVisto: Boolean,
     onClick: () -> Unit,
 ) {
+    val conquista = ehConquista(event.kind)
+    // Cor e ícone diferentes, não só texto: numa lista misturada o pai precisa
+    // distinguir coisa boa de trombadice sem ler.
+    val destaque = if (conquista) corDaConquista() else MaterialTheme.colorScheme.primary
+
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        border = BorderStroke(if (conquista) 2.dp else 1.dp, destaque.takeIf { conquista }
+            ?: MaterialTheme.colorScheme.outline),
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text(
-                text = parseInstant(event.occurredAt).formatDateTime(),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                if (conquista) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = stringResource(R.string.tipo_conquista),
+                        tint = destaque,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                Text(
+                    text = parseInstant(event.occurredAt).formatDateTime(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = destaque,
+                )
+            }
             Spacer(Modifier.height(4.dp))
             Text(
                 text = event.title,

@@ -346,7 +346,37 @@ a.mini:hover { background: var(--note); }
 @supports selector(:has(*)) {
   .sem-tarefa { display: none; }
   form:has(#task_id option[value=""]:checked) .sem-tarefa { display: block; }
+
+  /* Cada tipo mostra só o que é dele: a lista de categorias certa, e o campo
+     de tarefa só na trombadice - conquista não se atrela a tarefa. */
+  .so-conquista { display: none; }
+  form:has(input[name="kind"][value="conquista"]:checked) .so-trombadice { display: none; }
+  form:has(input[name="kind"][value="conquista"]:checked) .so-conquista { display: block; }
 }
+
+/* Escolha do tipo: dois botões grandes, porque é a decisão que mais muda o
+   resto do formulário. */
+.tipos { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 0.3rem; }
+.tipos .tipo {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.5rem 1.1rem;
+  border: 2px solid var(--note-border);
+  border-radius: 999px;
+  background: var(--card);
+  cursor: pointer;
+  font-weight: 800;
+}
+.tipos .tipo input { margin: 0; }
+.tipos .tipo:has(input:checked) { border-color: var(--marker-ink); color: var(--marker-ink); }
+.tipos .tipo-conquista:has(input:checked) { border-color: var(--teal); color: var(--teal); }
+
+/* A conquista se distingue pela cor da borda e pela estrela, não só pelo
+   texto: o pai bate o olho na lista e vê o que é bom sem ler. */
+.cartao.conquista { border-color: var(--teal); border-left: 4px solid var(--teal); }
+.cartao.conquista .quando { color: var(--teal); }
 
 .busca { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
 .busca input[type="text"] { max-width: 22rem; }
@@ -427,6 +457,8 @@ a.mini:hover { background: var(--note); }
 }
 .numero span { font-size: 0.8rem; color: var(--ink-soft); }
 .numero.alerta { border-color: var(--marker-ink); }
+.numero.conquista { border-color: var(--teal); }
+.numero.conquista strong { color: var(--teal); }
 
 .barras { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem; }
 .barra { display: grid; grid-template-columns: 10rem 1fr 2.5rem; gap: 0.6rem; align-items: center; }

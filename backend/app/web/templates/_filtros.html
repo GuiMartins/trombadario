@@ -14,6 +14,19 @@
   {% endfor %}
 </div>
 
+{# Só na tela de trombadices: castigo sempre vem de trombadice, então filtrar
+   castigo por tipo não faria pergunta nenhuma. #}
+{% if tipos %}
+<div class="filtros">
+  <a href="{{ url(kind=None) }}" hx-get="{{ url(kind=None) }}"
+     class="{% if not tipo_escolhido %}ativo{% endif %}">Tudo</a>
+  {% for valor, rotulo in tipos.items() %}
+  <a href="{{ url(kind=valor.value, category=None) }}" hx-get="{{ url(kind=valor.value, category=None) }}"
+     class="{% if tipo_escolhido == valor %}ativo{% endif %}">{{ rotulo }}s</a>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="filtros">
   <a href="{{ url(category=None) }}" hx-get="{{ url(category=None) }}"
      class="{% if not categoria_escolhida %}ativo{% endif %}">Qualquer tipo</a>

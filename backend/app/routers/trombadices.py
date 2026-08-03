@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import or_, select
 
 from app.deps import AdminUser, CurrentUser, DbSession
-from app.models import Category, Role, Task, Trombadice, User
+from app.models import Category, Kind, Role, Task, Trombadice, User, categoria_combina
 from app.periodo import data_local, intervalo
 from app.schemas import DatasComRegistro, TrombadiceCreate, TrombadiceOut, TrombadiceUpdate
 from app.visto import marcar_visto
@@ -45,7 +45,16 @@ def _escopo(query, current_user: User, child_id: int | None):
     return query.where(Trombadice.child_id == current_user.id)
 
 
-def _filtros(query, category: Category | None, de: date | None, ate: date | None, q: str | None):
+def _filtros(
+    query,
+    kind: Kind | None,
+    category: Category | None,
+    de: date | None,
+    ate: date | None,
+    q: str | None,
+):
+    if kind is not None:
+        query = query.where(Trombadice.kind == kind)
     if category is not None:
         query = query.where(Trombadice.category == category)
 
@@ -71,13 +80,14 @@ def list_trombadices(
     current_user: CurrentUser,
     db: DbSession,
     child_id: int | None = None,
+    kind: Kind | None = None,
     category: Category | None = None,
     de: date | None = None,
     ate: date | None = None,
     q: str | None = None,
 ) -> list[Trombadice]:
     query = select(Trombadice).order_by(Trombadice.occurred_at.desc(), Trombadice.id.desc())
-    query = _filtros(_escopo(query, current_user, child_id), category, de, ate, q)
+    query = _filtros(_escopo(query, current_user, child_id), kind, category, de, ate, q)
     achadas = list(db.scalars(query))
     # O feed do filho está aberto na frente dele: isto é o "visto".
     marcar_visto(db, achadas, current_user)
@@ -89,6 +99,7 @@ def dates_with_trombadices(
     current_user: CurrentUser,
     db: DbSession,
     child_id: int | None = None,
+    kind: Kind | None = None,
     category: Category | None = None,
     q: str | None = None,
 ) -> DatasComRegistro:
@@ -98,7 +109,9 @@ def dates_with_trombadices(
     Agrupado em Python e não em SQL de propósito: o banco guarda UTC e o dia
     que interessa é o local, então agrupar por `date(occurred_at)` no SQLite
     jogaria tudo que aconteceu depois das 21h para o dia seguinte."""
-    query = _filtros(_escopo(select(Trombadice), current_user, child_id), category, None, None, q)
+    query = _filtros(
+        _escopo(select(Trombadice), current_user, child_id), kind, category, None, None, q
+    )
     dias = {data_local(t.occurred_at) for t in db.scalars(query)}
     return DatasComRegistro(datas=sorted(dias))
 
@@ -131,6 +144,7 @@ def create_trombadice(payload: TrombadiceCreate, admin: AdminUser, db: DbSession
     trombadice = Trombadice(
         title=titulo,
         description=payload.description,
+        kind=payload.kind,
         category=payload.category,
         occurred_at=payload.occurred_at,
         child_id=payload.child_id,
@@ -152,6 +166,21 @@ def update_trombadice(
 
     if "task_id" in data:
         _check_task(db, data["task_id"], trombadice.child_id)
+        if data["task_id"] is not None and trombadice.kind is not Kind.TROMBADICE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Conquista não se atrela a tarefa",
+            )
+
+    # A categoria tem que continuar sendo do tipo do registro. O tipo em si não
+    # se edita (ver TrombadiceUpdate), então é sempre o que já estava lá.
+    if (nova := data.get("category")) is not None and not categoria_combina(
+        nova, trombadice.kind
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Essa categoria não é desse tipo de registro",
+        )
 
     for field, value in data.items():
         setattr(trombadice, field, value)

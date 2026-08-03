@@ -1,8 +1,14 @@
 package com.trombadario.ui.components
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import com.trombadario.ui.theme.ConquistaTeal
+import com.trombadario.ui.theme.ConquistaTealDark
 import com.trombadario.R
 import com.trombadario.data.remote.Categoria
+import com.trombadario.data.remote.Tipo
 
 /**
  * O nome de tela de cada categoria.
@@ -25,5 +31,30 @@ fun rotuloDaCategoria(valor: String): Int = when (valor) {
     Categoria.BIRRA -> R.string.categoria_birra
     Categoria.ESCOLA -> R.string.categoria_escola
     Categoria.AGRESSAO -> R.string.categoria_agressao
+    Categoria.AJUDOU -> R.string.categoria_ajudou
+    Categoria.RESPONSABILIDADE -> R.string.categoria_responsabilidade
+    Categoria.ESTUDOU -> R.string.categoria_estudou
+    Categoria.GENTILEZA -> R.string.categoria_gentileza
+    Categoria.INICIATIVA -> R.string.categoria_iniciativa
+    Categoria.SUPEROU -> R.string.categoria_superou
+    Categoria.CUIDOU -> R.string.categoria_cuidou
+    Categoria.OUTRA_BOA -> R.string.categoria_outra_boa
     else -> R.string.categoria_outra
 }
+
+/** O nome de tela do tipo do registro. */
+@StringRes
+fun rotuloDoTipo(valor: String): Int =
+    if (valor == Tipo.CONQUISTA) R.string.tipo_conquista else R.string.tipo_trombadice
+
+/** No plural, para os chips de filtro. */
+@StringRes
+fun rotuloDoTipoPlural(valor: String): Int =
+    if (valor == Tipo.CONQUISTA) R.string.tipo_conquistas else R.string.tipo_trombadices
+
+fun ehConquista(kind: String): Boolean = kind == Tipo.CONQUISTA
+
+/** Teal no claro, teal claro no escuro - contraste medido nos dois papéis. */
+@Composable
+fun corDaConquista(): Color =
+    if (isSystemInDarkTheme()) ConquistaTealDark else ConquistaTeal

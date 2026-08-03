@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     Category,
+    Kind,
     Periodicity,
     Punishment,
     Role,
@@ -431,11 +432,17 @@ def test_filho_nao_edita_nada(client: TestClient, db: Session, admin: User, chil
 
 
 def _cria_trombadice(client: TestClient, child_id: int, **campos) -> None:
+    # O formulário manda as duas listas de categoria; o servidor lê só a do
+    # tipo escolhido. Aqui vão as duas, como o navegador faz.
+    if "category" in campos:
+        campos["categoria_trombadice"] = campos.pop("category")
     dados = {
         "child_id": child_id,
         "occurred_at": "2026-08-02T11:30",
         "title": "algo",
-        "category": "outra",
+        "kind": "trombadice",
+        "categoria_trombadice": "outra",
+        "categoria_conquista": "outra_boa",
         **campos,
     }
     resposta = client.post("/trombadices", data=dados, follow_redirects=False)
@@ -595,3 +602,98 @@ def test_relatorio_ignora_janela_inventada(
     # Cai na janela padrão em vez de aceitar qualquer número da barra de
     # endereços.
     assert client.get("/relatorio?dias=99999").status_code == 200
+
+
+def test_painel_cadastra_conquista(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    _cria_trombadice(
+        client,
+        child.id,
+        title="Ajudou a arrumar a casa",
+        kind="conquista",
+        categoria_conquista="ajudou",
+    )
+
+    registrada = db.scalars(select(Trombadice)).one()
+    assert registrada.kind is Kind.CONQUISTA
+    assert registrada.category is Category.AJUDOU
+
+
+def test_a_lista_do_tipo_errado_e_ignorada(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    # O navegador manda as duas listas; a do tipo que não foi escolhido não
+    # pode vazar para o registro.
+    _cria_trombadice(
+        client,
+        child.id,
+        kind="conquista",
+        categoria_trombadice="agressao",
+        categoria_conquista="gentileza",
+    )
+
+    assert db.scalars(select(Trombadice)).one().category is Category.GENTILEZA
+
+
+def test_conquista_pelo_painel_ignora_a_tarefa(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post(
+        "/tarefas",
+        data={"name": "Arrumar a cama", "child_id": child.id, "periodicity": "daily"},
+    )
+    tarefa = db.scalars(select(Task)).one()
+
+    _cria_trombadice(client, child.id, kind="conquista", task_id=str(tarefa.id))
+
+    # Tarefa registra o que **não** foi cumprido; numa conquista o vínculo diria
+    # o contrário. O campo nem aparece na tela, mas o servidor não confia nisso.
+    assert db.scalars(select(Trombadice)).one().task_id is None
+
+
+def test_filtro_de_tipo_no_painel(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _cria_trombadice(client, child.id, title="Empurrou", category="agressao")
+    _cria_trombadice(client, child.id, title="Ajudou muito", kind="conquista")
+
+    corpo = client.get("/trombadices?kind=conquista").text
+
+    assert "Ajudou muito" in corpo
+    assert "Empurrou" not in corpo
+    # Com conquistas na tela, oferecer "falta de respeito" como **filtro** seria
+    # oferecer um filtro que nunca acha nada. (O formulário de cadastro lá em
+    # cima continua com as duas listas, e é assim que tem que ser.)
+    assert "category=ajudou" in corpo
+    assert "category=agressao" not in corpo
+
+
+def test_tipo_nao_muda_na_edicao_pelo_painel(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _cria_trombadice(client, child.id, kind="conquista")
+    registrada = db.scalars(select(Trombadice)).one()
+
+    client.post(
+        f"/trombadices/{registrada.id}/editar",
+        data={
+            "child_id": child.id,
+            "occurred_at": "2026-08-02T11:30",
+            "title": "Ajudou mesmo",
+            "kind": "trombadice",
+            "categoria_trombadice": "mentira",
+            "categoria_conquista": "ajudou",
+        },
+    )
+
+    db.refresh(registrada)
+    assert registrada.kind is Kind.CONQUISTA
+    assert registrada.category is Category.AJUDOU
