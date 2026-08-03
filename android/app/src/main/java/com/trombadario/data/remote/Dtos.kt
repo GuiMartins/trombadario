@@ -188,6 +188,20 @@ data class TaskUpdateDto(
     @SerialName("is_active") val isActive: Boolean? = null,
 )
 
+@Serializable
+data class TaskCompletionDto(
+    val id: Int,
+    @SerialName("task_id") val taskId: Int,
+    @SerialName("child_id") val childId: Int,
+    val note: String,
+    @SerialName("completed_at") val completedAt: String,
+)
+
+@Serializable
+data class TaskCompletionCreateDto(
+    val note: String = "",
+)
+
 // --------------------------------------------------------------------------
 // Castigos
 // --------------------------------------------------------------------------

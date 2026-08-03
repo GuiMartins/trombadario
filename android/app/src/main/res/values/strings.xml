@@ -123,6 +123,10 @@
     <string name="tasks_error_day_required">Escolha o dia do mês</string>
     <string name="tasks_delete_confirm_title">Excluir tarefa?</string>
     <string name="tasks_delete_confirm_message">As trombadices ligadas a ela continuam registradas.</string>
+    <string name="tasks_mark_done">Feito</string>
+    <string name="tasks_mark_done_note">Quer contar alguma coisa? (opcional)</string>
+    <string name="tasks_mark_done_confirm">Marcar como feito</string>
+    <string name="tasks_done_at">feito em %1$s</string>
 
     <!-- Castigo -->
     <string name="punishment_title">Castigo</string>

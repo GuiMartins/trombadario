@@ -3,7 +3,7 @@ import secrets
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Column, Enum, ForeignKey, Integer, String, Table, Text, func
+from sqlalchemy import Column, Enum, ForeignKey, Integer, String, Table, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -228,6 +228,37 @@ class Task(Base):
     child: Mapped[User] = relationship(back_populates="tasks", foreign_keys=[child_id])
     author: Mapped[User] = relationship(foreign_keys=[author_id])
     trombadices: Mapped[list[Trombadice]] = relationship(back_populates="task")
+    completions: Mapped[list["TaskCompletion"]] = relationship(
+        back_populates="task", cascade="all, delete-orphan"
+    )
+
+
+class TaskCompletion(Base):
+    """O filho marcando que fez a tarefa, uma vez por período.
+
+    `ondelete="CASCADE"` no `task_id`, e não `SET NULL` como
+    `Trombadice.task_id` - lá o `SET NULL` existe porque apagar a tarefa não
+    pode apagar o registro do que aconteceu por causa dela. Aqui é o
+    contrário: uma conclusão não tem sentido nenhum sem a tarefa que ela
+    completa, então apagar a tarefa apaga as conclusões junto.
+    """
+
+    __tablename__ = "task_completions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    child_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    note: Mapped[str] = mapped_column(Text, default="")
+    # A chave do período que esta conclusão satisfaz (ver app/periodo.py). É o
+    # que a UniqueConstraint trava - "uma vez por período" é regra do banco,
+    # não só da rota.
+    period_key: Mapped[str] = mapped_column(String(10), index=True)
+    completed_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+    task: Mapped[Task] = relationship(back_populates="completions")
+    child: Mapped[User] = relationship(foreign_keys=[child_id])
+
+    __table_args__ = (UniqueConstraint("task_id", "period_key", name="uq_task_completion_period"),)
 
 
 class Punishment(Base):
