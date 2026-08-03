@@ -272,6 +272,19 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            // Só na lista do pai, que é onde este card aparece: "visto" é
+            // informação pra ele, não pro filho.
+            Text(
+                text = p.seenAt?.let {
+                    stringResource(R.string.visto_em, parseInstant(it).formatDateTime())
+                } ?: stringResource(R.string.visto_ainda_nao),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (p.seenAt == null) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
             if (ativo) {
                 TextButton(onClick = { viewModel.endNow(p) }) {
                     Text(stringResource(R.string.punishment_end_now))

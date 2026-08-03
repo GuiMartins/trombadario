@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.ApiResult
+import com.trombadario.data.remote.Categoria
 import com.trombadario.data.remote.TrombadiceCreateDto
 import com.trombadario.data.remote.TrombadiceUpdateDto
 import com.trombadario.data.remote.TaskDto
@@ -32,6 +33,7 @@ data class TrombadiceFormState(
     val selectedChildId: Int? = null,
     val tasks: List<TaskDto> = emptyList(),
     val selectedTaskId: Int? = null,
+    val category: String = Categoria.OUTRA,
     val submitting: Boolean = false,
     @StringRes val error: Int? = null,
     val saved: Boolean = false,
@@ -79,6 +81,7 @@ class TrombadiceFormViewModel(
                     selectedChildId = event?.childId ?: children.singleOrNull()?.id,
                     tasks = tasks,
                     selectedTaskId = event?.taskId,
+                    category = event?.category ?: current.category,
                 )
             }
         }
@@ -98,12 +101,31 @@ class TrombadiceFormViewModel(
         it.copy(selectedChildId = childId, selectedTaskId = null, error = null)
     }
 
-    fun onTaskChange(taskId: Int?) = _state.update { it.copy(selectedTaskId = taskId) }
+    fun onCategoryChange(value: String) = _state.update { it.copy(category = value) }
+
+    /**
+     * Escolher tarefa responde de quem é e, se ninguém escreveu título, qual é
+     * o título - o que aconteceu foi não ter feito aquilo. Por isso esses dois
+     * campos somem da tela quando há tarefa; ver a mesma regra no painel web.
+     */
+    fun onTaskChange(taskId: Int?) = _state.update { current ->
+        val task = current.tasks.firstOrNull { it.id == taskId }
+        current.copy(
+            selectedTaskId = taskId,
+            // A tarefa manda: ela pertence a um filho só.
+            selectedChildId = task?.childId ?: current.selectedChildId,
+            error = null,
+        )
+    }
 
     fun submit() {
         val current = _state.value
         if (current.submitting) return
-        if (current.title.isBlank()) {
+
+        val tarefa = current.tasks.firstOrNull { it.id == current.selectedTaskId }
+        // Sem tarefa, o título é obrigatório. Com tarefa, ele vem do nome dela.
+        val titulo = current.title.trim().ifBlank { tarefa?.name.orEmpty() }
+        if (titulo.isBlank()) {
             _state.update { it.copy(error = R.string.trombadice_form_error_title_required) }
             return
         }
@@ -120,21 +142,23 @@ class TrombadiceFormViewModel(
             val result = if (trombadiceId == null) {
                 container.repository.createTrombadice(
                     TrombadiceCreateDto(
-                        title = current.title.trim(),
+                        title = titulo,
                         description = current.description.trim(),
                         occurredAt = occurredAt,
                         childId = childId,
                         taskId = current.selectedTaskId,
+                        category = current.category,
                     )
                 )
             } else {
                 container.repository.updateTrombadice(
                     trombadiceId,
                     TrombadiceUpdateDto(
-                        title = current.title.trim(),
+                        title = titulo,
                         description = current.description.trim(),
                         occurredAt = occurredAt,
                         taskId = current.selectedTaskId,
+                        category = current.category,
                     )
                 )
             }

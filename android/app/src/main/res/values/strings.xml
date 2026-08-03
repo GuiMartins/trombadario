@@ -180,4 +180,49 @@
         <item>Sáb</item>
         <item>Dom</item>
     </string-array>
+
+    <!-- Categorias. Mesma ordem do enum do backend, que é a ordem da tela. -->
+    <string name="categoria_desrespeito">Falta de respeito</string>
+    <string name="categoria_educacao">Falta de educação</string>
+    <string name="categoria_nao_fez">Não fez o que devia</string>
+    <string name="categoria_mentira">Mentira</string>
+    <string name="categoria_birra">Birra / descontrole</string>
+    <string name="categoria_escola">Escola</string>
+    <string name="categoria_agressao">Agressão</string>
+    <string name="categoria_outra">Outra</string>
+    <string name="categoria_qualquer">Qualquer tipo</string>
+    <string name="trombadice_form_category_label">Que tipo de coisa foi</string>
+
+    <!-- Filtros e busca -->
+    <string name="filtro_buscar">Buscar</string>
+    <string name="filtro_busca_dica">Buscar no título ou nos detalhes</string>
+    <string name="filtro_limpar">Limpar filtros</string>
+    <string name="filtro_por_dia">Filtrar por dia</string>
+    <string name="filtro_dia_escolhido">Dia %1$s</string>
+    <string name="filtro_ver_todos_os_dias">Ver todos os dias</string>
+    <string name="filtro_nenhum_resultado">Nada por aqui com esses filtros.</string>
+
+    <!-- Visto pelo filho -->
+    <string name="visto_em">Visto %1$s</string>
+    <string name="visto_ainda_nao">Ainda não viu</string>
+
+    <!-- Relatório -->
+    <string name="nav_report">Relatório</string>
+    <string name="report_title">Relatório</string>
+    <string name="report_janela_7">7 dias</string>
+    <string name="report_janela_30">30 dias</string>
+    <string name="report_janela_90">3 meses</string>
+    <string name="report_periodo">De %1$s a %2$s</string>
+    <string name="report_total">trombadices</string>
+    <string name="report_sequencia_limpa">dias seguidos sem nenhuma</string>
+    <string name="report_dias_com_registro">dias com alguma coisa</string>
+    <string name="report_media">por dia, nos dias em que teve</string>
+    <string name="report_dias_castigo">dias de castigo cumpridos</string>
+    <string name="report_nao_vistas">que o filho ainda não viu</string>
+    <string name="report_por_dia">Por dia</string>
+    <string name="report_por_tipo">Por tipo</string>
+    <string name="report_por_filho">Por filho</string>
+    <string name="report_por_tarefa">Tarefas mais descumpridas</string>
+    <string name="report_dia_mais_pesado">Dia mais pesado: %1$s (%2$d)</string>
+    <string name="report_vazio">Nada registrado nesse período. Bom sinal.</string>
 </resources>

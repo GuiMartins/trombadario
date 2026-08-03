@@ -44,6 +44,8 @@ import com.trombadario.R
 import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.components.FiltroBar
+import com.trombadario.ui.components.rotuloDaCategoria
 import com.trombadario.ui.theme.NotebookGutter
 import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
@@ -102,11 +104,23 @@ fun FeedScreen(
                 )
 
                 else -> Column(Modifier.fillMaxSize()) {
-                    if (currentUser.isAdmin && state.children.size > 1) {
-                        ChildFilter(
+                    // Filtro só pro pai: o filho vê o que é dele e pronto, e uma
+                    // barra de filtros na conta dele só daria trabalho.
+                    if (currentUser.isAdmin) {
+                        FiltroBar(
                             children = state.children,
                             selectedChildId = state.selectedChildId,
-                            onSelect = viewModel::selectChild,
+                            onSelectChild = viewModel::selectChild,
+                            category = state.category,
+                            onSelectCategory = viewModel::selectCategory,
+                            busca = state.busca,
+                            onBuscaChange = viewModel::onBuscaChange,
+                            onBuscar = viewModel::buscar,
+                            dia = state.dia,
+                            diasComRegistro = state.diasComRegistro,
+                            onSelectDia = viewModel::selectDia,
+                            filtrando = state.filtrando,
+                            onLimpar = viewModel::limparFiltros,
                         )
                     }
 
@@ -114,7 +128,11 @@ fun FeedScreen(
                         MessageScreen(
                             icon = Icons.Default.SentimentDissatisfied,
                             title = stringResource(
-                                if (currentUser.isAdmin) R.string.feed_empty_admin else R.string.feed_empty
+                                when {
+                                    state.filtrando -> R.string.filtro_nenhum_resultado
+                                    currentUser.isAdmin -> R.string.feed_empty_admin
+                                    else -> R.string.feed_empty
+                                }
                             ),
                             message = "",
                         )
@@ -133,6 +151,10 @@ fun FeedScreen(
                                     } else {
                                         null
                                     },
+                                    // "Visto" é informação pro pai. Mostrar pro
+                                    // filho que o pai sabe que ele viu não
+                                    // acrescenta nada e pesa.
+                                    mostrarVisto = currentUser.isAdmin,
                                     onClick = { onOpenTrombadice(event.id) },
                                 )
                             }
@@ -144,37 +166,13 @@ fun FeedScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChildFilter(
-    children: List<UserDto>,
-    selectedChildId: Int?,
-    onSelect: (Int?) -> Unit,
+private fun EventCard(
+    event: TrombadiceDto,
+    childName: String?,
+    mostrarVisto: Boolean,
+    onClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        FilterChip(
-            selected = selectedChildId == null,
-            onClick = { onSelect(null) },
-            label = { Text(stringResource(R.string.feed_filter_all)) },
-        )
-        children.forEach { child ->
-            FilterChip(
-                selected = selectedChildId == child.id,
-                onClick = { onSelect(child.id) },
-                label = { Text(child.displayName) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun EventCard(event: TrombadiceDto, childName: String?, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -203,13 +201,36 @@ private fun EventCard(event: TrombadiceDto, childName: String?, onClick: () -> U
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (childName != null) {
-                Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(8.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
                 Text(
-                    text = childName,
+                    text = stringResource(rotuloDaCategoria(event.category)),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (childName != null) {
+                    Text(
+                        text = childName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (mostrarVisto) {
+                    Text(
+                        text = event.seenAt?.let {
+                            stringResource(R.string.visto_em, parseInstant(it).formatDateTime())
+                        } ?: stringResource(R.string.visto_ainda_nao),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (event.seenAt == null) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
             }
         }
     }
