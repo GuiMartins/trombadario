@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% set pagina = 'trombadices' %}
-{% block titulo %}Trombadices — Trombadário{% endblock %}
+{% block titulo %}Anotações — Trombadário{% endblock %}
 
 {% block conteudo %}
-<h1>Trombadices</h1>
+<h1>Anotações</h1>
 
 {% if not children %}
-  <div class="aviso">Cadastre uma conta de filho em <a href="/contas">Contas</a> antes de registrar trombadices.</div>
+  <div class="aviso">Cadastre uma conta de filho em <a href="/contas">Contas</a> antes de registrar anotações.</div>
 {% else %}
 {# O mesmo formulário serve para cadastrar e para corrigir: com `editando` ele
    vem preenchido e grava por cima. Formulário separado significaria dois
@@ -131,7 +131,7 @@
            preenchido. Leva os filtros junto para não voltar pra lista inteira. #}
         <a class="mini secundario" href="{{ url(editar=t.id) }}#editar">Editar</a>
         <form method="post" action="/trombadices/{{ t.id }}/delete"
-              hx-confirm="Excluir esta trombadice? Isso não tem volta.">
+              hx-confirm="Excluir esta anotação? Isso não tem volta.">
           <button class="mini perigo">Excluir</button>
         </form>
       </div>
