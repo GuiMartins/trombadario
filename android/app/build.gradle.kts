@@ -72,7 +72,12 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
 
-    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    // 2024.09.00 é o primeiro BOM com material3 1.3.0 - o que traz o
+    // PullToRefreshBox oficial e estável. Sobe junto ui/foundation de 1.6.8
+    // pra 1.7.x; verificado que builda e roda com o mesmo compilador
+    // (kotlinCompilerExtensionVersion 1.5.14, pareado com Kotlin 1.9.24 pela
+    // tabela oficial - não subiu compilador nem Kotlin, só o BOM).
+    val composeBom = platform("androidx.compose:compose-bom:2024.09.02")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

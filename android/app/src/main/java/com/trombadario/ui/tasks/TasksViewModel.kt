@@ -29,6 +29,9 @@ data class TaskEditor(
 
 data class TasksState(
     val loading: Boolean = true,
+    /** Puxar-pra-atualizar: diferente de `loading`, que é a tela cheia da
+     *  primeira entrada. Os dois nunca ficam `true` ao mesmo tempo. */
+    val refreshing: Boolean = false,
     val tasks: List<TaskDto> = emptyList(),
     val children: List<UserDto> = emptyList(),
     val selectedChildId: Int? = null,
@@ -46,8 +49,8 @@ class TasksViewModel(
     private val _state = MutableStateFlow(TasksState())
     val state: StateFlow<TasksState> = _state.asStateFlow()
 
-    fun load() {
-        _state.update { it.copy(loading = true) }
+    fun load(isRefresh: Boolean = false) {
+        _state.update { if (isRefresh) it.copy(refreshing = true) else it.copy(loading = true) }
         viewModelScope.launch {
             if (currentUser.isAdmin) {
                 (container.repository.listUsers() as? ApiResult.Success)?.let { users ->
@@ -58,7 +61,11 @@ class TasksViewModel(
             }
             val result = container.repository.listTasks(_state.value.selectedChildId)
             _state.update {
-                it.copy(loading = false, tasks = (result as? ApiResult.Success)?.data.orEmpty())
+                it.copy(
+                    loading = false,
+                    refreshing = false,
+                    tasks = (result as? ApiResult.Success)?.data.orEmpty(),
+                )
             }
         }
     }

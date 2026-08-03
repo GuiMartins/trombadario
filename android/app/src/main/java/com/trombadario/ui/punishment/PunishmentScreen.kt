@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -104,8 +105,13 @@ fun PunishmentScreen(container: AppContainer, currentUser: UserDto) {
         AdaptiveScreen(modifier = Modifier.padding(padding)) {
             when {
                 state.loading -> LoadingScreen()
-                currentUser.isAdmin -> AdminList(state, viewModel)
-                else -> ChildAnswer(state, viewModel)
+                else -> PullToRefreshBox(
+                    isRefreshing = state.refreshing,
+                    onRefresh = { viewModel.load(isRefresh = true) },
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    if (currentUser.isAdmin) AdminList(state, viewModel) else ChildAnswer(state, viewModel)
+                }
             }
         }
     }

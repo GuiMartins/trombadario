@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -131,39 +132,45 @@ fun FeedScreen(
                         onLimpar = viewModel::limparFiltros,
                     )
 
-                    if (state.events.isEmpty()) {
-                        MessageScreen(
-                            icon = Icons.Default.SentimentDissatisfied,
-                            title = stringResource(
-                                when {
-                                    state.filtrando -> R.string.filtro_nenhum_resultado
-                                    currentUser.isAdmin -> R.string.feed_empty_admin
-                                    else -> R.string.feed_empty
+                    PullToRefreshBox(
+                        isRefreshing = state.refreshing,
+                        onRefresh = { viewModel.load(isRefresh = true) },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    ) {
+                        if (state.events.isEmpty()) {
+                            MessageScreen(
+                                icon = Icons.Default.SentimentDissatisfied,
+                                title = stringResource(
+                                    when {
+                                        state.filtrando -> R.string.filtro_nenhum_resultado
+                                        currentUser.isAdmin -> R.string.feed_empty_admin
+                                        else -> R.string.feed_empty
+                                    }
+                                ),
+                                message = "",
+                            )
+                        } else {
+                            LazyColumn(
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                    start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp,
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                items(state.events, key = { it.id }) { event ->
+                                    EventCard(
+                                        event = event,
+                                        childName = if (currentUser.isAdmin && state.children.size > 1) {
+                                            viewModel.displayNameOf(event.childId)
+                                        } else {
+                                            null
+                                        },
+                                        // "Visto" é informação pro pai. Mostrar pro
+                                        // filho que o pai sabe que ele viu não
+                                        // acrescenta nada e pesa.
+                                        mostrarVisto = currentUser.isAdmin,
+                                        onClick = { onOpenTrombadice(event.id) },
+                                    )
                                 }
-                            ),
-                            message = "",
-                        )
-                    } else {
-                        LazyColumn(
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp,
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            items(state.events, key = { it.id }) { event ->
-                                EventCard(
-                                    event = event,
-                                    childName = if (currentUser.isAdmin && state.children.size > 1) {
-                                        viewModel.displayNameOf(event.childId)
-                                    } else {
-                                        null
-                                    },
-                                    // "Visto" é informação pro pai. Mostrar pro
-                                    // filho que o pai sabe que ele viu não
-                                    // acrescenta nada e pesa.
-                                    mostrarVisto = currentUser.isAdmin,
-                                    onClick = { onOpenTrombadice(event.id) },
-                                )
                             }
                         }
                     }
