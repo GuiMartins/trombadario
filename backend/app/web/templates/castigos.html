@@ -90,6 +90,10 @@
         {% for t in p.trombadices %}
           <span class="etiqueta">{{ t.title }}</span>
         {% endfor %}
+        {# Só leitura: quem escreve é o filho, pelo app. #}
+        {% if p.reaction_text %}
+          <p class="sub">💬 {{ p.reaction_text }}</p>
+        {% endif %}
         {% if p.seen_at %}
           <span class="etiqueta visto">visto {{ p.seen_at.astimezone().strftime('%d/%m às %H:%M') }}</span>
         {% else %}

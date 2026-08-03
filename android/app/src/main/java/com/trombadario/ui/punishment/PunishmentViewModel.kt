@@ -8,6 +8,7 @@ import com.trombadario.R
 import com.trombadario.data.ApiResult
 import com.trombadario.data.remote.PunishmentCreateDto
 import com.trombadario.data.remote.PunishmentDto
+import com.trombadario.data.remote.PunishmentReactionDto
 import com.trombadario.data.remote.PunishmentUpdateDto
 import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.UserDto
@@ -83,6 +84,25 @@ class PunishmentViewModel(
 
     fun trombadiceTitle(id: Int): String? =
         _state.value.trombadices.firstOrNull { it.id == id }?.title
+
+    /** Só o filho chama isto - o backend também barra, mas a tela nem oferece
+     *  o campo pro pai (ver ChildAnswer). */
+    fun react(punishmentId: Int, text: String) {
+        viewModelScope.launch {
+            val result = container.repository.reactToPunishment(
+                punishmentId,
+                PunishmentReactionDto(reactionText = text.ifBlank { null }),
+            )
+            if (result is ApiResult.Success) {
+                _state.update { current ->
+                    current.copy(
+                        active = current.active.map { if (it.id == punishmentId) result.data else it },
+                        history = current.history.map { if (it.id == punishmentId) result.data else it },
+                    )
+                }
+            }
+        }
+    }
 
     fun startCreate() = _state.update {
         it.copy(editor = PunishmentEditor(childId = it.children.singleOrNull()?.id), error = null)

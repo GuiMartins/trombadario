@@ -8,6 +8,7 @@ import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.TrombadiceUpdateDto
 import com.trombadario.data.remote.PunishmentCreateDto
 import com.trombadario.data.remote.PunishmentDto
+import com.trombadario.data.remote.PunishmentReactionDto
 import com.trombadario.data.remote.PunishmentUpdateDto
 import com.trombadario.data.remote.SplashMessageCreateDto
 import com.trombadario.data.remote.SplashMessageDto
@@ -160,6 +161,11 @@ class TrombadarioRepository(
 
     suspend fun deletePunishment(id: Int): ApiResult<Unit> =
         callNoContent { it.deletePunishment(id) }
+
+    suspend fun reactToPunishment(
+        id: Int,
+        reaction: PunishmentReactionDto,
+    ): ApiResult<PunishmentDto> = call { it.reactToPunishment(id, reaction) }
 
     suspend fun listSplashMessages(): ApiResult<List<SplashMessageDto>> =
         call { it.listSplashMessages() }

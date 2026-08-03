@@ -142,6 +142,9 @@
     <string name="punishment_served">cumprido</string>
     <string name="punishment_active">de castigo</string>
     <string name="punishment_history">Histórico</string>
+    <string name="punishment_reaction_label">Como você tá se sentindo?</string>
+    <string name="punishment_reaction_placeholder">Conte pro seu pai…</string>
+    <string name="punishment_reaction_send">Enviar</string>
     <string name="punishment_error_end_before_start">O castigo precisa terminar depois de começar</string>
 
     <!-- Formulário de trombadice -->

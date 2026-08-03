@@ -201,6 +201,9 @@ data class PunishmentDto(
     @SerialName("ended_early_at") val endedEarlyAt: String? = null,
     /** Quando o filho viu este castigo. Nulo = ainda não viu. */
     @SerialName("seen_at") val seenAt: String? = null,
+    /** O filho escreve, os dois papéis leem - nunca é o pai quem grava aqui. */
+    @SerialName("reaction_text") val reactionText: String? = null,
+    @SerialName("reaction_at") val reactionAt: String? = null,
     @SerialName("child_id") val childId: Int,
     @SerialName("trombadice_ids") val trombadiceIds: List<Int> = emptyList(),
     // As trombadices completas - o filho não precisa de uma segunda busca só
@@ -209,6 +212,12 @@ data class PunishmentDto(
     // Computed server-side: the phone's clock is not the authority on whether
     // someone is grounded.
     @SerialName("is_active") val isActive: Boolean = false,
+)
+
+/** Nulo/vazio apaga a reação - o filho pode mudar de ideia. */
+@Serializable
+data class PunishmentReactionDto(
+    @SerialName("reaction_text") val reactionText: String? = null,
 )
 
 @Serializable

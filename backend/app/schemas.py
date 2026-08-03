@@ -158,6 +158,10 @@ class PunishmentOut(BaseModel):
     ends_at: datetime
     ended_early_at: datetime | None
     seen_at: datetime | None
+    # O filho escreve, os dois papéis leem - mesmo padrão de seen_at, mas na
+    # direção contrária: o pai nunca grava aqui.
+    reaction_text: str | None
+    reaction_at: datetime | None
     child_id: int
     author_id: int
     created_at: datetime
@@ -185,6 +189,12 @@ class PunishmentUpdate(BaseModel):
     # True ends it now; the original ends_at is kept so the history shows what
     # was handed down as well as what was actually served.
     end_now: bool | None = None
+
+
+class PunishmentReaction(BaseModel):
+    """Nulo/vazio apaga a reação - o filho pode mudar de ideia."""
+
+    reaction_text: str | None = Field(default=None, max_length=256)
 
 
 class SplashMessageRandom(BaseModel):
