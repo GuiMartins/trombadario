@@ -327,8 +327,13 @@ data class DatasComRegistroDto(val datas: List<String> = emptyList())
 @Serializable
 data class PedidoDto(
     val id: Int,
+    /** pedido | conquista_proposta - mesma tabela, dois fluxos que só diferem
+     *  no que acontece na aprovação (ver PropostaConquistaCreateDto). */
+    val kind: String = "pedido",
     val title: String,
     val justification: String,
+    /** Só preenchido quando kind == conquista_proposta. */
+    val category: String? = null,
     /** pendente | aprovado | negado. */
     val status: String,
     @SerialName("decision_note") val decisionNote: String = "",
@@ -340,6 +345,9 @@ data class PedidoDto(
         const val PENDENTE = "pendente"
         const val APROVADO = "aprovado"
         const val NEGADO = "negado"
+
+        const val PEDIDO = "pedido"
+        const val CONQUISTA_PROPOSTA = "conquista_proposta"
     }
 }
 
@@ -347,6 +355,13 @@ data class PedidoDto(
 data class PedidoCreateDto(
     val title: String,
     val justification: String = "",
+)
+
+@Serializable
+data class PropostaConquistaCreateDto(
+    val title: String,
+    val justification: String = "",
+    val category: String,
 )
 
 @Serializable

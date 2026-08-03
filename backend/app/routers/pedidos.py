@@ -4,11 +4,17 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.deps import AdminUser, ChildUser, CurrentUser, DbSession
-from app.models import Pedido, RequestStatus, Role, User
-from app.schemas import PedidoCreate, PedidoDecision, PedidoOut
+from app.models import Kind, Pedido, RequestKind, RequestStatus, Role, Trombadice, User
+from app.schemas import PedidoCreate, PedidoDecision, PedidoOut, PropostaConquistaCreate
 from app.visto import marcar_decisao_vista, marcar_visto_pai
 
 router = APIRouter(prefix="/api/pedidos", tags=["pedidos"])
+# Rota própria, não um parâmetro de query em cima de /api/pedidos: os corpos
+# diferem o bastante (categoria só existe aqui) pra valer a pena separar no
+# limite da API mesmo com a tabela compartilhada.
+conquistas_propostas_router = APIRouter(
+    prefix="/api/conquistas-propostas", tags=["conquistas-propostas"]
+)
 
 NOT_FOUND = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pedido não encontrado")
 
@@ -70,6 +76,30 @@ def create_pedido(payload: PedidoCreate, child: ChildUser, db: DbSession) -> Ped
     return pedido
 
 
+@conquistas_propostas_router.post(
+    "", response_model=PedidoOut, status_code=status.HTTP_201_CREATED
+)
+def create_proposta_conquista(
+    payload: PropostaConquistaCreate, child: ChildUser, db: DbSession
+) -> Pedido:
+    if not child.can_request:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pedidos não estão liberados pra essa conta",
+        )
+    proposta = Pedido(
+        kind=RequestKind.CONQUISTA_PROPOSTA,
+        title=payload.title,
+        justification=payload.justification,
+        category=payload.category,
+        child_id=child.id,
+    )
+    db.add(proposta)
+    db.commit()
+    db.refresh(proposta)
+    return proposta
+
+
 @router.patch("/{pedido_id}/decidir", response_model=PedidoOut)
 def decide_pedido(
     pedido_id: int, payload: PedidoDecision, admin: AdminUser, db: DbSession
@@ -85,6 +115,24 @@ def decide_pedido(
     pedido.decision_note = payload.decision_note
     pedido.decided_at = datetime.now(UTC)
     pedido.decided_by_id = admin.id
+
+    if pedido.kind is RequestKind.CONQUISTA_PROPOSTA and payload.status is RequestStatus.APROVADO:
+        # Inserção nova e explícita, não o registro do Pedido mutado com um
+        # status especial - author_id fica sendo quem aprovou (o pai
+        # confirmando), preservando a regra de que autor é sempre quem
+        # registrou de fato o que aconteceu.
+        db.add(
+            Trombadice(
+                kind=Kind.CONQUISTA,
+                title=pedido.title,
+                description=pedido.justification,
+                category=pedido.category,
+                occurred_at=pedido.decided_at,
+                child_id=pedido.child_id,
+                author_id=admin.id,
+            )
+        )
+
     db.commit()
     db.refresh(pedido)
     return pedido

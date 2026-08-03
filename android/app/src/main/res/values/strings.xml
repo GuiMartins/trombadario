@@ -168,6 +168,13 @@
     <string name="pedidos_form_justification">Por quê (opcional)</string>
     <string name="pedidos_send">Enviar</string>
     <string name="pedidos_bloqueado">Pedidos não estão liberados pra essa conta</string>
+    <string name="pedidos_tab_pedidos">Pedidos</string>
+    <string name="pedidos_tab_propostas">Conquistas propostas</string>
+    <string name="pedidos_empty_propostas">Nenhuma conquista proposta ainda.</string>
+    <string name="pedidos_proposta_new">Propor conquista</string>
+    <string name="pedidos_proposta_badge">proposta de conquista</string>
+    <string name="pedidos_form_title_conquista">O que você fez de bom</string>
+    <string name="pedidos_form_category_label">Que tipo de coisa boa foi</string>
     <string name="punishment_error_end_before_start">O castigo precisa terminar depois de começar</string>
 
     <!-- Formulário de trombadice -->

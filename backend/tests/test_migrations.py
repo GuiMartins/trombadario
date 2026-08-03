@@ -165,6 +165,30 @@ def test_pedido_pendente_legivel_pelo_orm(banco_antigo: str) -> None:
         assert pedido.child_id == 2
 
 
+def test_conquista_proposta_legivel_pelo_orm(banco_antigo: str) -> None:
+    """`kind` e `category` em `pedidos` são a mesma pegadinha de novo: a
+    migration escreve "PEDIDO"/"AJUDOU" (o nome do membro), não "pedido"/
+    "ajudou" (o valor)."""
+    command.upgrade(_alembic(banco_antigo), "head")
+
+    agora = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
+    conexao = sqlite3.connect(banco_antigo.removeprefix("sqlite:///"))
+    conexao.execute(
+        "insert into pedidos (title,justification,status,decision_note,child_id,created_at,"
+        "kind,category) values ('Ajudei a lavar a louça','depois do jantar',?,'',2,?,?,?)",
+        ("PENDENTE", agora, "CONQUISTA_PROPOSTA", "AJUDOU"),
+    )
+    conexao.commit()
+    conexao.close()
+
+    with sessionmaker(bind=create_engine(banco_antigo))() as sessao:
+        from app.models import Category, Pedido, RequestKind
+
+        pedido = sessao.scalars(select(Pedido)).one()
+        assert pedido.kind is RequestKind.CONQUISTA_PROPOSTA
+        assert pedido.category is Category.AJUDOU
+
+
 def test_ida_e_volta_da_migration(banco_antigo: str) -> None:
     config = _alembic(banco_antigo)
     command.upgrade(config, "head")

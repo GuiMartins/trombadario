@@ -89,6 +89,13 @@ interface TrombadarioApi {
     @POST("api/pedidos")
     suspend fun createPedido(@Body pedido: PedidoCreateDto): Response<PedidoDto>
 
+    // Rota própria, não um parâmetro em cima de /api/pedidos - mesma tabela do
+    // lado do servidor, mas o corpo difere (categoria só existe aqui).
+    @POST("api/conquistas-propostas")
+    suspend fun createPropostaConquista(
+        @Body proposta: PropostaConquistaCreateDto,
+    ): Response<PedidoDto>
+
     @PATCH("api/pedidos/{id}/decidir")
     suspend fun decidePedido(
         @Path("id") id: Int,

@@ -86,5 +86,6 @@ app.include_router(users.router)
 app.include_router(splash_messages.router)
 app.include_router(reports.router)
 app.include_router(pedidos.router)
+app.include_router(pedidos.conquistas_propostas_router)
 # Last: its routes live at the root and would otherwise shadow /api paths.
 app.include_router(web_routes.router)

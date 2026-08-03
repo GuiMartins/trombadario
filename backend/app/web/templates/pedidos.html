@@ -6,6 +6,14 @@
 <h1>Pedidos</h1>
 
 {% set rotulos_status = {'pendente': 'Pendente', 'aprovado': 'Aprovado', 'negado': 'Negado'} %}
+{% set rotulos_kind = {'pedido': 'Pedidos', 'conquista_proposta': 'Propostas de conquista'} %}
+
+<div class="filtros">
+  <a href="{{ url(kind=None) }}" class="{% if not kind_escolhido %}ativo{% endif %}">Tudo</a>
+  {% for valor, rotulo in rotulos_kind.items() %}
+  <a href="{{ url(kind=valor) }}" class="{% if kind_escolhido and kind_escolhido.value == valor %}ativo{% endif %}">{{ rotulo }}</a>
+  {% endfor %}
+</div>
 
 <div class="filtros">
   <a href="{{ url(status=None) }}" class="{% if not status_escolhido %}ativo{% endif %}">Todos</a>
@@ -34,6 +42,9 @@
           <span class="etiqueta">aprovado</span>
         {% else %}
           <span class="etiqueta fim">negado</span>
+        {% endif %}
+        {% if p.kind.value == 'conquista_proposta' %}
+          <span class="etiqueta">proposta de conquista{% if p.category %} · {{ categorias[p.category.value] }}{% endif %}</span>
         {% endif %}
         <p class="titulo">{{ p.title }}</p>
         <p class="sub">
