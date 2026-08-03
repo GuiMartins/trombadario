@@ -7,6 +7,7 @@ from app.models import (
     Category,
     Kind,
     Periodicity,
+    RequestKind,
     RequestStatus,
     Role,
     categoria_combina,
@@ -311,8 +312,10 @@ class PedidoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    kind: RequestKind
     title: str
     justification: str
+    category: Category | None
     status: RequestStatus
     decision_note: str
     decided_at: datetime | None
@@ -326,6 +329,23 @@ class PedidoOut(BaseModel):
 class PedidoCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     justification: str = Field(default="", max_length=1000)
+
+
+class PropostaConquistaCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    justification: str = Field(default="", max_length=1000)
+    category: Category
+
+    @field_validator("category")
+    @classmethod
+    def categoria_de_conquista(cls, category: Category) -> Category:
+        # Mesma regra de TrombadiceCreate.coerente: uma proposta de conquista
+        # promove pra Kind.CONQUISTA na aprovação, então a categoria já
+        # precisa ser desse tipo - senão a Trombadice nasceria com uma
+        # combinação que o resto do sistema nunca deixa acontecer.
+        if not categoria_combina(category, Kind.CONQUISTA):
+            raise ValueError("essa categoria não é de conquista")
+        return category
 
 
 class PedidoDecision(BaseModel):

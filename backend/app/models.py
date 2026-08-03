@@ -105,6 +105,17 @@ class RequestStatus(str, enum.Enum):
     NEGADO = "negado"
 
 
+class RequestKind(str, enum.Enum):
+    """Pedido é o que o filho está pedindo pra fazer; proposta de conquista é
+    o filho relatando algo bom que já fez, pedindo que o pai confirme. Mesma
+    tabela e mesmo fluxo de decisão pros dois - a diferença real é só o que
+    acontece quando o pai aprova (ver Trombadice criada na aprovação de uma
+    proposta, em routers/pedidos.py)."""
+
+    PEDIDO = "pedido"
+    CONQUISTA_PROPOSTA = "conquista_proposta"
+
+
 def _utcnow() -> datetime:
     return datetime.now(UTC)
 
@@ -366,8 +377,16 @@ class Pedido(Base):
     __tablename__ = "pedidos"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[RequestKind] = mapped_column(
+        Enum(RequestKind, native_enum=False), default=RequestKind.PEDIDO, index=True
+    )
     title: Mapped[str] = mapped_column(String(200))
     justification: Mapped[str] = mapped_column(Text, default="")
+    # Só relevante pra CONQUISTA_PROPOSTA - mesmo padrão de campo-só-de-um-caso
+    # já usado em Task.weekdays/day_of_month.
+    category: Mapped[Category | None] = mapped_column(
+        Enum(Category, native_enum=False), nullable=True
+    )
     status: Mapped[RequestStatus] = mapped_column(
         Enum(RequestStatus, native_enum=False), default=RequestStatus.PENDENTE, index=True
     )

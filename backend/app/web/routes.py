@@ -16,6 +16,7 @@ from app.models import (
     Pedido,
     Periodicity,
     Punishment,
+    RequestKind,
     RequestStatus,
     Role,
     SplashMessage,
@@ -1016,12 +1017,16 @@ def pedidos_page(
     user: AdminWeb,
     status: str | None = None,
     child_id: int | None = None,
+    kind: str | None = None,
 ):
     filtro = RequestStatus(status) if status in {s.value for s in RequestStatus} else None
+    filtro_kind = RequestKind(kind) if kind in {k.value for k in RequestKind} else None
 
     base = select(Pedido)
     if filtro is not None:
         base = base.where(Pedido.status == filtro)
+    if filtro_kind is not None:
+        base = base.where(Pedido.kind == filtro_kind)
     if child_id:
         base = base.where(Pedido.child_id == child_id)
     pedidos = list(db.scalars(base.order_by(Pedido.created_at.desc())))
@@ -1039,10 +1044,37 @@ def pedidos_page(
         children=children,
         children_by_id={c.id: c for c in children},
         status_escolhido=filtro,
+        kind_escolhido=filtro_kind,
         selected_child=child_id,
+        categorias={c.value: r for c, r in CATEGORIA_ROTULOS.items()},
         url=_construtor_de_url(
-            "/pedidos", {"status": filtro.value if filtro else None, "child_id": child_id}
+            "/pedidos",
+            {
+                "status": filtro.value if filtro else None,
+                "child_id": child_id,
+                "kind": filtro_kind.value if filtro_kind else None,
+            },
         ),
+    )
+
+
+def _promover_se_conquista(pedido: Pedido, db: DbSession, autor_id: int) -> None:
+    """Aprovar uma proposta de conquista cria, além de decidir o pedido, a
+    Trombadice de verdade - inserção nova, não o Pedido mutado com um status
+    especial. author_id é de quem aprovou: o pai confirmando, não o filho que
+    teve a ideia, preservando a regra de que autor é sempre quem registrou."""
+    if pedido.kind is not RequestKind.CONQUISTA_PROPOSTA:
+        return
+    db.add(
+        Trombadice(
+            kind=Kind.CONQUISTA,
+            title=pedido.title,
+            description=pedido.justification,
+            category=pedido.category,
+            occurred_at=pedido.decided_at,
+            child_id=pedido.child_id,
+            author_id=autor_id,
+        )
     )
 
 
@@ -1059,6 +1091,7 @@ def pedido_aprovar(
         pedido.decision_note = decision_note.strip()
         pedido.decided_at = datetime.now(UTC)
         pedido.decided_by_id = user.id
+        _promover_se_conquista(pedido, db, user.id)
         db.commit()
     return _redirect("/pedidos")
 

@@ -10,6 +10,7 @@ import com.trombadario.data.remote.PunishmentCreateDto
 import com.trombadario.data.remote.PedidoCreateDto
 import com.trombadario.data.remote.PedidoDecisionDto
 import com.trombadario.data.remote.PedidoDto
+import com.trombadario.data.remote.PropostaConquistaCreateDto
 import com.trombadario.data.remote.PunishmentDto
 import com.trombadario.data.remote.PunishmentReactionDto
 import com.trombadario.data.remote.PunishmentUpdateDto
@@ -158,6 +159,9 @@ class TrombadarioRepository(
 
     suspend fun createPedido(pedido: PedidoCreateDto): ApiResult<PedidoDto> =
         call { it.createPedido(pedido) }
+
+    suspend fun createPropostaConquista(proposta: PropostaConquistaCreateDto): ApiResult<PedidoDto> =
+        call { it.createPropostaConquista(proposta) }
 
     suspend fun decidePedido(id: Int, decision: PedidoDecisionDto): ApiResult<PedidoDto> =
         call { it.decidePedido(id, decision) }
