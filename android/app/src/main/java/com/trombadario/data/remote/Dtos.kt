@@ -203,6 +203,9 @@ data class PunishmentDto(
     @SerialName("seen_at") val seenAt: String? = null,
     @SerialName("child_id") val childId: Int,
     @SerialName("trombadice_ids") val trombadiceIds: List<Int> = emptyList(),
+    // As trombadices completas - o filho não precisa de uma segunda busca só
+    // pra saber o título de cada uma, e o pai já as tinha de graça.
+    val trombadices: List<TrombadiceDto> = emptyList(),
     // Computed server-side: the phone's clock is not the authority on whether
     // someone is grounded.
     @SerialName("is_active") val isActive: Boolean = false,
