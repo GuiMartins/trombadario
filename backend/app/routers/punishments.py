@@ -1,11 +1,12 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.deps import AdminUser, CurrentUser, DbSession
-from app.models import Punishment, Role, Trombadice, User
-from app.schemas import PunishmentCreate, PunishmentOut, PunishmentUpdate
+from app.models import Category, Punishment, Role, Trombadice, User
+from app.periodo import data_local, intervalo
+from app.schemas import DatasComRegistro, PunishmentCreate, PunishmentOut, PunishmentUpdate
 
 router = APIRouter(prefix="/api/punishments", tags=["punishments"])
 
@@ -19,6 +20,7 @@ def _serialize(punishment: Punishment, now: datetime) -> PunishmentOut:
         starts_at=punishment.starts_at,
         ends_at=punishment.ends_at,
         ended_early_at=punishment.ended_early_at,
+        seen_at=punishment.seen_at,
         child_id=punishment.child_id,
         author_id=punishment.author_id,
         created_at=punishment.created_at,
@@ -48,20 +50,69 @@ def _resolve_trombadices(db: DbSession, ids: list[int], child_id: int) -> list[T
     return found
 
 
+def _escopo(query, current_user: User, child_id: int | None):
+    if current_user.role is Role.ADMIN:
+        return query.where(Punishment.child_id == child_id) if child_id is not None else query
+    return query.where(Punishment.child_id == current_user.id)
+
+
+def _filtros(query, category: Category | None, de: date | None, ate: date | None, q: str | None):
+    if category is not None:
+        # Castigo não tem categoria própria - ele herda a das trombadices que o
+        # causaram. Filtrar por "agressão" aqui quer dizer "castigos que vieram
+        # de alguma agressão", que é a pergunta que o pai faz de verdade.
+        query = query.where(
+            Punishment.trombadices.any(Trombadice.category == category)
+        )
+
+    inicio, fim = intervalo(de, ate)
+    # Pega o castigo que **encosta** no período, não só o que começa dentro
+    # dele: um castigo de uma semana tem que aparecer no filtro de qualquer dia
+    # em que a pessoa estava de castigo.
+    if inicio is not None:
+        query = query.where(Punishment.ends_at >= inicio)
+    if fim is not None:
+        query = query.where(Punishment.starts_at < fim)
+
+    if q and (termo := q.strip()):
+        query = query.where(Punishment.reason.ilike(f"%{termo}%"))
+    return query
+
+
 @router.get("", response_model=list[PunishmentOut])
 def list_punishments(
     current_user: CurrentUser,
     db: DbSession,
     child_id: int | None = None,
+    category: Category | None = None,
+    de: date | None = None,
+    ate: date | None = None,
+    q: str | None = None,
 ) -> list[PunishmentOut]:
     now = datetime.now(UTC)
     query = select(Punishment).order_by(Punishment.starts_at.desc(), Punishment.id.desc())
-    if current_user.role is Role.ADMIN:
-        if child_id is not None:
-            query = query.where(Punishment.child_id == child_id)
-    else:
-        query = query.where(Punishment.child_id == current_user.id)
+    query = _filtros(_escopo(query, current_user, child_id), category, de, ate, q)
     return [_serialize(p, now) for p in db.scalars(query)]
+
+
+@router.get("/datas", response_model=DatasComRegistro)
+def dates_with_punishments(
+    current_user: CurrentUser,
+    db: DbSession,
+    child_id: int | None = None,
+) -> DatasComRegistro:
+    """Todo dia em que houve castigo, não só o dia em que começou - é o que o
+    calendário precisa para deixar clicar em qualquer dia de uma semana de
+    castigo."""
+    dias: set[date] = set()
+    for p in db.scalars(_escopo(select(Punishment), current_user, child_id)):
+        fim = min(p.ended_early_at, p.ends_at) if p.ended_early_at else p.ends_at
+        dia = data_local(p.starts_at)
+        ultimo = data_local(fim)
+        while dia <= ultimo:
+            dias.add(dia)
+            dia = dia.fromordinal(dia.toordinal() + 1)
+    return DatasComRegistro(datas=sorted(dias))
 
 
 @router.get("/current", response_model=list[PunishmentOut])
@@ -133,6 +184,21 @@ def update_punishment(
         setattr(punishment, field, value)
     db.commit()
     db.refresh(punishment)
+    return _serialize(punishment, datetime.now(UTC))
+
+
+@router.post("/{punishment_id}/visto", response_model=PunishmentOut)
+def mark_seen(punishment_id: int, current_user: CurrentUser, db: DbSession) -> PunishmentOut:
+    """O filho abriu a tela de castigo e este castigo estava nela. Mesma regra
+    da trombadice: a primeira vez é que vale, e não tem como desmarcar."""
+    punishment = _get_or_404(db, punishment_id)
+    if punishment.child_id != current_user.id:
+        raise NOT_FOUND
+
+    if punishment.seen_at is None:
+        punishment.seen_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(punishment)
     return _serialize(punishment, datetime.now(UTC))
 
 

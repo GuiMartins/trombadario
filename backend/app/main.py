@@ -14,6 +14,7 @@ from app.routers import (
     auth,
     health,
     punishments,
+    reports,
     setup,
     splash_messages,
     tasks,
@@ -82,5 +83,6 @@ app.include_router(tasks.router)
 app.include_router(punishments.router)
 app.include_router(users.router)
 app.include_router(splash_messages.router)
+app.include_router(reports.router)
 # Last: its routes live at the root and would otherwise shadow /api paths.
 app.include_router(web_routes.router)

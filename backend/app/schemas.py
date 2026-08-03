@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models import Periodicity, Role
+from app.models import Category, Periodicity, Role
 
 
 class Token(BaseModel):
@@ -48,17 +48,22 @@ class TrombadiceOut(BaseModel):
     id: int
     title: str
     description: str
+    category: Category
     occurred_at: datetime
     child_id: int
     author_id: int
     task_id: int | None
+    seen_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
 
 class TrombadiceCreate(BaseModel):
-    title: str = Field(min_length=1, max_length=200)
+    # Vazio é aceito quando vem `task_id`: aí o título é o nome da tarefa que
+    # não foi cumprida, e obrigar a repetir isso na mão só produz divergência.
+    title: str = Field(default="", max_length=200)
     description: str = ""
+    category: Category = Category.OUTRA
     # AwareDatetime, not datetime: a naive value would be ambiguous and the
     # storage layer rejects it anyway (see app/types.py). Better a 422 than a
     # 500, and better an explicit offset than a silent 3-hour shift.
@@ -66,10 +71,17 @@ class TrombadiceCreate(BaseModel):
     child_id: int
     task_id: int | None = None
 
+    @model_validator(mode="after")
+    def titulo_ou_tarefa(self) -> "TrombadiceCreate":
+        if not self.title.strip() and self.task_id is None:
+            raise ValueError("sem tarefa atrelada, o título é obrigatório")
+        return self
+
 
 class TrombadiceUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
+    category: Category | None = None
     occurred_at: AwareDatetime | None = None
     task_id: int | None = None
 
@@ -130,6 +142,7 @@ class PunishmentOut(BaseModel):
     starts_at: datetime
     ends_at: datetime
     ended_early_at: datetime | None
+    seen_at: datetime | None
     child_id: int
     author_id: int
     created_at: datetime
@@ -159,6 +172,49 @@ class SplashMessageRandom(BaseModel):
     que se aplique - o app pula a tela e vai direto pro conteúdo."""
 
     text: str | None = None
+
+
+class Contagem(BaseModel):
+    """Um rótulo e quantas vezes. Serve para dia, semana, mês, categoria,
+    filho e tarefa - todos são a mesma pergunta com um agrupamento diferente."""
+
+    rotulo: str
+    total: int
+
+
+class Report(BaseModel):
+    """O que dá para dizer olhando os dados, sem inventar.
+
+    Todas as datas são **locais** (fuso do servidor), não UTC: o pai pergunta
+    "quantas ontem", e ontem é o dia dele, não o do meridiano de Greenwich."""
+
+    de: date
+    ate: date
+    total: int
+
+    por_dia: list[Contagem]
+    por_semana: list[Contagem]
+    por_mes: list[Contagem]
+    por_categoria: list[Contagem]
+    por_filho: list[Contagem]
+    # As tarefas mais descumpridas. Vazio quando nenhuma trombadice foi atrelada
+    # a tarefa nenhuma - o que também é uma informação.
+    por_tarefa: list[Contagem]
+
+    dias_com_registro: int
+    media_por_dia_com_registro: float
+    dia_mais_pesado: Contagem | None
+
+    castigos_no_periodo: int
+    dias_de_castigo: float
+    maior_sequencia_limpa: int
+    nao_vistas: int
+
+
+class DatasComRegistro(BaseModel):
+    """Os dias que têm alguma coisa, para o calendário só deixar clicar neles."""
+
+    datas: list[date]
 
 
 class Health(BaseModel):
