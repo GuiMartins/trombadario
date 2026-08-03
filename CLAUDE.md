@@ -250,6 +250,47 @@ pra virá-lo e ficaria errado no intervalo entre execuções. Encerrar antes da
 hora grava `ended_early_at` e **preserva o `ends_at` original**, então o
 histórico mostra o que foi dado e o que foi cumprido.
 
+### Categoria é lista fechada
+
+`models.Category`, oito valores. Campo livre viraria dez jeitos de escrever
+"falta de respeito" e nenhum relatório sairia. A **ordem do enum é a ordem na
+tela**, do mais comum ao menos. Acrescentar valor é migration; tirar valor exige
+decidir o que fazer com o que já está gravado, então na prática só se aposenta
+escondendo da tela.
+
+**Sem título e com tarefa atrelada, o título vira o nome da tarefa** — o que
+aconteceu foi não ter feito aquilo, e obrigar a repetir na mão só produziria duas
+versões do mesmo nome. Sem tarefa, o título continua obrigatório (422).
+
+### "Visto pelo filho" é instante, marcado ao abrir o detalhe
+
+`Trombadice.seen_at` e `Punishment.seen_at`, nulo = ainda não viu.
+
+- **Instante e não booleano**: "viu" sem "quando" não responde a pergunta que o
+  pai faz de verdade, que é se ele viu antes ou depois de alguma coisa.
+- **Marcado ao abrir o detalhe, não ao aparecer na lista.** Rolar o feed não é
+  ler. É a diferença entre a marca significar alguma coisa e virar ruído.
+- **Idempotente, primeira vez é que vale.** Reabrir a tela não reescreve o
+  carimbo — senão "visto às 20h" viraria a hora da última olhada.
+- **Só o filho de quem é** marca. O pai leva 404, igual a irmão sondando id.
+  É a única escrita que uma conta de filho faz no app inteiro, e ela não muda
+  nada que ele possa querer mudar.
+
+### Relatório conta em Python, sobre dia local
+
+`routers/reports.py`. Nada de `GROUP BY date(occurred_at)`: o banco guarda UTC e
+o agrupamento que interessa é por dia **local** — no Brasil, tudo que acontece
+depois das 21h cairia no dia seguinte. `app/periodo.py` faz essa tradução num
+lugar só, pro fuso não voltar a ser decidido em cinco lugares.
+
+O volume é o de uma casa, algumas centenas de linhas por ano. Se um dia virar
+dezenas de milhares, é aqui que se mexe.
+
+Duas escolhas de leitura que não são acidente: a série diária **inclui os dias
+zerados** (sem eles a sequência limpa, que é a notícia boa, some do gráfico), e a
+média é sobre **os dias que tiveram alguma coisa** — dividir por 30 num mês com
+duas trombadices dá 0,07 e não diz nada.
+
 ### O painel web é só do pai — e isso é segurança
 
 `app/web/`, Jinja2 + HTMX servidos pelo mesmo FastAPI. Zero Node, zero build

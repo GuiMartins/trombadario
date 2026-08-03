@@ -1,9 +1,12 @@
+from datetime import UTC, date, datetime
+
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.deps import AdminUser, CurrentUser, DbSession
-from app.models import Role, Task, Trombadice, User
-from app.schemas import TrombadiceCreate, TrombadiceOut, TrombadiceUpdate
+from app.models import Category, Role, Task, Trombadice, User
+from app.periodo import data_local, intervalo
+from app.schemas import DatasComRegistro, TrombadiceCreate, TrombadiceOut, TrombadiceUpdate
 
 router = APIRouter(prefix="/api/trombadices", tags=["trombadices"])
 
@@ -33,21 +36,67 @@ def _check_task(db: DbSession, task_id: int | None, child_id: int) -> None:
         )
 
 
+def _escopo(query, current_user: User, child_id: int | None):
+    """Quem pode ver o quê. Para o filho o `child_id` pedido é ignorado: o
+    escopo é o id dele, peça o que pedir."""
+    if current_user.role is Role.ADMIN:
+        return query.where(Trombadice.child_id == child_id) if child_id is not None else query
+    return query.where(Trombadice.child_id == current_user.id)
+
+
+def _filtros(query, category: Category | None, de: date | None, ate: date | None, q: str | None):
+    if category is not None:
+        query = query.where(Trombadice.category == category)
+
+    inicio, fim = intervalo(de, ate)
+    if inicio is not None:
+        query = query.where(Trombadice.occurred_at >= inicio)
+    if fim is not None:
+        query = query.where(Trombadice.occurred_at < fim)
+
+    if q and (termo := q.strip()):
+        # `ilike` no SQLite só ignora maiúscula em ASCII: "Escola" acha
+        # "escola", mas "ÁGUA" não acha "água". Vale o que custa - o alternativo
+        # é carregar uma extensão de collation no container.
+        alvo = f"%{termo}%"
+        query = query.where(
+            or_(Trombadice.title.ilike(alvo), Trombadice.description.ilike(alvo))
+        )
+    return query
+
+
 @router.get("", response_model=list[TrombadiceOut])
 def list_trombadices(
     current_user: CurrentUser,
     db: DbSession,
     child_id: int | None = None,
+    category: Category | None = None,
+    de: date | None = None,
+    ate: date | None = None,
+    q: str | None = None,
 ) -> list[Trombadice]:
     query = select(Trombadice).order_by(Trombadice.occurred_at.desc(), Trombadice.id.desc())
-    if current_user.role is Role.ADMIN:
-        if child_id is not None:
-            query = query.where(Trombadice.child_id == child_id)
-    else:
-        # The child_id query param is ignored for a child - the scope is their
-        # own id, whatever they ask for.
-        query = query.where(Trombadice.child_id == current_user.id)
+    query = _filtros(_escopo(query, current_user, child_id), category, de, ate, q)
     return list(db.scalars(query))
+
+
+@router.get("/datas", response_model=DatasComRegistro)
+def dates_with_trombadices(
+    current_user: CurrentUser,
+    db: DbSession,
+    child_id: int | None = None,
+    category: Category | None = None,
+    q: str | None = None,
+) -> DatasComRegistro:
+    """Os dias que têm alguma coisa, para o calendário do filtro só deixar
+    clicar neles.
+
+    Agrupado em Python e não em SQL de propósito: o banco guarda UTC e o dia
+    que interessa é o local, então agrupar por `date(occurred_at)` no SQLite
+    jogaria tudo que aconteceu depois das 21h para o dia seguinte."""
+    query = _filtros(_escopo(select(Trombadice), current_user, child_id), category, None, None, q)
+    dias = {data_local(t.occurred_at) for t in db.scalars(query)}
+    return DatasComRegistro(datas=sorted(dias))
 
 
 @router.get("/{trombadice_id}", response_model=TrombadiceOut)
@@ -67,9 +116,17 @@ def create_trombadice(payload: TrombadiceCreate, admin: AdminUser, db: DbSession
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filho inválido")
     _check_task(db, payload.task_id, payload.child_id)
 
+    # Sem título e com tarefa atrelada, o título é o nome da tarefa: o que
+    # aconteceu foi não ter feito aquilo. Escrever de novo na mão só criaria
+    # duas versões do mesmo nome.
+    titulo = payload.title.strip()
+    if not titulo and payload.task_id is not None:
+        titulo = db.get(Task, payload.task_id).name
+
     trombadice = Trombadice(
-        title=payload.title,
+        title=titulo,
         description=payload.description,
+        category=payload.category,
         occurred_at=payload.occurred_at,
         child_id=payload.child_id,
         task_id=payload.task_id,
@@ -95,6 +152,28 @@ def update_trombadice(
         setattr(trombadice, field, value)
     db.commit()
     db.refresh(trombadice)
+    return trombadice
+
+
+@router.post("/{trombadice_id}/visto", response_model=TrombadiceOut)
+def mark_seen(trombadice_id: int, current_user: CurrentUser, db: DbSession) -> Trombadice:
+    """O filho abriu o detalhe. É a única escrita que uma conta de filho faz no
+    app inteiro, e ela não muda nada que ele possa querer mudar: só carimba a
+    hora, uma vez.
+
+    Idempotente e sem volta - a primeira vez é que vale. Reabrir a tela não
+    reescreve o carimbo, senão "visto às 20h" viraria a hora da última olhada e
+    o pai perderia justamente o que queria saber."""
+    trombadice = _get_or_404(db, trombadice_id)
+    if trombadice.child_id != current_user.id:
+        # Inclusive para o pai: quem "vê" é o filho de quem é a trombadice.
+        # 404 e não 403 pelo mesmo motivo do GET.
+        raise NOT_FOUND
+
+    if trombadice.seen_at is None:
+        trombadice.seen_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(trombadice)
     return trombadice
 
 

@@ -15,6 +15,24 @@ class Role(str, enum.Enum):
     CHILD = "child"
 
 
+class Category(str, enum.Enum):
+    """Que tipo de coisa foi. Lista fechada de propósito: campo livre viraria
+    dez jeitos de escrever "falta de respeito" e nenhum relatório sairia.
+
+    Ordem importa - é a ordem em que aparecem na tela, do mais comum ao menos.
+    Acrescentar valor é migration; tirar valor exige decidir o que fazer com o
+    que já está gravado, então na prática só se aposenta escondendo da tela."""
+
+    DESRESPEITO = "desrespeito"
+    EDUCACAO = "educacao"
+    NAO_FEZ = "nao_fez"
+    MENTIRA = "mentira"
+    BIRRA = "birra"
+    ESCOLA = "escola"
+    AGRESSAO = "agressao"
+    OUTRA = "outra"
+
+
 class Periodicity(str, enum.Enum):
     DAILY = "daily"
     WEEKLY = "weekly"
@@ -75,6 +93,18 @@ class Trombadice(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, default="")
+
+    category: Mapped[Category] = mapped_column(
+        Enum(Category, native_enum=False), default=Category.OUTRA, index=True
+    )
+
+    # Quando o filho abriu o detalhe desta trombadice. NULL = ainda não viu.
+    #
+    # É o instante e não um booleano porque "viu" sem "quando" não responde a
+    # pergunta que o pai realmente faz, que é se ele viu antes ou depois de
+    # alguma coisa. Marcado ao abrir o detalhe, não ao aparecer na lista: rolar
+    # o feed não é ler.
+    seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     # Separate from created_at on purpose: the parent registers things after the
     # fact, so when it happened is editable and what the feed sorts by.
     occurred_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
@@ -141,6 +171,10 @@ class Punishment(Base):
     # Set when the parent lets them off early; keeps the original ends_at intact
     # so the history still shows what was handed down versus what was served.
     ended_early_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
+    # Quando o filho abriu a tela de castigo e viu este castigo. Mesma ideia do
+    # seen_at da trombadice.
+    seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
     child_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
