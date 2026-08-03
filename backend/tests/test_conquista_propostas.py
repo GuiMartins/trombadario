@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.models import User
-from tests.conftest import as_admin, as_child, auth_header
+from tests.conftest import as_admin, as_child
 
 
 def create_proposta(
