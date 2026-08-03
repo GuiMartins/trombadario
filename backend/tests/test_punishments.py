@@ -127,6 +127,22 @@ def test_current_responde_a_pergunta_do_filho(client: TestClient, admin: User, c
     assert ativos[0]["is_active"] is True
 
 
+def test_filho_ve_as_trombadices_completas_do_proprio_castigo(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Bug de tela, não de dado: a API sempre mandou `trombadice_ids`, mas o
+    filho precisa dos objetos inteiros pra não fazer uma segunda busca."""
+    uma = create_trombadice(client, child.id, "Bagunça")
+    outra = create_trombadice(client, child.id, "Nota baixa")
+    punish(client, child.id, trombadice_ids=[uma["id"], outra["id"]])
+
+    ativos = client.get("/api/punishments/current", headers=as_child(client)).json()
+
+    assert len(ativos) == 1
+    titulos = sorted(t["title"] for t in ativos[0]["trombadices"])
+    assert titulos == sorted([uma["title"], outra["title"]])
+
+
 def test_filho_nao_ve_castigo_de_outro_filho(
     client: TestClient, admin: User, child: User, other_child: User
 ) -> None:

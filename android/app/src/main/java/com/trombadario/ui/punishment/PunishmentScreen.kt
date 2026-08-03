@@ -177,6 +177,23 @@ private fun ChildAnswer(state: PunishmentState, viewModel: PunishmentViewModel) 
                     textAlign = TextAlign.Center,
                 )
             }
+            // O servidor já manda as anotações completas, não só o id - o
+            // filho não precisa de uma segunda busca só pra saber o título de
+            // cada uma. Mesmo bug do painel web (PR #21 tratou outro; este é
+            // um bug de tela, não de dado: a API sempre mandou isso).
+            if (atual.trombadices.isNotEmpty()) {
+                Spacer(Modifier.height(24.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    atual.trombadices.forEach { t ->
+                        Text(
+                            text = "• ${t.title}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
         }
     }
 }

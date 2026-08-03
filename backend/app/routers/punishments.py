@@ -6,7 +6,13 @@ from sqlalchemy import select
 from app.deps import AdminUser, CurrentUser, DbSession
 from app.models import Category, Kind, Punishment, Role, Trombadice, User
 from app.periodo import data_local, intervalo
-from app.schemas import DatasComRegistro, PunishmentCreate, PunishmentOut, PunishmentUpdate
+from app.schemas import (
+    DatasComRegistro,
+    PunishmentCreate,
+    PunishmentOut,
+    PunishmentUpdate,
+    TrombadiceOut,
+)
 from app.visto import marcar_visto
 
 router = APIRouter(prefix="/api/punishments", tags=["punishments"])
@@ -26,6 +32,7 @@ def _serialize(punishment: Punishment, now: datetime) -> PunishmentOut:
         author_id=punishment.author_id,
         created_at=punishment.created_at,
         trombadice_ids=[t.id for t in punishment.trombadices],
+        trombadices=[TrombadiceOut.model_validate(t) for t in punishment.trombadices],
         is_active=punishment.is_active_at(now),
     )
 

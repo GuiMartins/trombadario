@@ -162,6 +162,11 @@ class PunishmentOut(BaseModel):
     author_id: int
     created_at: datetime
     trombadice_ids: list[int] = Field(default_factory=list)
+    # As trombadices completas, não só o id: sem isto o filho precisaria de uma
+    # segunda busca (e de uma segunda tela de carregamento) só pra saber o
+    # título de cada uma - o pai já lê isso de graça porque busca a lista
+    # inteira de qualquer forma.
+    trombadices: list[TrombadiceOut] = Field(default_factory=list)
     is_active: bool = False
 
 
