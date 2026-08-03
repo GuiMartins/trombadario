@@ -1,14 +1,33 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.deps import DbSession
-from app.models import Periodicity, Punishment, Role, SplashMessage, Task, Trombadice, User
+from app.models import (
+    Category,
+    Periodicity,
+    Punishment,
+    Role,
+    SplashMessage,
+    Task,
+    Trombadice,
+    User,
+)
+from app.periodo import (
+    data_local,
+    hoje_local,
+    intervalo,
+    mes_anterior,
+    mes_seguinte,
+    semanas_do_mes,
+)
+from app.routers.reports import report
 from app.security import create_access_token, hash_password, verify_password
 from app.setup_state import setup_required
 from app.web.deps import SESSION_COOKIE, AdminWeb, MaybeUser, RedirectTo
@@ -19,6 +38,28 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 router = APIRouter(tags=["web"])
 
 WEEKDAY_NAMES = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+WEEKDAY_INICIAIS = ["S", "T", "Q", "Q", "S", "S", "D"]
+MESES = [
+    "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+]
+
+# Janelas do relatório. Uma semana, um mês e um trimestre cobrem "como foi
+# esses dias", "como foi o mês" e "está melhorando?".
+JANELAS = {7: "7 dias", 30: "30 dias", 90: "3 meses"}
+
+# Rótulo de cada categoria. Fica aqui e não no enum porque é texto de tela: o
+# modelo guarda o valor, a apresentação escolhe como chamar.
+CATEGORIA_ROTULOS = {
+    Category.DESRESPEITO: "Falta de respeito",
+    Category.EDUCACAO: "Falta de educação",
+    Category.NAO_FEZ: "Não fez o que devia",
+    Category.MENTIRA: "Mentira",
+    Category.BIRRA: "Birra / descontrole",
+    Category.ESCOLA: "Escola",
+    Category.AGRESSAO: "Agressão",
+    Category.OUTRA: "Outra",
+}
 
 
 def _redirect(url: str) -> RedirectResponse:
@@ -34,6 +75,29 @@ def _tarefa_do_filho(db: DbSession, task_id: str, child_id: int) -> int | None:
         return None
     task = db.get(Task, int(task_id))
     return task.id if task is not None and task.child_id == child_id else None
+
+
+def _campos_da_trombadice(
+    db: DbSession, title: str, child_id: int, task_id: str, category: str
+) -> tuple[str, int, int | None, Category]:
+    """Resolve título, filho, tarefa e categoria a partir do que o formulário
+    mandou.
+
+    Com tarefa escolhida, a tarefa é que manda em duas coisas: **de quem é**
+    (ela pertence a um filho só) e, se ninguém escreveu título, **qual é o
+    título** - o que aconteceu foi não ter feito aquilo. Por isso esses dois
+    campos somem da tela quando há tarefa: já estão respondidos.
+
+    No caso de edição o título continua vindo preenchido no campo escondido,
+    então corrigir um "machou" com tarefa atrelada preserva a correção.
+    """
+    tarefa = db.get(Task, int(task_id)) if task_id else None
+    if tarefa is not None:
+        child_id = tarefa.child_id
+
+    categoria = Category(category) if category in {c.value for c in Category} else Category.OUTRA
+    titulo = title.strip() or (tarefa.name if tarefa is not None else "")
+    return titulo, child_id, (tarefa.id if tarefa is not None else None), categoria
 
 
 def _filho_valido(db: DbSession, child_id: str) -> int | None:
@@ -228,18 +292,52 @@ def dashboard(request: Request, db: DbSession, user: AdminWeb):
 # --------------------------------------------------------------------------
 
 
+def _mes_pedido(mes: str | None, dia_escolhido: date | None) -> date:
+    """Qual mês o calendário abre: o pedido, senão o do dia filtrado, senão o
+    de hoje."""
+    if mes:
+        try:
+            return date.fromisoformat(f"{mes}-01")
+        except ValueError:
+            pass
+    return (dia_escolhido or hoje_local()).replace(day=1)
+
+
 @router.get("/trombadices", response_class=HTMLResponse)
 def trombadices_page(
     request: Request,
     db: DbSession,
     user: AdminWeb,
     child_id: int | None = None,
+    category: str | None = None,
+    dia: date | None = None,
+    q: str | None = None,
+    mes: str | None = None,
     editar: int | None = None,
 ):
-    query = select(Trombadice).order_by(Trombadice.occurred_at.desc(), Trombadice.id.desc())
+    categoria = Category(category) if category in {c.value for c in Category} else None
+
+    base = select(Trombadice)
     if child_id:
-        query = query.where(Trombadice.child_id == child_id)
+        base = base.where(Trombadice.child_id == child_id)
+    if categoria is not None:
+        base = base.where(Trombadice.category == categoria)
+    if q and (termo := q.strip()):
+        alvo = f"%{termo}%"
+        base = base.where(or_(Trombadice.title.ilike(alvo), Trombadice.description.ilike(alvo)))
+
+    # O calendário mostra os dias que existem **com os outros filtros já
+    # aplicados**: filtrar por "agressão" e ver dias clicáveis sem nenhuma
+    # agressão seria mentira.
+    dias_com_registro = {data_local(t.occurred_at) for t in db.scalars(base)}
+
+    query = base.order_by(Trombadice.occurred_at.desc(), Trombadice.id.desc())
+    if dia is not None:
+        inicio, fim = intervalo(dia, dia)
+        query = query.where(Trombadice.occurred_at >= inicio, Trombadice.occurred_at < fim)
+
     children = _children(db)
+    mes_aberto = _mes_pedido(mes, dia)
     return _render(
         request,
         "trombadices.html",
@@ -249,30 +347,83 @@ def trombadices_page(
         children_by_id={c.id: c for c in children},
         tasks=list(db.scalars(select(Task).where(Task.is_active).order_by(Task.name))),
         selected_child=child_id,
+        categorias=CATEGORIA_ROTULOS,
+        categoria_escolhida=categoria,
+        busca=q or "",
+        dia_escolhido=dia,
         agora=_local_input(datetime.now(UTC)),
         # Editar reaproveita o formulário de cima em vez de abrir uma página
         # nova: é o mesmo formulário, com os campos preenchidos.
         editando=db.get(Trombadice, editar) if editar else None,
+        url=_construtor_de_url(
+            "/trombadices",
+            {
+                "child_id": child_id,
+                "category": categoria.value if categoria else None,
+                "q": q,
+                "dia": dia,
+                "mes": mes,
+            },
+        ),
+        **_calendario(mes_aberto, dias_com_registro),
     )
+
+
+def _construtor_de_url(base: str, atual: dict):
+    """Devolve uma função que remonta o endereço da página trocando um filtro e
+    mantendo os outros.
+
+    Existe porque montar isso no template com concatenação vira uma sopa de
+    `if` e um `&` esquecido em algum ramo. Aqui é uma linha e o urlencode cuida
+    do escape."""
+
+    def url(**mudancas) -> str:
+        params = {**atual, **mudancas}
+        limpos = {k: str(v) for k, v in params.items() if v not in (None, "")}
+        return f"{base}?{urlencode(limpos)}" if limpos else base
+
+    return url
+
+
+def _calendario(mes_aberto: date, dias_com_registro: set[date]) -> dict:
+    return {
+        "mes_aberto": mes_aberto,
+        "mes_nome": f"{MESES[mes_aberto.month - 1]} de {mes_aberto.year}",
+        "mes_anterior": mes_anterior(mes_aberto).strftime("%Y-%m"),
+        "mes_seguinte": mes_seguinte(mes_aberto).strftime("%Y-%m"),
+        "semanas": semanas_do_mes(mes_aberto),
+        "dias_com_registro": dias_com_registro,
+        "iniciais": WEEKDAY_INICIAIS,
+        "hoje": hoje_local(),
+    }
 
 
 @router.post("/trombadices")
 def trombadice_create(
     db: DbSession,
     user: AdminWeb,
-    title: Annotated[str, Form()],
     child_id: Annotated[int, Form()],
     occurred_at: Annotated[str, Form()],
+    title: Annotated[str, Form()] = "",
     description: Annotated[str, Form()] = "",
     task_id: Annotated[str, Form()] = "",
+    category: Annotated[str, Form()] = "outra",
 ):
+    titulo, filho, tarefa, categoria = _campos_da_trombadice(
+        db, title, child_id, task_id, category
+    )
+    if not titulo:
+        # Sem tarefa e sem título não sobra registro nenhum: volta sem gravar.
+        return _redirect("/trombadices")
+
     db.add(
         Trombadice(
-            title=title.strip(),
+            title=titulo,
             description=description.strip(),
+            category=categoria,
             occurred_at=_parse_local(occurred_at),
-            child_id=child_id,
-            task_id=_tarefa_do_filho(db, task_id, child_id),
+            child_id=filho,
+            task_id=tarefa,
             author_id=user.id,
         )
     )
@@ -285,11 +436,12 @@ def trombadice_edit(
     trombadice_id: int,
     db: DbSession,
     user: AdminWeb,
-    title: Annotated[str, Form()],
     child_id: Annotated[int, Form()],
     occurred_at: Annotated[str, Form()],
+    title: Annotated[str, Form()] = "",
     description: Annotated[str, Form()] = "",
     task_id: Annotated[str, Form()] = "",
+    category: Annotated[str, Form()] = "outra",
 ):
     """Corrigir o que já foi cadastrado - um "machou" que era "machucou".
 
@@ -299,11 +451,18 @@ def trombadice_edit(
     if trombadice is None:
         return _redirect("/trombadices")
 
-    trombadice.title = title.strip()
+    titulo, filho, tarefa, categoria = _campos_da_trombadice(
+        db, title, child_id, task_id, category
+    )
+    if not titulo:
+        return _redirect("/trombadices")
+
+    trombadice.title = titulo
     trombadice.description = description.strip()
+    trombadice.category = categoria
     trombadice.occurred_at = _parse_local(occurred_at)
-    trombadice.child_id = child_id
-    trombadice.task_id = _tarefa_do_filho(db, task_id, child_id)
+    trombadice.child_id = filho
+    trombadice.task_id = tarefa
     # `author_id` fica como está: quem cadastrou continua sendo quem cadastrou.
     db.commit()
     return _redirect("/trombadices")
@@ -440,16 +599,54 @@ def task_delete(task_id: int, db: DbSession, user: AdminWeb):
 
 
 @router.get("/castigos", response_class=HTMLResponse)
-def punishments_page(request: Request, db: DbSession, user: AdminWeb, editar: int | None = None):
+def punishments_page(
+    request: Request,
+    db: DbSession,
+    user: AdminWeb,
+    child_id: int | None = None,
+    category: str | None = None,
+    dia: date | None = None,
+    q: str | None = None,
+    mes: str | None = None,
+    editar: int | None = None,
+):
     now = datetime.now(UTC)
+    categoria = Category(category) if category in {c.value for c in Category} else None
+
+    base = select(Punishment)
+    if child_id:
+        base = base.where(Punishment.child_id == child_id)
+    if categoria is not None:
+        # Castigo não tem categoria própria: herda a das trombadices que o
+        # causaram. "Filtrar por agressão" quer dizer "castigos que vieram de
+        # alguma agressão", que é a pergunta de verdade.
+        base = base.where(Punishment.trombadices.any(Trombadice.category == categoria))
+    if q and (termo := q.strip()):
+        base = base.where(Punishment.reason.ilike(f"%{termo}%"))
+
+    todos = list(db.scalars(base.order_by(Punishment.starts_at.desc())))
+
+    # Todo dia em que houve castigo, não só o de início: senão o calendário não
+    # deixaria clicar no meio de uma semana de castigo.
+    dias_com_registro: set[date] = set()
+    for p in todos:
+        fim = min(p.ended_early_at, p.ends_at) if p.ended_early_at else p.ends_at
+        d = data_local(p.starts_at)
+        while d <= data_local(fim):
+            dias_com_registro.add(d)
+            d += timedelta(days=1)
+
+    if dia is not None:
+        inicio, fim_dia = intervalo(dia, dia)
+        todos = [p for p in todos if p.starts_at < fim_dia and p.ends_at >= inicio]
+
     children = _children(db)
-    punishments = list(db.scalars(select(Punishment).order_by(Punishment.starts_at.desc())))
     editando = db.get(Punishment, editar) if editar else None
     return _render(
         request,
         "castigos.html",
         user=user,
-        punishments=[(p, p.is_active_at(now)) for p in punishments],
+        punishments=[(p, p.is_active_at(now)) for p in todos],
         children=children,
         children_by_id={c.id: c for c in children},
         trombadices=list(
@@ -458,6 +655,22 @@ def punishments_page(request: Request, db: DbSession, user: AdminWeb, editar: in
         fim_sugerido=_local_input(datetime.now(UTC) + timedelta(days=1)),
         editando=editando,
         editando_trombadices=[t.id for t in editando.trombadices] if editando else [],
+        selected_child=child_id,
+        categorias=CATEGORIA_ROTULOS,
+        categoria_escolhida=categoria,
+        busca=q or "",
+        dia_escolhido=dia,
+        url=_construtor_de_url(
+            "/castigos",
+            {
+                "child_id": child_id,
+                "category": categoria.value if categoria else None,
+                "q": q,
+                "dia": dia,
+                "mes": mes,
+            },
+        ),
+        **_calendario(_mes_pedido(mes, dia), dias_com_registro),
     )
 
 
@@ -531,6 +744,43 @@ def punishment_delete(punishment_id: int, db: DbSession, user: AdminWeb):
         db.delete(punishment)
         db.commit()
     return _redirect("/castigos")
+
+
+# --------------------------------------------------------------------------
+# Relatório
+# --------------------------------------------------------------------------
+
+
+@router.get("/relatorio", response_class=HTMLResponse)
+def report_page(
+    request: Request,
+    db: DbSession,
+    user: AdminWeb,
+    child_id: int | None = None,
+    dias: int = 30,
+):
+    # Chama o mesmo código que serve o app, não uma segunda contagem paralela:
+    # duas implementações dariam dois números para a mesma pergunta.
+    if dias not in JANELAS:
+        dias = 30
+    ate = hoje_local()
+    dados = report(admin=user, db=db, child_id=child_id, de=ate - timedelta(days=dias - 1), ate=ate)
+
+    children = _children(db)
+    return _render(
+        request,
+        "relatorio.html",
+        user=user,
+        dados=dados,
+        children=children,
+        selected_child=child_id,
+        dias=dias,
+        janelas=JANELAS,
+        categorias={c.value: r for c, r in CATEGORIA_ROTULOS.items()},
+        # O maior valor da série é o que define a altura das barras. Sem ele o
+        # template teria que fazer a conta, e Jinja é ruim nisso.
+        pico=max([d.total for d in dados.por_dia] or [0]),
+    )
 
 
 # --------------------------------------------------------------------------

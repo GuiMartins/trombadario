@@ -55,6 +55,17 @@
 </form>
 {% endif %}
 
+{# Os filtros trocam só esta parte, senão a página recarrega e apaga o que já
+   estava digitado no formulário acima. #}
+<div id="lista-castigos"
+     hx-target="#lista-castigos" hx-select="#lista-castigos" hx-swap="outerHTML"
+     hx-push-url="true" hx-select-oob="#tema-next">
+{% if children %}
+  {% with pagina_url = '/castigos', placeholder_busca = 'Buscar no motivo' %}
+    {% include "_filtros.html" %}
+  {% endwith %}
+{% endif %}
+
 {% if punishments %}
   {% for p, ativo in punishments %}
   <div class="cartao">
@@ -79,9 +90,14 @@
         {% for t in p.trombadices %}
           <span class="etiqueta">{{ t.title }}</span>
         {% endfor %}
+        {% if p.seen_at %}
+          <span class="etiqueta visto">visto {{ p.seen_at.astimezone().strftime('%d/%m às %H:%M') }}</span>
+        {% else %}
+          <span class="etiqueta fim">ainda não viu</span>
+        {% endif %}
       </div>
       <div class="acoes">
-        <a class="mini secundario" href="/castigos?editar={{ p.id }}#editar">Editar</a>
+        <a class="mini secundario" href="{{ url(editar=p.id) }}#editar">Editar</a>
         {% if ativo %}
         <form method="post" action="/castigos/{{ p.id }}/encerrar">
           <button class="mini secundario">Encerrar</button>
@@ -96,6 +112,7 @@
   </div>
   {% endfor %}
 {% elif children %}
-  <div class="vazio">Nenhum castigo registrado.</div>
+  <div class="vazio">Nenhum castigo por aqui com esses filtros.</div>
 {% endif %}
+</div>
 {% endblock %}

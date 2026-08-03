@@ -340,6 +340,122 @@ a.mini:hover { background: var(--note); }
   font-weight: 700;
 }
 
+/* Com tarefa escolhida, título e "de quem" somem: a tarefa já respondeu os
+   dois. Mesmo truque dos campos de periodicidade, e mesma rede de segurança -
+   sem `:has()` os campos ficam visíveis, que é o comportamento antigo. */
+@supports selector(:has(*)) {
+  .sem-tarefa { display: none; }
+  form:has(#task_id option[value=""]:checked) .sem-tarefa { display: block; }
+}
+
+.busca { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+.busca input[type="text"] { max-width: 22rem; }
+.busca button { margin-top: 0; }
+
+/* ---------- calendário do filtro ---------- */
+
+.calendario {
+  background: var(--card);
+  border: 1px solid var(--note-border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem 1rem;
+  margin-bottom: 1.25rem;
+  max-width: 22rem;
+}
+.calendario .cabeca {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.calendario .cabeca span { font-family: var(--hand); font-size: 1.3rem; }
+.calendario .grade {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.2rem;
+  text-align: center;
+}
+.calendario .grade > * {
+  padding: 0.35rem 0;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+.calendario .cabecalho { color: var(--ink-soft); font-weight: 800; font-size: 0.7rem; }
+/* Dia sem registro não é link, e a cor diz isso antes do clique. */
+.calendario .vazio { color: var(--ink-soft); opacity: 0.55; }
+.calendario .fora { visibility: hidden; }
+.calendario .hoje { outline: 1px dashed var(--marker-ink); }
+.calendario a.tem {
+  text-decoration: none;
+  font-weight: 800;
+  color: var(--marker-ink);
+  background: var(--note);
+  border: 1px solid var(--note-border);
+}
+.calendario a.tem:hover { background: var(--amber); color: var(--ink); }
+.calendario a.tem.escolhido {
+  background: var(--marker-ink);
+  color: var(--on-marker);
+  border-color: var(--marker-ink);
+}
+.calendario > a.mini { margin-top: 0.75rem; }
+
+.etiqueta.visto { background: transparent; border-color: var(--teal); color: var(--ink-soft); }
+
+/* ---------- relatório ---------- */
+
+.numerao {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 1.5rem;
+}
+.numero {
+  background: var(--card);
+  border: 1px solid var(--note-border);
+  border-radius: var(--radius);
+  padding: 0.9rem 1rem;
+}
+.numero strong {
+  display: block;
+  font-family: var(--hand);
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--marker-ink);
+}
+.numero span { font-size: 0.8rem; color: var(--ink-soft); }
+.numero.alerta { border-color: var(--marker-ink); }
+
+.barras { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem; }
+.barra { display: grid; grid-template-columns: 10rem 1fr 2.5rem; gap: 0.6rem; align-items: center; }
+.barra .rotulo { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barra .trilho { background: var(--note); border: 1px solid var(--note-border); border-radius: 999px; height: 1.1rem; overflow: hidden; }
+.barra .preenchido { display: block; height: 100%; background: var(--marker-ink); }
+.barra .valor { font-weight: 800; font-size: 0.85rem; text-align: right; }
+
+/* Série diária: uma coluna por dia, incluindo os zerados - é o vazio que
+   mostra a sequência limpa. Rola na horizontal em vez de espremer os dias. */
+.serie {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 7rem;
+  padding: 0.5rem;
+  background: var(--card);
+  border: 1px solid var(--note-border);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin-bottom: 0.5rem;
+}
+.serie .dia { flex: 1 0 6px; height: 100%; display: flex; align-items: flex-end; }
+.serie .coluna { width: 100%; min-height: 2px; background: var(--marker-ink); border-radius: 2px 2px 0 0; }
+
+@media (max-width: 40rem) {
+  .barra { grid-template-columns: 7rem 1fr 2rem; }
+}
+
 .filtros { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .filtros a {
   text-decoration: none;

@@ -39,6 +39,34 @@ def intervalo(de: date | None, ate: date | None) -> tuple[datetime | None, datet
     )
 
 
+def semanas_do_mes(mes: date) -> list[list[date | None]]:
+    """O mês em linhas de sete, começando na segunda.
+
+    `None` nos buracos do começo e do fim em vez de datas do mês vizinho: o
+    calendário do filtro não deve deixar clicar num dia que não é deste mês, e
+    devolver `None` torna isso impossível de esquecer no template."""
+    primeiro = mes.replace(day=1)
+    proximo = (primeiro + timedelta(days=32)).replace(day=1)
+
+    dias: list[date | None] = [None] * primeiro.weekday()
+    dia = primeiro
+    while dia < proximo:
+        dias.append(dia)
+        dia += timedelta(days=1)
+    while len(dias) % 7:
+        dias.append(None)
+
+    return [dias[i : i + 7] for i in range(0, len(dias), 7)]
+
+
+def mes_anterior(mes: date) -> date:
+    return (mes.replace(day=1) - timedelta(days=1)).replace(day=1)
+
+
+def mes_seguinte(mes: date) -> date:
+    return (mes.replace(day=1) + timedelta(days=32)).replace(day=1)
+
+
 def semana_de(dia: date) -> str:
     """Rótulo da semana: a segunda-feira que a abre, em ISO.
 
