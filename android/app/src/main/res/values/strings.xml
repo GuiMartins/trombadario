@@ -161,6 +161,7 @@
     <string name="splash_paused">pausada</string>
     <string name="splash_error_empty">A frase não pode ficar vazia</string>
     <string name="splash_delete_confirm_title">Excluir frase?</string>
+    <string name="splash_greeting">Olá, %1$s</string>
 
     <string-array name="weekday_names">
         <item>Segunda</item>
