@@ -61,7 +61,29 @@ data class TrombadiceDto(
     @SerialName("author_id") val authorId: Int,
     /** The task that wasn't done, when this trombadice is about one. */
     @SerialName("task_id") val taskId: Int? = null,
+    /** Lista fechada; ver [Categoria]. Default para o app instalado hoje não
+     *  quebrar se um dia o servidor devolver um valor que ele não conhece. */
+    val category: String = Categoria.OUTRA,
+    /** Quando o filho viu. Nulo = ainda não viu. Marcado sozinho pelo servidor
+     *  na leitura dele - não existe chamada para o app fazer. */
+    @SerialName("seen_at") val seenAt: String? = null,
 )
+
+/** Os mesmos oito valores do backend, na mesma ordem - é a ordem da tela. */
+object Categoria {
+    const val DESRESPEITO = "desrespeito"
+    const val EDUCACAO = "educacao"
+    const val NAO_FEZ = "nao_fez"
+    const val MENTIRA = "mentira"
+    const val BIRRA = "birra"
+    const val ESCOLA = "escola"
+    const val AGRESSAO = "agressao"
+    const val OUTRA = "outra"
+
+    val TODAS = listOf(
+        DESRESPEITO, EDUCACAO, NAO_FEZ, MENTIRA, BIRRA, ESCOLA, AGRESSAO, OUTRA,
+    )
+}
 
 @Serializable
 data class TrombadiceCreateDto(
@@ -70,6 +92,7 @@ data class TrombadiceCreateDto(
     @SerialName("occurred_at") val occurredAt: String,
     @SerialName("child_id") val childId: Int,
     @SerialName("task_id") val taskId: Int? = null,
+    val category: String = Categoria.OUTRA,
 )
 
 @Serializable
@@ -78,6 +101,7 @@ data class TrombadiceUpdateDto(
     val description: String? = null,
     @SerialName("occurred_at") val occurredAt: String? = null,
     @SerialName("task_id") val taskId: Int? = null,
+    val category: String? = null,
 )
 
 @Serializable
@@ -138,6 +162,8 @@ data class PunishmentDto(
     @SerialName("starts_at") val startsAt: String,
     @SerialName("ends_at") val endsAt: String,
     @SerialName("ended_early_at") val endedEarlyAt: String? = null,
+    /** Quando o filho viu este castigo. Nulo = ainda não viu. */
+    @SerialName("seen_at") val seenAt: String? = null,
     @SerialName("child_id") val childId: Int,
     @SerialName("trombadice_ids") val trombadiceIds: List<Int> = emptyList(),
     // Computed server-side: the phone's clock is not the authority on whether
@@ -190,3 +216,37 @@ data class SplashMessageUpdateDto(
 /** `text` nulo quando não há frase que se aplique - o app pula a tela. */
 @Serializable
 data class SplashMessageRandomDto(val text: String? = null)
+
+
+// --------------------------------------------------------------------------
+// Relatório
+// --------------------------------------------------------------------------
+
+@Serializable
+data class ContagemDto(val rotulo: String, val total: Int)
+
+/** Espelha `schemas.Report`. Os nomes vêm em português porque o backend também
+ *  fala português aqui - inventar uma tradução no meio só criaria dois
+ *  vocabulários para a mesma coisa. */
+@Serializable
+data class ReportDto(
+    val de: String,
+    val ate: String,
+    val total: Int,
+    @SerialName("por_dia") val porDia: List<ContagemDto> = emptyList(),
+    @SerialName("por_semana") val porSemana: List<ContagemDto> = emptyList(),
+    @SerialName("por_mes") val porMes: List<ContagemDto> = emptyList(),
+    @SerialName("por_categoria") val porCategoria: List<ContagemDto> = emptyList(),
+    @SerialName("por_filho") val porFilho: List<ContagemDto> = emptyList(),
+    @SerialName("por_tarefa") val porTarefa: List<ContagemDto> = emptyList(),
+    @SerialName("dias_com_registro") val diasComRegistro: Int = 0,
+    @SerialName("media_por_dia_com_registro") val mediaPorDiaComRegistro: Double = 0.0,
+    @SerialName("dia_mais_pesado") val diaMaisPesado: ContagemDto? = null,
+    @SerialName("castigos_no_periodo") val castigosNoPeriodo: Int = 0,
+    @SerialName("dias_de_castigo") val diasDeCastigo: Double = 0.0,
+    @SerialName("maior_sequencia_limpa") val maiorSequenciaLimpa: Int = 0,
+    @SerialName("nao_vistas") val naoVistas: Int = 0,
+)
+
+@Serializable
+data class DatasComRegistroDto(val datas: List<String> = emptyList())

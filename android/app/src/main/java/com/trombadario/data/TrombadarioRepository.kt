@@ -1,6 +1,8 @@
 package com.trombadario.data
 
 import com.trombadario.data.remote.ApiProvider
+import com.trombadario.data.remote.DatasComRegistroDto
+import com.trombadario.data.remote.ReportDto
 import com.trombadario.data.remote.TrombadiceCreateDto
 import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.TrombadiceUpdateDto
@@ -90,8 +92,26 @@ class TrombadarioRepository(
 
     suspend fun me(): ApiResult<UserDto> = call { it.me() }
 
-    suspend fun listTrombadices(childId: Int? = null): ApiResult<List<TrombadiceDto>> =
-        call { it.listTrombadices(childId) }
+    suspend fun listTrombadices(
+        childId: Int? = null,
+        category: String? = null,
+        de: String? = null,
+        ate: String? = null,
+        q: String? = null,
+    ): ApiResult<List<TrombadiceDto>> =
+        call { it.listTrombadices(childId, category, de, ate, q) }
+
+    suspend fun trombadiceDates(
+        childId: Int? = null,
+        category: String? = null,
+        q: String? = null,
+    ): ApiResult<DatasComRegistroDto> = call { it.trombadiceDates(childId, category, q) }
+
+    suspend fun report(
+        childId: Int? = null,
+        de: String? = null,
+        ate: String? = null,
+    ): ApiResult<ReportDto> = call { it.report(childId, de, ate) }
 
     suspend fun getTrombadice(id: Int): ApiResult<TrombadiceDto> = call { it.getTrombadice(id) }
 

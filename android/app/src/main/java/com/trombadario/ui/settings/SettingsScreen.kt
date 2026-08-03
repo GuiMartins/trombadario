@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.InsertChart
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.AlertDialog
@@ -56,6 +57,7 @@ fun SettingsScreen(
     currentUser: UserDto,
     onOpenUsers: () -> Unit,
     onOpenSplashMessages: () -> Unit,
+    onOpenReport: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val theme by container.serverConfigStore.theme
@@ -103,6 +105,11 @@ fun SettingsScreen(
                         icon = Icons.Default.ChatBubbleOutline,
                         label = stringResource(R.string.splash_title),
                         onClick = onOpenSplashMessages,
+                    )
+                    ActionRow(
+                        icon = Icons.Default.InsertChart,
+                        label = stringResource(R.string.report_title),
+                        onClick = onOpenReport,
                     )
                 }
 

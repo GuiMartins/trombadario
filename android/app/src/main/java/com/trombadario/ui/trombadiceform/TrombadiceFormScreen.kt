@@ -46,7 +46,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trombadario.AppContainer
 import com.trombadario.R
+import com.trombadario.data.remote.Categoria
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.components.rotuloDaCategoria
 import com.trombadario.ui.theme.NotebookGutter
 import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
@@ -114,66 +116,10 @@ fun TrombadiceFormScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(24.dp),
             ) {
-                OutlinedTextField(
-                    value = state.title,
-                    onValueChange = viewModel::onTitleChange,
-                    label = { Text(stringResource(R.string.trombadice_form_title_label)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = state.description,
-                    onValueChange = viewModel::onDescriptionChange,
-                    label = { Text(stringResource(R.string.trombadice_form_description_label)) },
-                    minLines = 4,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(24.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AssistChip(
-                        onClick = { showDatePicker = true },
-                        label = {
-                            Text(state.date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))
-                        },
-                    )
-                    AssistChip(
-                        onClick = { showTimePicker = true },
-                        label = { Text(state.time.format(DateTimeFormatter.ofPattern("HH:mm"))) },
-                    )
-                }
-
-                // Sempre visível, mesmo com um filho só (requisito 3): quem lê a
-                // tela precisa ver de quem é a trombadice sem ter que deduzir.
-                if (state.children.isNotEmpty()) {
-                    Spacer(Modifier.height(24.dp))
-                    Text(
-                        text = stringResource(R.string.trombadice_form_child_label),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        state.children.forEach { child ->
-                            FilterChip(
-                                selected = state.selectedChildId == child.id,
-                                onClick = { viewModel.onChildChange(child.id) },
-                                label = { Text(child.displayName) },
-                            )
-                        }
-                    }
-                }
-
-                // Requisito 4.2: marcar a tarefa que não foi cumprida. Só as do
-                // filho escolhido - o backend recusa vínculo cruzado, e o
-                // vínculo afirmaria algo falso.
-                val tarefasDoFilho = state.tasks.filter { it.childId == state.selectedChildId }
-                if (tarefasDoFilho.isNotEmpty()) {
-                    Spacer(Modifier.height(24.dp))
+                // A tarefa vem primeiro porque responde duas das perguntas de
+                // baixo - de quem é e qual é o título - e some com elas da tela.
+                // Mesma regra do painel web.
+                if (state.tasks.isNotEmpty()) {
                     Text(
                         text = stringResource(R.string.trombadice_form_task_label),
                         style = MaterialTheme.typography.labelLarge,
@@ -188,7 +134,9 @@ fun TrombadiceFormScreen(
                             onClick = { viewModel.onTaskChange(null) },
                             label = { Text(stringResource(R.string.trombadice_form_task_none)) },
                         )
-                        tarefasDoFilho.forEach { task ->
+                        // Todas as tarefas, não só as do filho escolhido:
+                        // escolher a tarefa é que escolhe o filho agora.
+                        state.tasks.forEach { task ->
                             FilterChip(
                                 selected = state.selectedTaskId == task.id,
                                 onClick = { viewModel.onTaskChange(task.id) },
@@ -196,7 +144,83 @@ fun TrombadiceFormScreen(
                             )
                         }
                     }
+                    Spacer(Modifier.height(24.dp))
                 }
+
+                if (state.selectedTaskId == null) {
+                    OutlinedTextField(
+                        value = state.title,
+                        onValueChange = viewModel::onTitleChange,
+                        label = { Text(stringResource(R.string.trombadice_form_title_label)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+
+                    // Sempre visível, mesmo com um filho só (requisito 3): quem
+                    // lê a tela precisa ver de quem é sem ter que deduzir.
+                    if (state.children.isNotEmpty()) {
+                        Spacer(Modifier.height(24.dp))
+                        Text(
+                            text = stringResource(R.string.trombadice_form_child_label),
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            state.children.forEach { child ->
+                                FilterChip(
+                                    selected = state.selectedChildId == child.id,
+                                    onClick = { viewModel.onChildChange(child.id) },
+                                    label = { Text(child.displayName) },
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(24.dp))
+                }
+
+                Text(
+                    text = stringResource(R.string.trombadice_form_category_label),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Categoria.TODAS.forEach { valor ->
+                        FilterChip(
+                            selected = state.category == valor,
+                            onClick = { viewModel.onCategoryChange(valor) },
+                            label = { Text(stringResource(rotuloDaCategoria(valor))) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AssistChip(
+                        onClick = { showDatePicker = true },
+                        label = {
+                            Text(state.date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+                        },
+                    )
+                    AssistChip(
+                        onClick = { showTimePicker = true },
+                        label = { Text(state.time.format(DateTimeFormatter.ofPattern("HH:mm"))) },
+                    )
+                }
+                Spacer(Modifier.height(24.dp))
+
+                OutlinedTextField(
+                    value = state.description,
+                    onValueChange = viewModel::onDescriptionChange,
+                    label = { Text(stringResource(R.string.trombadice_form_description_label)) },
+                    minLines = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                )
 
                 if (state.error != null) {
                     Spacer(Modifier.height(16.dp))

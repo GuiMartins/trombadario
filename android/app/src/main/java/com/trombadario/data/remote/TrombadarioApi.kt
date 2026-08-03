@@ -28,7 +28,22 @@ interface TrombadarioApi {
     suspend fun me(): Response<UserDto>
 
     @GET("api/trombadices")
-    suspend fun listTrombadices(@Query("child_id") childId: Int? = null): Response<List<TrombadiceDto>>
+    suspend fun listTrombadices(
+        @Query("child_id") childId: Int? = null,
+        @Query("category") category: String? = null,
+        @Query("de") de: String? = null,
+        @Query("ate") ate: String? = null,
+        @Query("q") q: String? = null,
+    ): Response<List<TrombadiceDto>>
+
+    /** Os dias que têm registro, pro calendário do filtro só deixar clicar
+     *  neles. Já vem respeitando os outros filtros. */
+    @GET("api/trombadices/datas")
+    suspend fun trombadiceDates(
+        @Query("child_id") childId: Int? = null,
+        @Query("category") category: String? = null,
+        @Query("q") q: String? = null,
+    ): Response<DatasComRegistroDto>
 
     @GET("api/trombadices/{id}")
     suspend fun getTrombadice(@Path("id") id: Int): Response<TrombadiceDto>
@@ -65,6 +80,13 @@ interface TrombadarioApi {
 
     @DELETE("api/tasks/{id}")
     suspend fun deleteTask(@Path("id") id: Int): Response<Unit>
+
+    @GET("api/reports")
+    suspend fun report(
+        @Query("child_id") childId: Int? = null,
+        @Query("de") de: String? = null,
+        @Query("ate") ate: String? = null,
+    ): Response<ReportDto>
 
     @GET("api/punishments")
     suspend fun listPunishments(
