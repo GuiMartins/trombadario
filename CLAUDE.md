@@ -557,11 +557,18 @@ está sendo *mencionada*. Nunca escrever à toa.
 colapsa tudo num commit só) — precisa começar com `feat:`/`fix:`, nunca com
 `release:` ou outro prefixo genérico, senão cai no `default_bump: patch`.
 
-> **O PR de release tem que ser SQUASH-mergeado.** Com `--merge`, a mensagem
-> que fica em `main` é `Merge pull request #N from ...`, o título do PR se
-> perde, e a action cai no `default_bump: patch`: a primeira release saiu
-> `v0.0.1` em vez de `v0.1.0`, desencontrada do `versionName` do app. Já
-> aconteceu uma vez; `gh pr merge --squash` sempre.
+> **Duas armadilhas, as duas já pegaram, as duas dão o mesmo sintoma:** a tag
+> sai `v0.0.1` (o `default_bump: patch`) em vez do bump que o título pedia.
+>
+> 1. **Merge commit em vez de squash.** Com `--merge` a mensagem que fica em
+>    `main` é `Merge pull request #N from ...` e o título do PR se perde.
+> 2. **Squash de um branch com um commit só.** O GitHub usa a mensagem *daquele
+>    commit*, não o título do PR — então um branch de release com um `docs:`
+>    dentro vira bump de patch, por mais que o PR se chame `feat:`.
+>
+> Blindagem contra as duas: `gh pr merge --squash --subject "feat: ..."`,
+> passando o assunto na mão. **Conferir a tag depois** (`gh release list`) faz
+> parte do release, não é opcional.
 
 Passos, sem pedir confirmação a cada um:
 
