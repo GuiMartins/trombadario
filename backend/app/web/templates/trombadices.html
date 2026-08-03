@@ -15,15 +15,38 @@
 <form id="editar" method="post" action="{{ '/trombadices/' ~ e.id ~ '/editar' if e else '/trombadices' }}" class="bloco">
   {% if e %}<h2>Corrigindo o que foi cadastrado</h2>{% endif %}
 
-  {# A tarefa vem primeiro porque ela responde duas das perguntas de baixo - de
-     quem é e qual é o título - e some com elas da tela. #}
-  <label for="task_id">Deixou de cumprir alguma tarefa?</label>
-  <select id="task_id" name="task_id">
-    <option value="">Não, foi outra coisa</option>
-    {% for t in tasks %}
-    <option value="{{ t.id }}" {% if e and e.task_id == t.id %}selected{% endif %}>{{ t.name }} — {{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else '' }}</option>
+  {# Trombadice ou conquista. O tipo vem antes de tudo porque muda a lista de
+     categorias e some com o campo de tarefa - conquista não se atrela a uma.
+
+     Editando, o tipo não muda: trombadice não vira conquista. Errou o tipo,
+     apaga e cadastra de novo, que é mais honesto do que reescrever o
+     significado de um registro que a criança já pode ter visto. #}
+  {% if e %}
+    <p class="sub">Tipo: <strong>{{ tipos[e.kind] }}</strong> — isso não muda na edição.</p>
+  {% else %}
+  <label>O que foi</label>
+  <div class="tipos">
+    {% for valor, rotulo in tipos.items() %}
+    <label class="tipo tipo-{{ valor.value }}">
+      <input type="radio" name="kind" value="{{ valor.value }}" {% if loop.first %}checked{% endif %}>
+      <span>{{ rotulo }}</span>
+    </label>
     {% endfor %}
-  </select>
+  </div>
+  {% endif %}
+
+  {# A tarefa vem primeiro porque ela responde duas das perguntas de baixo - de
+     quem é e qual é o título - e some com elas da tela. Só para trombadice:
+     tarefa registra o que **não** foi cumprido. #}
+  <div class="so-trombadice">
+    <label for="task_id">Deixou de cumprir alguma tarefa?</label>
+    <select id="task_id" name="task_id">
+      <option value="">Não, foi outra coisa</option>
+      {% for t in tasks %}
+      <option value="{{ t.id }}" {% if e and e.task_id == t.id %}selected{% endif %}>{{ t.name }} — {{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else '' }}</option>
+      {% endfor %}
+    </select>
+  </div>
 
   <div class="sem-tarefa">
     <label for="title">O que aconteceu</label>
@@ -37,12 +60,25 @@
     </select>
   </div>
 
-  <label for="category">Que tipo de coisa foi</label>
-  <select id="category" name="category">
-    {% for valor, rotulo in categorias.items() %}
-    <option value="{{ valor.value }}" {% if (e and e.category == valor) or (not e and valor.value == 'outra') %}selected{% endif %}>{{ rotulo }}</option>
-    {% endfor %}
-  </select>
+  {# Duas listas, uma por tipo. O CSS esconde a que não vale e o servidor lê só
+     a do tipo escolhido - assim nenhuma precisa ser desabilitada, e sem
+     `:has()` as duas aparecem e continua funcionando. #}
+  <div class="so-trombadice">
+    <label for="categoria_trombadice">Que tipo de coisa foi</label>
+    <select id="categoria_trombadice" name="categoria_trombadice">
+      {% for valor, rotulo in categorias_trombadice.items() %}
+      <option value="{{ valor.value }}" {% if e and e.category == valor %}selected{% endif %}>{{ rotulo }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="so-conquista">
+    <label for="categoria_conquista">Que tipo de coisa boa foi</label>
+    <select id="categoria_conquista" name="categoria_conquista">
+      {% for valor, rotulo in categorias_conquista.items() %}
+      <option value="{{ valor.value }}" {% if e and e.category == valor %}selected{% endif %}>{{ rotulo }}</option>
+      {% endfor %}
+    </select>
+  </div>
 
   <label for="occurred_at">Quando</label>
   <input type="datetime-local" id="occurred_at" name="occurred_at"
@@ -72,10 +108,10 @@
 
 {% if trombadices %}
   {% for t in trombadices %}
-  <div class="cartao">
+  <div class="cartao {{ 'conquista' if t.kind.value == 'conquista' else '' }}">
     <div class="linha">
       <div class="cresce">
-        <span class="quando">{{ t.occurred_at.astimezone().strftime('%d/%m/%Y às %H:%M') }}</span>
+        <span class="quando">{% if t.kind.value == 'conquista' %}★ {% endif %}{{ t.occurred_at.astimezone().strftime('%d/%m/%Y às %H:%M') }}</span>
         <p class="titulo">{{ t.title }}</p>
         <p class="sub">
           {{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else 'Filho' }}

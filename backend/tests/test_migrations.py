@@ -20,7 +20,7 @@ from sqlalchemy.orm import sessionmaker
 
 from alembic import command
 from alembic.config import Config
-from app.models import Category, Trombadice
+from app.models import Category, Kind, Trombadice
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
@@ -74,6 +74,9 @@ def test_linha_antiga_continua_legivel_pelo_orm(banco_antigo: str) -> None:
         # O que a migration escreveu tem que ser exatamente o que o ORM entende.
         assert trombadice.category is Category.OUTRA
         assert trombadice.seen_at is None
+        # O que já existia é trombadice: conquista não existia quando aquilo
+        # foi cadastrado.
+        assert trombadice.kind is Kind.TROMBADICE
 
 
 def test_o_que_ja_existia_sobrevive(banco_antigo: str) -> None:
@@ -103,6 +106,7 @@ def test_ida_e_volta_da_migration(banco_antigo: str) -> None:
     try:
         colunas = [c[1] for c in conexao.execute("pragma table_info('trombadices')")]
         assert "category" not in colunas
+        assert "kind" not in colunas
         assert conexao.execute("select count(*) from trombadices").fetchone()[0] == 1
     finally:
         conexao.close()

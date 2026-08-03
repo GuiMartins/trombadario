@@ -61,6 +61,9 @@ data class TrombadiceDto(
     @SerialName("author_id") val authorId: Int,
     /** The task that wasn't done, when this trombadice is about one. */
     @SerialName("task_id") val taskId: Int? = null,
+    /** Trombadice ou conquista; ver [Tipo]. Default para o app instalado hoje
+     *  não quebrar se o servidor for mais novo que ele. */
+    val kind: String = Tipo.TROMBADICE,
     /** Lista fechada; ver [Categoria]. Default para o app instalado hoje não
      *  quebrar se um dia o servidor devolver um valor que ele não conhece. */
     val category: String = Categoria.OUTRA,
@@ -69,7 +72,22 @@ data class TrombadiceDto(
     @SerialName("seen_at") val seenAt: String? = null,
 )
 
-/** Os mesmos oito valores do backend, na mesma ordem - é a ordem da tela. */
+/** O que o registro é: coisa errada ou coisa boa. */
+object Tipo {
+    const val TROMBADICE = "trombadice"
+    const val CONQUISTA = "conquista"
+
+    val TODOS = listOf(TROMBADICE, CONQUISTA)
+}
+
+/**
+ * As mesmas categorias do backend, na mesma ordem - é a ordem da tela.
+ *
+ * **Cada uma pertence a um tipo.** "Falta de respeito" não descreve coisa boa e
+ * "ajudou sem pedir" não descreve trombadice; oferecer as dezesseis nas duas
+ * telas só produziria registro sem sentido. O servidor recusa a combinação
+ * errada, então isto aqui é a mesma regra do lado de cá, não a única defesa.
+ */
 object Categoria {
     const val DESRESPEITO = "desrespeito"
     const val EDUCACAO = "educacao"
@@ -80,9 +98,27 @@ object Categoria {
     const val AGRESSAO = "agressao"
     const val OUTRA = "outra"
 
-    val TODAS = listOf(
+    const val AJUDOU = "ajudou"
+    const val RESPONSABILIDADE = "responsabilidade"
+    const val ESTUDOU = "estudou"
+    const val GENTILEZA = "gentileza"
+    const val INICIATIVA = "iniciativa"
+    const val SUPEROU = "superou"
+    const val CUIDOU = "cuidou"
+    const val OUTRA_BOA = "outra_boa"
+
+    val DE_TROMBADICE = listOf(
         DESRESPEITO, EDUCACAO, NAO_FEZ, MENTIRA, BIRRA, ESCOLA, AGRESSAO, OUTRA,
     )
+    val DE_CONQUISTA = listOf(
+        AJUDOU, RESPONSABILIDADE, ESTUDOU, GENTILEZA, INICIATIVA, SUPEROU, CUIDOU, OUTRA_BOA,
+    )
+    val TODAS = DE_TROMBADICE + DE_CONQUISTA
+
+    fun de(tipo: String): List<String> =
+        if (tipo == Tipo.CONQUISTA) DE_CONQUISTA else DE_TROMBADICE
+
+    fun padraoDe(tipo: String): String = if (tipo == Tipo.CONQUISTA) OUTRA_BOA else OUTRA
 }
 
 @Serializable
@@ -92,6 +128,7 @@ data class TrombadiceCreateDto(
     @SerialName("occurred_at") val occurredAt: String,
     @SerialName("child_id") val childId: Int,
     @SerialName("task_id") val taskId: Int? = null,
+    val kind: String = Tipo.TROMBADICE,
     val category: String = Categoria.OUTRA,
 )
 
@@ -246,6 +283,9 @@ data class ReportDto(
     @SerialName("dias_de_castigo") val diasDeCastigo: Double = 0.0,
     @SerialName("maior_sequencia_limpa") val maiorSequenciaLimpa: Int = 0,
     @SerialName("nao_vistas") val naoVistas: Int = 0,
+    val conquistas: Int = 0,
+    @SerialName("conquistas_por_categoria")
+    val conquistasPorCategoria: List<ContagemDto> = emptyList(),
 )
 
 @Serializable

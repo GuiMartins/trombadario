@@ -7,6 +7,7 @@ import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.ApiResult
 import com.trombadario.data.remote.Categoria
+import com.trombadario.data.remote.Tipo
 import com.trombadario.data.remote.TrombadiceCreateDto
 import com.trombadario.data.remote.TrombadiceUpdateDto
 import com.trombadario.data.remote.TaskDto
@@ -33,6 +34,7 @@ data class TrombadiceFormState(
     val selectedChildId: Int? = null,
     val tasks: List<TaskDto> = emptyList(),
     val selectedTaskId: Int? = null,
+    val kind: String = Tipo.TROMBADICE,
     val category: String = Categoria.OUTRA,
     val submitting: Boolean = false,
     @StringRes val error: Int? = null,
@@ -81,6 +83,7 @@ class TrombadiceFormViewModel(
                     selectedChildId = event?.childId ?: children.singleOrNull()?.id,
                     tasks = tasks,
                     selectedTaskId = event?.taskId,
+                    kind = event?.kind ?: current.kind,
                     category = event?.category ?: current.category,
                 )
             }
@@ -102,6 +105,21 @@ class TrombadiceFormViewModel(
     }
 
     fun onCategoryChange(value: String) = _state.update { it.copy(category = value) }
+
+    /**
+     * Trocar de tipo troca a lista de categorias inteira, então a que estava
+     * marcada não serve mais - vai para a padrão do tipo novo. E conquista não
+     * se atrela a tarefa: o vínculo existe para dizer o que **não** foi
+     * cumprido, e diria o contrário do que significa.
+     */
+    fun onKindChange(value: String) = _state.update {
+        it.copy(
+            kind = value,
+            category = Categoria.padraoDe(value),
+            selectedTaskId = if (value == Tipo.CONQUISTA) null else it.selectedTaskId,
+            error = null,
+        )
+    }
 
     /**
      * Escolher tarefa responde de quem é e, se ninguém escreveu título, qual é
@@ -147,6 +165,7 @@ class TrombadiceFormViewModel(
                         occurredAt = occurredAt,
                         childId = childId,
                         taskId = current.selectedTaskId,
+                        kind = current.kind,
                         category = current.category,
                     )
                 )

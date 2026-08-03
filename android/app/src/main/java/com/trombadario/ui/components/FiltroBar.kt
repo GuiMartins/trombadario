@@ -38,6 +38,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.trombadario.R
 import com.trombadario.data.remote.Categoria
+import com.trombadario.data.remote.Tipo
 import com.trombadario.data.remote.UserDto
 import java.time.Instant
 import java.time.LocalDate
@@ -61,6 +62,8 @@ fun FiltroBar(
     children: List<UserDto>,
     selectedChildId: Int?,
     onSelectChild: (Int?) -> Unit,
+    kind: String?,
+    onSelectKind: (String?) -> Unit,
     category: String?,
     onSelectCategory: (String?) -> Unit,
     busca: String,
@@ -96,11 +99,29 @@ fun FiltroBar(
 
         LinhaDeChips {
             FilterChip(
+                selected = kind == null,
+                onClick = { onSelectKind(null) },
+                label = { Text(stringResource(R.string.tipo_tudo)) },
+            )
+            Tipo.TODOS.forEach { valor ->
+                FilterChip(
+                    selected = kind == valor,
+                    onClick = { onSelectKind(valor) },
+                    label = { Text(stringResource(rotuloDoTipoPlural(valor))) },
+                )
+            }
+        }
+
+        LinhaDeChips {
+            FilterChip(
                 selected = category == null,
                 onClick = { onSelectCategory(null) },
                 label = { Text(stringResource(R.string.categoria_qualquer)) },
             )
-            Categoria.TODAS.forEach { valor ->
+            // Com um tipo escolhido, só as categorias dele: oferecer "falta de
+            // respeito" numa lista de conquistas seria oferecer um filtro que
+            // nunca acha nada.
+            (kind?.let { Categoria.de(it) } ?: Categoria.TODAS).forEach { valor ->
                 FilterChip(
                     selected = category == valor,
                     onClick = { onSelectCategory(valor) },

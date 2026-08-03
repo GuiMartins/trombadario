@@ -40,6 +40,8 @@ class FiltroBarTest {
                     ),
                     selectedChildId = null,
                     onSelectChild = {},
+                    kind = null,
+                    onSelectKind = {},
                     category = null,
                     onSelectCategory = {},
                     busca = "",
@@ -62,6 +64,9 @@ class FiltroBarTest {
         rule.onNodeWithText("Joao").assertExists()
         rule.onNodeWithText("Falta de respeito").assertExists()
         rule.onNodeWithText("Qualquer tipo").assertExists()
+        // Sem tipo escolhido valem as dezesseis categorias, das duas listas.
+        rule.onNodeWithText("Ajudou sem pedir").assertExists()
+        rule.onNodeWithText("Conquistas").assertExists()
     }
 
     @Test

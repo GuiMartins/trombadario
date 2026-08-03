@@ -15,14 +15,31 @@ class Role(str, enum.Enum):
     CHILD = "child"
 
 
+class Kind(str, enum.Enum):
+    """Trombadice (o que fez de errado) ou conquista (o que fez de bom).
+
+    O registro é o mesmo: quem, quando, o quê, de que tipo. O que muda é o
+    sinal. Duas tabelas separadas obrigariam a duplicar filtro, calendário,
+    edição e relatório - e a responder duas vezes "o que aconteceu no dia 5"."""
+
+    TROMBADICE = "trombadice"
+    CONQUISTA = "conquista"
+
+
 class Category(str, enum.Enum):
     """Que tipo de coisa foi. Lista fechada de propósito: campo livre viraria
     dez jeitos de escrever "falta de respeito" e nenhum relatório sairia.
 
     Ordem importa - é a ordem em que aparecem na tela, do mais comum ao menos.
     Acrescentar valor é migration; tirar valor exige decidir o que fazer com o
-    que já está gravado, então na prática só se aposenta escondendo da tela."""
+    que já está gravado, então na prática só se aposenta escondendo da tela.
 
+    **Cada categoria pertence a um tipo** (ver `CATEGORIAS_POR_TIPO`): "falta de
+    respeito" não descreve coisa boa, e "ajudou sem pedir" não descreve
+    trombadice. Oferecer as dezesseis nas duas telas só produziria registro sem
+    sentido."""
+
+    # Trombadices
     DESRESPEITO = "desrespeito"
     EDUCACAO = "educacao"
     NAO_FEZ = "nao_fez"
@@ -31,6 +48,48 @@ class Category(str, enum.Enum):
     ESCOLA = "escola"
     AGRESSAO = "agressao"
     OUTRA = "outra"
+
+    # Conquistas
+    AJUDOU = "ajudou"
+    RESPONSABILIDADE = "responsabilidade"
+    ESTUDOU = "estudou"
+    GENTILEZA = "gentileza"
+    INICIATIVA = "iniciativa"
+    SUPEROU = "superou"
+    CUIDOU = "cuidou"
+    OUTRA_BOA = "outra_boa"
+
+
+CATEGORIAS_POR_TIPO: dict[Kind, tuple[Category, ...]] = {
+    Kind.TROMBADICE: (
+        Category.DESRESPEITO,
+        Category.EDUCACAO,
+        Category.NAO_FEZ,
+        Category.MENTIRA,
+        Category.BIRRA,
+        Category.ESCOLA,
+        Category.AGRESSAO,
+        Category.OUTRA,
+    ),
+    Kind.CONQUISTA: (
+        Category.AJUDOU,
+        Category.RESPONSABILIDADE,
+        Category.ESTUDOU,
+        Category.GENTILEZA,
+        Category.INICIATIVA,
+        Category.SUPEROU,
+        Category.CUIDOU,
+        Category.OUTRA_BOA,
+    ),
+}
+
+
+def categoria_padrao(kind: Kind) -> Category:
+    return Category.OUTRA if kind is Kind.TROMBADICE else Category.OUTRA_BOA
+
+
+def categoria_combina(category: Category, kind: Kind) -> bool:
+    return category in CATEGORIAS_POR_TIPO[kind]
 
 
 class Periodicity(str, enum.Enum):
@@ -85,14 +144,25 @@ class User(Base):
 
 
 class Trombadice(Base):
-    """What the child did. Distinct from a Task (what they were supposed to do)
-    and from a Punishment (what followed)."""
+    """O que a criança fez - de errado **ou** de bom, conforme o `kind`.
+
+    O nome da tabela ficou de quando só havia trombadice. Renomear de novo (já
+    houve um `events` → `trombadices`) custaria mais do que explica: são as
+    mesmas colunas, os mesmos filtros e o mesmo calendário, com um campo a mais
+    dizendo o sinal.
+
+    Continua distinta de Task (o que era pra fazer) e de Punishment (o que veio
+    depois)."""
 
     __tablename__ = "trombadices"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, default="")
+
+    kind: Mapped[Kind] = mapped_column(
+        Enum(Kind, native_enum=False), default=Kind.TROMBADICE, index=True
+    )
 
     category: Mapped[Category] = mapped_column(
         Enum(Category, native_enum=False), default=Category.OUTRA, index=True

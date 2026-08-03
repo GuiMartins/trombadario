@@ -55,3 +55,11 @@ val OnMarkerRedDark = Color(0xFF4A1600)
 
 val ErrorLight = Color(0xFFB3261E)
 val ErrorDark = Color(0xFFFFB4AB)
+
+/**
+ * A cor da conquista. É o teal que já existia na paleta do mockup, e serve
+ * justamente porque não é a caneta vermelha: o pai bate o olho na lista e vê o
+ * que é coisa boa sem precisar ler.
+ */
+val ConquistaTeal = Color(0xFF2E7D7B)   // 4,6:1 no papel claro
+val ConquistaTealDark = Color(0xFF6FD3D0) // no papel escuro

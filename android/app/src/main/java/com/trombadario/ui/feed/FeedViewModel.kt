@@ -19,6 +19,7 @@ data class FeedState(
     /** Only populated for the admin, to label and filter the feed. */
     val children: List<UserDto> = emptyList(),
     val selectedChildId: Int? = null,
+    val kind: String? = null,
     val category: String? = null,
     val busca: String = "",
     val dia: LocalDate? = null,
@@ -32,7 +33,8 @@ data class FeedState(
 ) {
     /** Se há algum filtro além do padrão, para oferecer o "limpar". */
     val filtrando: Boolean
-        get() = selectedChildId != null || category != null || busca.isNotBlank() || dia != null
+        get() = selectedChildId != null || kind != null || category != null ||
+            busca.isNotBlank() || dia != null
 }
 
 class FeedViewModel(
@@ -65,6 +67,7 @@ class FeedViewModel(
 
             val datas = container.repository.trombadiceDates(
                 childId = filtros.selectedChildId,
+                kind = filtros.kind,
                 category = filtros.category,
                 q = termo,
             )
@@ -78,6 +81,7 @@ class FeedViewModel(
 
             val result = container.repository.listTrombadices(
                 childId = filtros.selectedChildId,
+                kind = filtros.kind,
                 category = filtros.category,
                 // Um dia só: o mesmo valor nas duas pontas, que é o que o
                 // calendário oferece.
@@ -105,6 +109,10 @@ class FeedViewModel(
 
     fun selectCategory(category: String?) = trocarFiltro { it.copy(category = category) }
 
+    /** Trocar de tipo limpa a categoria: a lista dela é outra, e manter a
+     *  antiga daria um filtro que nunca acha nada. */
+    fun selectKind(kind: String?) = trocarFiltro { it.copy(kind = kind, category = null) }
+
     fun selectDia(dia: LocalDate?) = trocarFiltro { it.copy(dia = dia) }
 
     /** O texto muda a cada tecla; buscar só quando mandarem buscar. */
@@ -113,7 +121,7 @@ class FeedViewModel(
     fun buscar() = load()
 
     fun limparFiltros() = trocarFiltro {
-        it.copy(selectedChildId = null, category = null, busca = "", dia = null)
+        it.copy(selectedChildId = null, kind = null, category = null, busca = "", dia = null)
     }
 
     private fun trocarFiltro(mudanca: (FeedState) -> FeedState) {

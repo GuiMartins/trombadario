@@ -30,6 +30,7 @@ interface TrombadarioApi {
     @GET("api/trombadices")
     suspend fun listTrombadices(
         @Query("child_id") childId: Int? = null,
+        @Query("kind") kind: String? = null,
         @Query("category") category: String? = null,
         @Query("de") de: String? = null,
         @Query("ate") ate: String? = null,
@@ -41,6 +42,7 @@ interface TrombadarioApi {
     @GET("api/trombadices/datas")
     suspend fun trombadiceDates(
         @Query("child_id") childId: Int? = null,
+        @Query("kind") kind: String? = null,
         @Query("category") category: String? = null,
         @Query("q") q: String? = null,
     ): Response<DatasComRegistroDto>

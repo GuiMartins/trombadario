@@ -145,16 +145,36 @@ fun ReportScreen(container: AppContainer) {
                             dados.mediaPorDiaComRegistro.toString() to R.string.report_media,
                             dados.diasDeCastigo.toString() to R.string.report_dias_castigo,
                             dados.naoVistas.toString() to R.string.report_nao_vistas,
+                            // Contada à parte: somar coisa boa com coisa ruim
+                            // daria um número que não responde nenhuma das duas
+                            // perguntas.
+                            dados.conquistas.toString() to R.string.report_conquistas,
                         )
                     )
 
-                    if (dados.total == 0) {
+                    if (dados.conquistas > 0) {
+                        Secao(R.string.report_conquistas_por_tipo)
+                        Barras(
+                            dados.conquistasPorCategoria.map {
+                                ContagemDto(rotuloLegivel(it.rotulo), it.total)
+                            }
+                        )
+                    }
+
+                    if (dados.total == 0 && dados.conquistas == 0) {
                         Spacer(Modifier.height(24.dp))
                         Text(
                             text = stringResource(R.string.report_vazio),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        Spacer(Modifier.height(48.dp))
+                        return@Column
+                    }
+
+                    // Sem nenhuma trombadice não há série nem "por tipo" que
+                    // digam alguma coisa - só conquista no período.
+                    if (dados.total == 0) {
                         Spacer(Modifier.height(48.dp))
                         return@Column
                     }

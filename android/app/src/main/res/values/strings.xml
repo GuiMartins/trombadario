@@ -190,7 +190,25 @@
     <string name="categoria_escola">Escola</string>
     <string name="categoria_agressao">Agressão</string>
     <string name="categoria_outra">Outra</string>
+    <string name="categoria_ajudou">Ajudou sem pedir</string>
+    <string name="categoria_responsabilidade">Foi responsável</string>
+    <string name="categoria_estudou">Mandou bem na escola</string>
+    <string name="categoria_gentileza">Foi gentil</string>
+    <string name="categoria_iniciativa">Teve iniciativa</string>
+    <string name="categoria_superou">Superou uma dificuldade</string>
+    <string name="categoria_cuidou">Cuidou bem das coisas</string>
+    <string name="categoria_outra_boa">Outra coisa boa</string>
     <string name="categoria_qualquer">Qualquer tipo</string>
+
+    <!-- Trombadice x conquista -->
+    <string name="tipo_trombadice">Trombadice</string>
+    <string name="tipo_conquista">Conquista</string>
+    <string name="tipo_trombadices">Trombadices</string>
+    <string name="tipo_conquistas">Conquistas</string>
+    <string name="tipo_tudo">Tudo</string>
+    <string name="trombadice_form_kind_label">O que foi</string>
+    <string name="report_conquistas">conquistas</string>
+    <string name="report_conquistas_por_tipo">Conquistas por tipo</string>
     <string name="trombadice_form_category_label">Que tipo de coisa foi</string>
 
     <!-- Filtros e busca -->

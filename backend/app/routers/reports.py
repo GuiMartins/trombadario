@@ -14,7 +14,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 
 from app.deps import AdminUser, DbSession
-from app.models import Punishment, Role, Task, Trombadice, User
+from app.models import Kind, Punishment, Role, Task, Trombadice, User
 from app.periodo import data_local, hoje_local, intervalo, mes_de, semana_de
 from app.schemas import Contagem, Report
 
@@ -79,17 +79,24 @@ def report(
     # de/ate nunca são None aqui, então o intervalo vem completo.
     inicio, fim = intervalo(de, ate)
 
-    query = select(Trombadice).where(
+    no_periodo = select(Trombadice).where(
         Trombadice.occurred_at >= inicio, Trombadice.occurred_at < fim
     )
+    # Os números do relatório são sobre trombadice. Conquista entra como um
+    # contador à parte: misturar as duas na mesma soma daria um total que não
+    # responde nem "como foi o comportamento" nem "quanta coisa boa teve".
+    query = no_periodo.where(Trombadice.kind == Kind.TROMBADICE)
+    conquistas_query = no_periodo.where(Trombadice.kind == Kind.CONQUISTA)
     castigos_query = select(Punishment).where(
         Punishment.ends_at >= inicio, Punishment.starts_at < fim
     )
     if child_id is not None:
         query = query.where(Trombadice.child_id == child_id)
+        conquistas_query = conquistas_query.where(Trombadice.child_id == child_id)
         castigos_query = castigos_query.where(Punishment.child_id == child_id)
 
     trombadices = list(db.scalars(query))
+    conquistas = list(db.scalars(conquistas_query))
     castigos = list(db.scalars(castigos_query))
 
     dias = [de + timedelta(days=n) for n in range((ate - de).days + 1)]
@@ -133,6 +140,10 @@ def report(
         dias_de_castigo=_dias_de_castigo(castigos, inicio, fim),
         maior_sequencia_limpa=_maior_sequencia_limpa(dias, por_dia),
         nao_vistas=sum(1 for t in trombadices if t.seen_at is None),
+        conquistas=len(conquistas),
+        conquistas_por_categoria=_contagens(
+            [c.category.value for c in conquistas], ordenar_por_total=True
+        ),
     )
 
 

@@ -250,6 +250,35 @@ pra virá-lo e ficaria errado no intervalo entre execuções. Encerrar antes da
 hora grava `ended_early_at` e **preserva o `ends_at` original**, então o
 histórico mostra o que foi dado e o que foi cumprido.
 
+### Conquista é o mesmo registro com outro sinal
+
+`Trombadice.kind` (`trombadice` | `conquista`). Mesma tabela, mesmas colunas,
+mesmos filtros e mesmo calendário — **duas tabelas obrigariam a duplicar filtro,
+edição e relatório**, e a responder duas vezes "o que aconteceu no dia 5".
+
+> O nome da tabela ficou de quando só havia trombadice. Já houve um
+> `events` → `trombadices`; renomear de novo custaria mais do que explica.
+
+Regras que caem daí, todas com teste:
+- **Cada categoria pertence a um tipo** (`CATEGORIAS_POR_TIPO`). "Falta de
+  respeito" não descreve coisa boa. Categoria do tipo errado é 422 na API e cai
+  na padrão do tipo no painel.
+- **Conquista não se atrela a tarefa.** Tarefa registra o que **não** foi
+  cumprido; o vínculo diria o contrário do que significa.
+- **Castigo não pode vir de conquista.** Se pudesse, seria erro de digitação
+  virando punição.
+- **O tipo não se edita.** Errou, apaga e cadastra de novo — reescrever isso
+  mudaria o significado de um registro que a criança já pode ter visto.
+- **O relatório conta as duas separadas.** Somar coisa boa com coisa ruim daria
+  um número que não responde nenhuma das duas perguntas. "Maior sequência
+  limpa" e "não vistas" continuam sendo sobre trombadice.
+
+Na tela, a conquista se distingue por **cor e ícone**, não só por texto: numa
+lista misturada o pai precisa bater o olho e ver o que é bom sem ler. No painel
+o formulário manda **as duas listas de categoria** e o servidor lê só a do tipo
+escolhido — assim nenhuma precisa ser desabilitada no navegador, e sem `:has()`
+as duas aparecem e continua funcionando.
+
 ### Categoria é lista fechada
 
 `models.Category`, oito valores. Campo livre viraria dez jeitos de escrever
