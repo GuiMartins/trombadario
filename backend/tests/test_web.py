@@ -1,10 +1,13 @@
+from datetime import UTC, datetime, timedelta
+
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Punishment, Role, User
+from app.models import Periodicity, Punishment, Role, SplashMessage, Task, Trombadice, User
 from app.security import create_access_token
 from app.web.deps import SESSION_COOKIE
-from tests.conftest import ADMIN_PASSWORD, CHILD_PASSWORD
+from tests.conftest import ADMIN_PASSWORD, CHILD_PASSWORD, make_user
 
 PAGINAS_ADMIN = ["/", "/trombadices", "/tarefas", "/castigos", "/frases", "/contas"]
 
@@ -224,3 +227,190 @@ def test_tema_preserva_o_filtro_da_pagina(client: TestClient, admin: User) -> No
 
     # O botão de tema tem que voltar pra lista filtrada, não pra lista inteira.
     assert 'name="next" value="/trombadices?child_id=7"' in corpo
+
+
+# --------------------------------------------------------------------------
+# Editar o que já foi cadastrado (só o pai)
+# --------------------------------------------------------------------------
+
+
+def test_pai_corrige_o_texto_de_uma_trombadice(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post(
+        "/trombadices",
+        data={
+            "title": "Machou a irma",
+            "child_id": child.id,
+            "occurred_at": "2026-08-02T11:30",
+            "description": "no parquinho",
+        },
+    )
+    registrada = db.scalars(select(Trombadice)).one()
+
+    client.post(
+        f"/trombadices/{registrada.id}/editar",
+        data={
+            "title": "Machucou a irmã",
+            "child_id": child.id,
+            "occurred_at": "2026-08-02T11:30",
+            "description": "no parquinho",
+        },
+    )
+
+    db.refresh(registrada)
+    assert registrada.title == "Machucou a irmã"
+
+
+def test_editar_nao_troca_quem_cadastrou(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    outro_pai = make_user(db, "mae", "senha-da-mae", Role.ADMIN, "Mãe")
+    trombadice = Trombadice(
+        title="errado",
+        description="",
+        occurred_at=datetime.now(UTC),
+        child_id=child.id,
+        author_id=outro_pai.id,
+    )
+    db.add(trombadice)
+    db.commit()
+
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post(
+        f"/trombadices/{trombadice.id}/editar",
+        data={
+            "title": "certo",
+            "child_id": child.id,
+            "occurred_at": "2026-08-02T11:30",
+        },
+    )
+
+    db.refresh(trombadice)
+    assert trombadice.title == "certo"
+    # Quem cadastrou continua sendo quem cadastrou - corrigir não é assumir.
+    assert trombadice.author_id == outro_pai.id
+
+
+def test_formulario_vem_preenchido_pra_editar(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    trombadice = Trombadice(
+        title="Machou a irma",
+        description="no parquinho",
+        occurred_at=datetime.now(UTC),
+        child_id=child.id,
+        author_id=admin.id,
+    )
+    db.add(trombadice)
+    db.commit()
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    corpo = client.get(f"/trombadices?editar={trombadice.id}").text
+
+    assert 'value="Machou a irma"' in corpo
+    assert f'action="/trombadices/{trombadice.id}/editar"' in corpo
+    assert "Salvar correção" in corpo
+
+
+def test_editar_tarefa_limpa_o_campo_que_a_nova_periodicidade_nao_usa(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post(
+        "/tarefas",
+        data={
+            "name": "Arrumar a cama",
+            "child_id": child.id,
+            "periodicity": "weekly",
+            "weekdays": ["0", "2"],
+        },
+    )
+    tarefa = db.scalars(select(Task)).one()
+    assert tarefa.weekdays == "0,2"
+
+    client.post(
+        f"/tarefas/{tarefa.id}/editar",
+        data={"name": "Arrumar a cama", "child_id": child.id, "periodicity": "daily"},
+    )
+
+    db.refresh(tarefa)
+    # Senão sobraria "segunda e quarta" numa tarefa que agora é de todo dia.
+    assert tarefa.periodicity is Periodicity.DAILY
+    assert tarefa.weekdays == ""
+
+
+def test_editar_castigo_nao_mexe_em_quando_comecou(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    comeco = datetime.now(UTC) - timedelta(days=1)
+    castigo = Punishment(
+        reason="bagunça",
+        starts_at=comeco,
+        ends_at=datetime.now(UTC) + timedelta(days=1),
+        child_id=child.id,
+        author_id=admin.id,
+    )
+    db.add(castigo)
+    db.commit()
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    client.post(
+        f"/castigos/{castigo.id}/editar",
+        data={"child_id": child.id, "ends_at": "2026-12-25T18:00", "reason": "bagunça grande"},
+    )
+
+    db.refresh(castigo)
+    assert castigo.reason == "bagunça grande"
+    # Quando começou é fato, não opinião.
+    assert castigo.starts_at == comeco
+
+
+def test_editar_conta_muda_o_nome_e_nao_o_login(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    client.post(f"/contas/{child.id}/editar", data={"display_name": "João"})
+
+    db.refresh(child)
+    assert child.display_name == "João"
+    assert child.username == "filho"
+
+
+def test_editar_frase(client: TestClient, db: Session, admin: User, child: User) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post("/frases", data={"text": "Arruma essa cma", "child_id": ""})
+    frase = db.scalars(select(SplashMessage)).one()
+
+    client.post(f"/frases/{frase.id}/editar", data={"text": "Arruma essa cama", "child_id": ""})
+
+    db.refresh(frase)
+    assert frase.text == "Arruma essa cama"
+
+
+def test_filho_nao_edita_nada(client: TestClient, db: Session, admin: User, child: User) -> None:
+    trombadice = Trombadice(
+        title="original",
+        description="",
+        occurred_at=datetime.now(UTC),
+        child_id=child.id,
+        author_id=admin.id,
+    )
+    db.add(trombadice)
+    db.commit()
+
+    # Sem sessão de pai, toda rota do painel manda pro login - inclusive as de
+    # edição. O painel inteiro é admin-only por decisão de segurança.
+    for rota, dados in [
+        (f"/trombadices/{trombadice.id}/editar", {"title": "hackeado", "child_id": child.id,
+                                                  "occurred_at": "2026-08-02T11:30"}),
+        (f"/contas/{child.id}/editar", {"display_name": "hackeado"}),
+    ]:
+        response = client.post(rota, data=dados, follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/login", rota
+
+    db.refresh(trombadice)
+    assert trombadice.title == "original"

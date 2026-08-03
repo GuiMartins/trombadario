@@ -35,6 +35,16 @@
       </p>
       <p class="sub">{{ u.username }}</p>
 
+      {# Renomear fica aqui do lado da senha, e não no formulário lá de cima:
+         é a mesma conta, e o de cima é para criar conta nova. O usuário não
+         aparece como campo porque é o login - trocar trancaria a criança
+         para fora sem aviso. #}
+      <form method="post" action="/contas/{{ u.id }}/editar" class="linha" style="gap:0.5rem;margin-top:0.5rem">
+        <input type="text" name="display_name" value="{{ u.display_name }}" required
+               maxlength="120" style="max-width:16rem">
+        <button class="mini secundario">Salvar nome</button>
+      </form>
+
       <form method="post" action="/contas/{{ u.id }}/senha" class="linha" style="gap:0.5rem;margin-top:0.5rem">
         <input type="password" name="password" placeholder="Nova senha" minlength="6"
                autocomplete="new-password" style="max-width:16rem">

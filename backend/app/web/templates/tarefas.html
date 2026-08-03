@@ -8,43 +8,46 @@
 {% if not children %}
   <div class="aviso">Cadastre uma conta de filho em <a href="/contas">Contas</a> antes de criar tarefas.</div>
 {% else %}
-<form method="post" action="/tarefas" class="bloco">
+{% set e = editando %}
+<form id="editar" method="post" action="{{ '/tarefas/' ~ e.id ~ '/editar' if e else '/tarefas' }}" class="bloco">
+  {% if e %}<h2>Corrigindo a tarefa</h2>{% endif %}
+
   <label for="name">Tarefa</label>
-  <input type="text" id="name" name="name" required maxlength="200" placeholder="Arrumar a cama">
+  <input type="text" id="name" name="name" required maxlength="200" placeholder="Arrumar a cama" value="{{ e.name if e else '' }}">
 
   <label for="description">Detalhes</label>
-  <textarea id="description" name="description"></textarea>
+  <textarea id="description" name="description">{{ e.description if e else '' }}</textarea>
 
   <label for="child_id">De quem</label>
   <select id="child_id" name="child_id" required>
     {% for c in children %}
-    <option value="{{ c.id }}">{{ c.display_name }}</option>
+    <option value="{{ c.id }}" {% if e and e.child_id == c.id %}selected{% endif %}>{{ c.display_name }}</option>
     {% endfor %}
   </select>
 
   <label for="periodicity">Com que frequência</label>
   <select id="periodicity" name="periodicity" required>
-    <option value="daily">Todo dia</option>
-    <option value="weekly">Em dias da semana</option>
-    <option value="monthly">Uma vez por mês</option>
-    <option value="once">Uma vez só</option>
+    {% for valor, rotulo in [('daily', 'Todo dia'), ('weekly', 'Em dias da semana'), ('monthly', 'Uma vez por mês'), ('once', 'Uma vez só')] %}
+    <option value="{{ valor }}" {% if e and e.periodicity.value == valor %}selected{% endif %}>{{ rotulo }}</option>
+    {% endfor %}
   </select>
 
   <div class="so-semanal">
     <label>Dias da semana</label>
     <div class="dias">
       {% for nome in weekday_names %}
-      <label><input type="checkbox" name="weekdays" value="{{ loop.index0 }}"> {{ nome }}</label>
+      <label><input type="checkbox" name="weekdays" value="{{ loop.index0 }}" {% if loop.index0 in editando_dias %}checked{% endif %}> {{ nome }}</label>
       {% endfor %}
     </div>
   </div>
 
   <div class="so-mensal">
     <label for="day_of_month">Dia do mês</label>
-    <input type="number" id="day_of_month" name="day_of_month" min="1" max="31">
+    <input type="number" id="day_of_month" name="day_of_month" min="1" max="31" value="{{ e.day_of_month if e and e.day_of_month else '' }}">
   </div>
 
-  <button type="submit">Criar tarefa</button>
+  <button type="submit">{{ 'Salvar correção' if e else 'Criar tarefa' }}</button>
+  {% if e %}<a href="/tarefas" class="cancelar">Cancelar</a>{% endif %}
 </form>
 {% endif %}
 
@@ -84,7 +87,9 @@
           {% if t.description %}— {{ t.description }}{% endif %}
         </p>
       </div>
-      <div style="display:flex;gap:0.4rem">
+      <div class="acoes">
+        <a class="mini secundario"
+           href="/tarefas?{% if selected_child %}child_id={{ selected_child }}&amp;{% endif %}editar={{ t.id }}#editar">Editar</a>
         <form method="post" action="/tarefas/{{ t.id }}/toggle">
           <button class="mini secundario">{{ 'Retomar' if not t.is_active else 'Pausar' }}</button>
         </form>

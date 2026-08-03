@@ -262,6 +262,33 @@ escondendo da tela.
 aconteceu foi não ter feito aquilo, e obrigar a repetir na mão só produziria duas
 versões do mesmo nome. Sem tarefa, o título continua obrigatório (422).
 
+> **`Enum(..., native_enum=False)` guarda o NOME do membro, não o valor.**
+> `Role` grava `"ADMIN"`, `Periodicity` grava `"DAILY"`, `Category` grava
+> `"OUTRA"`. Um `server_default` de migration escrito como `"outra"` passa em
+> toda a suíte e estoura `LookupError` na primeira leitura em produção — porque
+> os testes montam o schema com `create_all` e nunca passam pelas migrations.
+> É o que `tests/test_migrations.py` existe para pegar: ele roda a migration de
+> verdade contra um banco com linha dentro e lê de volta pelo ORM. **Migration
+> nova que mexa em coluna de enum precisa de um caso lá.**
+
+### Editar o que já foi cadastrado
+
+Só o pai, e isso não é botão escondido: todo `PATCH` da API exige `AdminUser` e
+o painel inteiro é `AdminWeb`. No painel, editar **reaproveita o formulário de
+cima** (`?editar={id}`) em vez de abrir página nova — formulário separado seria
+um segundo lugar para lembrar de mexer.
+
+Três coisas que não se editam, de propósito:
+- **`author_id`** — quem cadastrou continua sendo quem cadastrou. Corrigir um
+  "machou" que era "machucou" não é assumir o registro do outro.
+- **`Punishment.starts_at`** — quando o castigo começou é fato. Para soltar
+  antes da hora existe Encerrar, que preserva o `ends_at` original.
+- **`User.username`** — é o login. Trocar trancaria a criança para fora sem
+  aviso nenhum. O nome de exibição, esse sim.
+
+Ao trocar a periodicidade de uma tarefa, o campo que a nova não usa é **zerado**
+— senão sobra "segunda e quarta" numa tarefa que virou de todo dia.
+
 ### "Visto pelo filho" é instante, marcado ao abrir o detalhe
 
 `Trombadice.seen_at` e `Punishment.seen_at`, nulo = ainda não viu.

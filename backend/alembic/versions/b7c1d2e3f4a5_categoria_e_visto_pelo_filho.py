@@ -29,7 +29,13 @@ def upgrade() -> None:
                 "category",
                 sa.String(length=20),
                 nullable=False,
-                server_default="outra",
+                # "OUTRA" e não "outra": o `Enum(..., native_enum=False)` do
+                # SQLAlchemy guarda o **nome** do membro, não o valor - é o que
+                # já acontece com Role ("ADMIN") e Periodicity ("DAILY"). Com o
+                # valor aqui, ler a linha migrada estoura LookupError, e os
+                # testes não pegariam: eles montam o schema pelo create_all e
+                # nunca passam por esta migration.
+                server_default="OUTRA",
             )
         )
         batch.add_column(sa.Column("seen_at", sa.DateTime(timezone=True), nullable=True))
