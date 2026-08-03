@@ -1,7 +1,8 @@
 package com.trombadario.ui.navigation
 
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -16,7 +17,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -82,11 +82,6 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination
 
-    // Precisa ser lido antes das telas comporem, senão a primeira folha da
-    // virada já teria começado a girar com o sentido da virada anterior.
-    val turn = remember { TurnDirection() }
-    turn.onRoute(currentRoute?.route)
-
     Scaffold(
         containerColor = Color.Transparent,
         bottomBar = {
@@ -110,85 +105,68 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
             navController = navController,
             startDestination = Routes.FEED,
             modifier = Modifier.padding(innerPadding),
-            // Nada de deslizar nem de esmaecer: quem anima é cada folha, girando
-            // pela lombada dentro do PageSheet. As transições prontas do Compose
-            // não sabem rotacionar em 3D, então aqui elas saem do caminho e o
-            // movimento é feito na graphicsLayer de cada tela.
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None },
-            popEnterTransition = { EnterTransition.None },
-            popExitTransition = { ExitTransition.None },
+            // Transição padrão oficial do Compose - fade simples de 220ms, a
+            // mesma nos quatro sentidos. A virada de página em 3D que vivia aqui
+            // saiu: era cara demais de verificar de verdade (a tela bloqueia
+            // print, só dava pra olhar via teste instrumentado) e ninguém tinha
+            // visto o resultado real antes de ir pro ar.
+            enterTransition = { fadeIn(tween(220)) },
+            exitTransition = { fadeOut(tween(220)) },
+            popEnterTransition = { fadeIn(tween(220)) },
+            popExitTransition = { fadeOut(tween(220)) },
         ) {
             composable(Routes.FEED) {
-                PageSheet(turn.forward) {
-                    FeedScreen(
-                        container = container,
-                        currentUser = currentUser,
-                        onOpenTrombadice = { navController.navigate(Routes.trombadiceDetail(it)) },
-                        onNewTrombadice = { navController.navigate(Routes.trombadiceForm()) },
-                    )
-                }
+                FeedScreen(
+                    container = container,
+                    currentUser = currentUser,
+                    onOpenTrombadice = { navController.navigate(Routes.trombadiceDetail(it)) },
+                    onNewTrombadice = { navController.navigate(Routes.trombadiceForm()) },
+                )
             }
             composable(Routes.TASKS) {
-                PageSheet(turn.forward) {
-                    TasksScreen(container = container, currentUser = currentUser)
-                }
+                TasksScreen(container = container, currentUser = currentUser)
             }
             composable(Routes.PUNISHMENT) {
-                PageSheet(turn.forward) {
-                    PunishmentScreen(container = container, currentUser = currentUser)
-                }
+                PunishmentScreen(container = container, currentUser = currentUser)
             }
             composable(Routes.PEDIDOS) {
-                PageSheet(turn.forward) {
-                    PedidosScreen(container = container, currentUser = currentUser)
-                }
+                PedidosScreen(container = container, currentUser = currentUser)
             }
             composable(Routes.SPLASH_MESSAGES) {
-                PageSheet(turn.forward) {
-                    SplashMessagesScreen(
-                        container = container,
-                        currentUser = currentUser,
-                        onBack = navController::popBackStack,
-                    )
-                }
+                SplashMessagesScreen(
+                    container = container,
+                    currentUser = currentUser,
+                    onBack = navController::popBackStack,
+                )
             }
             composable(Routes.USERS) {
-                PageSheet(turn.forward) {
-                    UsersScreen(
-                        container = container,
-                        currentUser = currentUser,
-                        onBack = navController::popBackStack,
-                    )
-                }
+                UsersScreen(
+                    container = container,
+                    currentUser = currentUser,
+                    onBack = navController::popBackStack,
+                )
             }
             composable(Routes.SETTINGS) {
-                PageSheet(turn.forward) {
-                    SettingsScreen(
-                        container = container,
-                        currentUser = currentUser,
-                        onOpenUsers = { navController.navigate(Routes.USERS) },
-                        onOpenSplashMessages = { navController.navigate(Routes.SPLASH_MESSAGES) },
-                        onOpenReport = { navController.navigate(Routes.REPORT) },
-                    )
-                }
+                SettingsScreen(
+                    container = container,
+                    currentUser = currentUser,
+                    onOpenUsers = { navController.navigate(Routes.USERS) },
+                    onOpenSplashMessages = { navController.navigate(Routes.SPLASH_MESSAGES) },
+                    onOpenReport = { navController.navigate(Routes.REPORT) },
+                )
             }
             composable(Routes.REPORT) {
-                PageSheet(turn.forward) {
-                    ReportScreen(container = container, currentUser = currentUser)
-                }
+                ReportScreen(container = container, currentUser = currentUser)
             }
             composable(Routes.TROMBADICE_DETAIL) { entry ->
                 val trombadiceId = entry.arguments?.getString("trombadiceId")?.toIntOrNull()
-                PageSheet(turn.forward) {
-                    TrombadiceDetailScreen(
-                        container = container,
-                        currentUser = currentUser,
-                        trombadiceId = trombadiceId,
-                        onBack = navController::popBackStack,
-                        onEdit = { navController.navigate(Routes.trombadiceForm(it)) },
-                    )
-                }
+                TrombadiceDetailScreen(
+                    container = container,
+                    currentUser = currentUser,
+                    trombadiceId = trombadiceId,
+                    onBack = navController::popBackStack,
+                    onEdit = { navController.navigate(Routes.trombadiceForm(it)) },
+                )
             }
             composable(
                 route = Routes.TROMBADICE_FORM,
@@ -203,19 +181,17 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
                 ),
             ) { entry ->
                 val trombadiceId = entry.arguments?.getString("trombadiceId")?.toIntOrNull()
-                PageSheet(turn.forward) {
-                    TrombadiceFormScreen(
-                        container = container,
-                        currentUser = currentUser,
-                        trombadiceId = trombadiceId,
-                        onDone = {
-                            // Back to the feed, dropping the detail screen of an
-                            // event that may no longer look the same.
-                            navController.popBackStack(Routes.FEED, inclusive = false)
-                        },
-                        onBack = navController::popBackStack,
-                    )
-                }
+                TrombadiceFormScreen(
+                    container = container,
+                    currentUser = currentUser,
+                    trombadiceId = trombadiceId,
+                    onDone = {
+                        // Back to the feed, dropping the detail screen of an
+                        // event that may no longer look the same.
+                        navController.popBackStack(Routes.FEED, inclusive = false)
+                    },
+                    onBack = navController::popBackStack,
+                )
             }
         }
     }
