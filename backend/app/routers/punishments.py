@@ -7,6 +7,7 @@ from app.deps import AdminUser, CurrentUser, DbSession
 from app.models import Category, Punishment, Role, Trombadice, User
 from app.periodo import data_local, intervalo
 from app.schemas import DatasComRegistro, PunishmentCreate, PunishmentOut, PunishmentUpdate
+from app.visto import marcar_visto
 
 router = APIRouter(prefix="/api/punishments", tags=["punishments"])
 
@@ -92,7 +93,9 @@ def list_punishments(
     now = datetime.now(UTC)
     query = select(Punishment).order_by(Punishment.starts_at.desc(), Punishment.id.desc())
     query = _filtros(_escopo(query, current_user, child_id), category, de, ate, q)
-    return [_serialize(p, now) for p in db.scalars(query)]
+    achados = list(db.scalars(query))
+    marcar_visto(db, achados, current_user)
+    return [_serialize(p, now) for p in achados]
 
 
 @router.get("/datas", response_model=DatasComRegistro)
@@ -123,7 +126,11 @@ def current_punishments(current_user: CurrentUser, db: DbSession) -> list[Punish
     query = select(Punishment)
     if current_user.role is not Role.ADMIN:
         query = query.where(Punishment.child_id == current_user.id)
-    return [_serialize(p, now) for p in db.scalars(query) if p.is_active_at(now)]
+    # Só os que estão valendo agora: é o que aparece na tela do filho, e é
+    # sobre esses que o pai quer saber se ele viu.
+    ativos = [p for p in db.scalars(query) if p.is_active_at(now)]
+    marcar_visto(db, ativos, current_user)
+    return [_serialize(p, now) for p in ativos]
 
 
 @router.get("/{punishment_id}", response_model=PunishmentOut)
@@ -131,6 +138,7 @@ def get_punishment(punishment_id: int, current_user: CurrentUser, db: DbSession)
     punishment = _get_or_404(db, punishment_id)
     if current_user.role is not Role.ADMIN and punishment.child_id != current_user.id:
         raise NOT_FOUND
+    marcar_visto(db, [punishment], current_user)
     return _serialize(punishment, datetime.now(UTC))
 
 
@@ -184,21 +192,6 @@ def update_punishment(
         setattr(punishment, field, value)
     db.commit()
     db.refresh(punishment)
-    return _serialize(punishment, datetime.now(UTC))
-
-
-@router.post("/{punishment_id}/visto", response_model=PunishmentOut)
-def mark_seen(punishment_id: int, current_user: CurrentUser, db: DbSession) -> PunishmentOut:
-    """O filho abriu a tela de castigo e este castigo estava nela. Mesma regra
-    da trombadice: a primeira vez é que vale, e não tem como desmarcar."""
-    punishment = _get_or_404(db, punishment_id)
-    if punishment.child_id != current_user.id:
-        raise NOT_FOUND
-
-    if punishment.seen_at is None:
-        punishment.seen_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(punishment)
     return _serialize(punishment, datetime.now(UTC))
 
 

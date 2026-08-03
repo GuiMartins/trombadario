@@ -289,19 +289,27 @@ Três coisas que não se editam, de propósito:
 Ao trocar a periodicidade de uma tarefa, o campo que a nova não usa é **zerado**
 — senão sobra "segunda e quarta" numa tarefa que virou de todo dia.
 
-### "Visto pelo filho" é instante, marcado ao abrir o detalhe
+### "Visto pelo filho" acontece sozinho, na leitura
 
-`Trombadice.seen_at` e `Punishment.seen_at`, nulo = ainda não viu.
+`Trombadice.seen_at` e `Punishment.seen_at`, nulo = ainda não viu. Requisito do
+usuário, literal: **"tem que ser automático, sem o filho precisar dizer que
+viu"**. Não existe botão, e nem chamada extra que o app precise lembrar de
+fazer — quem carimba é `app/visto.py`, chamado pelas próprias leituras do filho.
 
 - **Instante e não booleano**: "viu" sem "quando" não responde a pergunta que o
   pai faz de verdade, que é se ele viu antes ou depois de alguma coisa.
-- **Marcado ao abrir o detalhe, não ao aparecer na lista.** Rolar o feed não é
-  ler. É a diferença entre a marca significar alguma coisa e virar ruído.
-- **Idempotente, primeira vez é que vale.** Reabrir a tela não reescreve o
+- **Idempotente, primeira vez é que vale.** Abrir o app de novo não reescreve o
   carimbo — senão "visto às 20h" viraria a hora da última olhada.
-- **Só o filho de quem é** marca. O pai leva 404, igual a irmão sondando id.
-  É a única escrita que uma conta de filho faz no app inteiro, e ela não muda
-  nada que ele possa querer mudar.
+- **Só conta de filho marca, e só o que é dele.** O pai conferindo a lista não
+  marca nada; se marcasse, o campo deixaria de responder o que ele pergunta.
+- **`/current` marca só o castigo ativo**, porque é só ele que aparece na tela.
+
+> **É escrita dentro de um GET**, o que normalmente é errado. Vale aqui porque
+> não há cache nem prefetch entre app e servidor (a leitura só acontece com a
+> tela aberta), a escrita é idempotente, e a alternativa — o app avisar depois
+> de mostrar — depende de cada tela nova lembrar de avisar, e a que esquecer
+> vira uma mentira silenciosa para o pai. **Se algum desses três deixar de
+> valer, revisar.**
 
 ### Relatório conta em Python, sobre dia local
 

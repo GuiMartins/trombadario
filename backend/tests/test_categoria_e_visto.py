@@ -112,56 +112,66 @@ def test_nasce_nao_vista(client: TestClient, admin: User, child: User) -> None:
     assert criar(client, child.id)["seen_at"] is None
 
 
-def test_filho_marca_como_vista_e_o_pai_enxerga(
+def test_o_feed_do_filho_ja_marca_como_vista(
     client: TestClient, admin: User, child: User
 ) -> None:
     trombadice = criar(client, child.id)
 
-    client.post(f"/api/trombadices/{trombadice['id']}/visto", headers=as_child(client))
+    # Nenhuma ação do filho além de abrir o app: o feed dele carregando é o
+    # visto. Não existe botão de "já li".
+    client.get("/api/trombadices", headers=as_child(client))
 
     do_pai = client.get(f"/api/trombadices/{trombadice['id']}", headers=as_admin(client)).json()
     assert do_pai["seen_at"] is not None
 
 
-def test_marcar_de_novo_nao_muda_a_hora(client: TestClient, admin: User, child: User) -> None:
+def test_abrir_o_detalhe_tambem_marca(client: TestClient, admin: User, child: User) -> None:
     trombadice = criar(client, child.id)
-    headers = as_child(client)
 
-    primeira = client.post(f"/api/trombadices/{trombadice['id']}/visto", headers=headers).json()
-    segunda = client.post(f"/api/trombadices/{trombadice['id']}/visto", headers=headers).json()
+    client.get(f"/api/trombadices/{trombadice['id']}", headers=as_child(client))
 
-    # Reabrir a tela não pode reescrever o carimbo: "visto às 20h" viraria a
-    # hora da última olhada e o pai perderia o que queria saber.
-    assert primeira["seen_at"] == segunda["seen_at"]
+    do_pai = client.get(f"/api/trombadices/{trombadice['id']}", headers=as_admin(client)).json()
+    assert do_pai["seen_at"] is not None
 
 
-def test_filho_nao_marca_trombadice_de_irmao(
-    client: TestClient, admin: User, child: User, other_child: User
-) -> None:
-    da_irma = criar(client, other_child.id)
-
-    response = client.post(f"/api/trombadices/{da_irma['id']}/visto", headers=as_child(client))
-
-    # 404 e não 403: sondar id não pode confirmar que existe.
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Trombadice não encontrada"
-
-
-def test_pai_nao_marca_como_visto_pelo_filho(
+def test_o_pai_olhando_nao_marca_como_visto(
     client: TestClient, admin: User, child: User
 ) -> None:
     trombadice = criar(client, child.id)
 
-    response = client.post(
-        f"/api/trombadices/{trombadice['id']}/visto", headers=as_admin(client)
-    )
+    client.get("/api/trombadices", headers=as_admin(client))
+    client.get(f"/api/trombadices/{trombadice['id']}", headers=as_admin(client))
 
-    # Quem "vê" é o filho de quem é a trombadice. Se o pai pudesse marcar, o
-    # campo deixaria de responder a pergunta que ele faz.
-    assert response.status_code == 404
+    # Quem "vê" é a criança. Se o pai conferindo a lista marcasse, o campo
+    # deixaria de responder a pergunta que ele faz.
+    depois = client.get(f"/api/trombadices/{trombadice['id']}", headers=as_admin(client)).json()
+    assert depois["seen_at"] is None
 
 
-def test_castigo_visto_pelo_filho(
+def test_ler_de_novo_nao_muda_a_hora(client: TestClient, admin: User, child: User) -> None:
+    criar(client, child.id)
+    headers = as_child(client)
+
+    primeira = client.get("/api/trombadices", headers=headers).json()[0]["seen_at"]
+    segunda = client.get("/api/trombadices", headers=headers).json()[0]["seen_at"]
+
+    # Abrir o app de novo não pode reescrever o carimbo: "visto às 20h" viraria
+    # a hora da última olhada e o pai perderia o que queria saber.
+    assert primeira == segunda
+
+
+def test_o_feed_de_um_filho_nao_marca_a_trombadice_do_irmao(
+    client: TestClient, admin: User, child: User, other_child: User
+) -> None:
+    da_irma = criar(client, other_child.id)
+
+    client.get("/api/trombadices", headers=as_child(client))
+
+    do_pai = client.get(f"/api/trombadices/{da_irma['id']}", headers=as_admin(client)).json()
+    assert do_pai["seen_at"] is None
+
+
+def test_castigo_ativo_e_marcado_quando_o_filho_abre_a_tela(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     agora = datetime.now(UTC)
@@ -175,10 +185,32 @@ def test_castigo_visto_pelo_filho(
     db.add(castigo)
     db.commit()
 
-    client.post(f"/api/punishments/{castigo.id}/visto", headers=as_child(client))
+    client.get("/api/punishments/current", headers=as_child(client))
 
     do_pai = client.get(f"/api/punishments/{castigo.id}", headers=as_admin(client)).json()
     assert do_pai["seen_at"] is not None
+
+
+def test_castigo_ja_cumprido_nao_e_marcado_pela_tela_de_agora(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    agora = datetime.now(UTC)
+    velho = Punishment(
+        reason="mês passado",
+        starts_at=agora - timedelta(days=30),
+        ends_at=agora - timedelta(days=29),
+        child_id=child.id,
+        author_id=admin.id,
+    )
+    db.add(velho)
+    db.commit()
+
+    client.get("/api/punishments/current", headers=as_child(client))
+
+    # A tela de "estou de castigo?" não mostra castigo vencido, então ele não
+    # foi visto ali.
+    do_pai = client.get(f"/api/punishments/{velho.id}", headers=as_admin(client)).json()
+    assert do_pai["seen_at"] is None
 
 
 # --------------------------------------------------------------------------

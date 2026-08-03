@@ -189,8 +189,9 @@ def test_castigo_perdoado_conta_so_o_que_foi_cumprido(
 
 def test_conta_as_nao_vistas(client: TestClient, admin: User, child: User) -> None:
     vista = criar(client, child.id, "2026-08-01")
+    # O filho abriu o detalhe de uma só; a outra ele ainda não viu.
+    client.get(f"/api/trombadices/{vista['id']}", headers=as_child(client))
     criar(client, child.id, "2026-08-02")
-    client.post(f"/api/trombadices/{vista['id']}/visto", headers=as_child(client))
 
     dados = relatorio(client, de="2026-08-01", ate="2026-08-02")
 
