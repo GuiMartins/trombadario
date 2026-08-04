@@ -279,12 +279,38 @@
     <string name="report_dia_mais_pesado">Dia mais pesado: %1$s (%2$d)</string>
     <string name="report_vazio">Nada registrado nesse período. Bom sinal.</string>
 
-    <!-- Notificações locais ("novidades") -->
-    <string name="notification_channel_novidades">Novidades</string>
-    <string name="notification_channel_novidades_description">Avisa quando tem algo novo pra ver no Trombadário, só enquanto o celular está em casa.</string>
-    <string name="notification_title">Trombadário</string>
-    <string name="notification_pedidos_pendentes">Pedido esperando decisão</string>
-    <string name="notification_anotacoes_novas">Anotação nova</string>
-    <string name="notification_castigos_novos">Novo castigo</string>
-    <string name="notification_decisoes_novas">Resposta pro seu pedido chegou</string>
+    <!-- Notificações locais: um canal por tipo, cada um com o próprio som.
+         O nome do canal é o que aparece nas configurações do Android, onde dá
+         pra silenciar um tipo sem mexer nos outros. -->
+    <string name="canal_pedido">Pedidos</string>
+    <string name="canal_pedido_descricao">Avisa quando um filho pede alguma coisa e está esperando sua decisão. Só chega com o celular em casa.</string>
+    <string name="canal_trombadice">Trombadices</string>
+    <string name="canal_trombadice_descricao">Avisa quando uma trombadice nova é registrada. Só chega com o celular em casa.</string>
+    <string name="canal_conquista">Conquistas</string>
+    <string name="canal_conquista_descricao">Avisa quando uma conquista nova é registrada. Só chega com o celular em casa.</string>
+    <string name="canal_castigo">Castigos</string>
+    <string name="canal_castigo_descricao">Avisa quando um castigo novo é aplicado. Só chega com o celular em casa.</string>
+    <string name="canal_decisao">Respostas a pedidos</string>
+    <string name="canal_decisao_descricao">Avisa quando sai a decisão de um pedido seu. Só chega com o celular em casa.</string>
+
+    <plurals name="notificacao_pedido">
+        <item quantity="one">Pedido esperando decisão</item>
+        <item quantity="other">%d pedidos esperando decisão</item>
+    </plurals>
+    <plurals name="notificacao_trombadice">
+        <item quantity="one">Trombadice nova</item>
+        <item quantity="other">%d trombadices novas</item>
+    </plurals>
+    <plurals name="notificacao_conquista">
+        <item quantity="one">Conquista nova</item>
+        <item quantity="other">%d conquistas novas</item>
+    </plurals>
+    <plurals name="notificacao_castigo">
+        <item quantity="one">Castigo novo</item>
+        <item quantity="other">%d castigos novos</item>
+    </plurals>
+    <plurals name="notificacao_decisao">
+        <item quantity="one">Resposta pro seu pedido chegou</item>
+        <item quantity="other">%d respostas pros seus pedidos</item>
+    </plurals>
 </resources>

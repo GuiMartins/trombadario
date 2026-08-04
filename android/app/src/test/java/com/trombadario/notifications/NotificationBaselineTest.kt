@@ -1,56 +1,84 @@
 package com.trombadario.notifications
 
 import com.trombadario.data.remote.UnseenCountsDto
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class NotificationBaselineTest {
 
     @Test
-    fun nenhumaCategoriaSubiuNaoNotifica() {
-        val baseline = NotificationBaseline(pedidos = 1, anotacoes = 2, castigos = 0, decisoes = 3)
+    fun nenhumaCategoriaSubiuNaoAvisaNada() {
+        val baseline = NotificationBaseline(pedidos = 1, trombadices = 2, decisoes = 3)
         val fresh = UnseenCountsDto(
             pedidosPendentes = 1,
-            anotacoesNovas = 2,
-            castigosNovos = 0,
+            trombadicesNovas = 2,
             decisoesNovas = 3,
         )
 
-        assertFalse(shouldNotify(baseline, fresh))
+        assertEquals(emptyList<Novidade>(), novidades(baseline, fresh))
     }
 
     @Test
-    fun umaCategoriaSubiuNotifica() {
-        val baseline = NotificationBaseline(pedidos = 0, anotacoes = 0, castigos = 0, decisoes = 0)
-        val fresh = UnseenCountsDto(pedidosPendentes = 1)
+    fun soAcategoriaQueSubiuEntraNaLista() {
+        val baseline = NotificationBaseline(pedidos = 1, castigos = 1)
+        val fresh = UnseenCountsDto(pedidosPendentes = 1, castigosNovos = 2)
 
-        assertTrue(shouldNotify(baseline, fresh))
+        assertEquals(listOf(Novidade.CASTIGO), novidades(baseline, fresh))
     }
 
     @Test
-    fun categoriaCaiuNaoNotifica() {
+    fun categoriaQueCaiuNaoEntra() {
         // Item foi visto no app entre uma checagem e outra - a contagem caiu,
         // não subiu, então não é novidade.
-        val baseline = NotificationBaseline(anotacoes = 3)
-        val fresh = UnseenCountsDto(anotacoesNovas = 1)
+        val baseline = NotificationBaseline(trombadices = 3)
+        val fresh = UnseenCountsDto(trombadicesNovas = 1)
 
-        assertFalse(shouldNotify(baseline, fresh))
+        assertEquals(emptyList<Novidade>(), novidades(baseline, fresh))
     }
 
     @Test
-    fun variasCategoriasSubindoAoMesmoTempoNotifica() {
-        val baseline = NotificationBaseline()
+    fun variasCategoriasPodemSubirNoMesmoCiclo() {
+        val fresh = UnseenCountsDto(castigosNovos = 1, decisoesNovas = 2)
+
+        assertEquals(
+            listOf(Novidade.CASTIGO, Novidade.DECISAO),
+            novidades(NotificationBaseline(), fresh),
+        )
+    }
+
+    @Test
+    fun trombadiceEconquistaSaoIndependentes() {
+        // É a razão de `/api/unseen` separar as duas: elas são a mesma tabela no
+        // servidor, mas tocam sons diferentes, então uma subir não pode fazer a
+        // outra tocar.
+        val baseline = NotificationBaseline(trombadices = 1, conquistas = 1)
+        val fresh = UnseenCountsDto(trombadicesNovas = 1, conquistasNovas = 2)
+
+        assertEquals(listOf(Novidade.CONQUISTA), novidades(baseline, fresh))
+    }
+
+    @Test
+    fun baselineZeradoEContagemZeradaNaoAvisaNada() {
+        assertEquals(
+            emptyList<Novidade>(),
+            novidades(NotificationBaseline(), UnseenCountsDto()),
+        )
+    }
+
+    @Test
+    fun contagemDeDevolveONumeroDaCategoria() {
         val fresh = UnseenCountsDto(
-            castigosNovos = 1,
-            decisoesNovas = 2,
+            pedidosPendentes = 1,
+            trombadicesNovas = 2,
+            conquistasNovas = 3,
+            castigosNovos = 4,
+            decisoesNovas = 5,
         )
 
-        assertTrue(shouldNotify(baseline, fresh))
-    }
-
-    @Test
-    fun baselineZeradoEContagemZeradaNaoNotifica() {
-        assertFalse(shouldNotify(NotificationBaseline(), UnseenCountsDto()))
+        assertEquals(1, fresh.contagemDe(Novidade.PEDIDO))
+        assertEquals(2, fresh.contagemDe(Novidade.TROMBADICE))
+        assertEquals(3, fresh.contagemDe(Novidade.CONQUISTA))
+        assertEquals(4, fresh.contagemDe(Novidade.CASTIGO))
+        assertEquals(5, fresh.contagemDe(Novidade.DECISAO))
     }
 }

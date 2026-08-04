@@ -12,7 +12,7 @@ from fastapi import APIRouter
 from sqlalchemy import func, select
 
 from app.deps import CurrentUser, DbSession
-from app.models import Pedido, Punishment, RequestStatus, Role, Trombadice
+from app.models import Kind, Pedido, Punishment, RequestStatus, Role, Trombadice
 from app.schemas import UnseenCounts
 
 router = APIRouter(prefix="/api/unseen", tags=["unseen"])
@@ -28,11 +28,20 @@ def unseen(current_user: CurrentUser, db: DbSession) -> UnseenCounts:
         )
         return UnseenCounts(pedidos_pendentes=pedidos_pendentes or 0)
 
-    anotacoes_novas = db.scalar(
-        select(func.count())
-        .select_from(Trombadice)
-        .where(Trombadice.child_id == current_user.id, Trombadice.seen_at.is_(None))
-    )
+    def anotacoes_por_tipo(kind: Kind) -> int:
+        return (
+            db.scalar(
+                select(func.count())
+                .select_from(Trombadice)
+                .where(
+                    Trombadice.child_id == current_user.id,
+                    Trombadice.seen_at.is_(None),
+                    Trombadice.kind == kind,
+                )
+            )
+            or 0
+        )
+
     castigos_novos = db.scalar(
         select(func.count())
         .select_from(Punishment)
@@ -48,7 +57,8 @@ def unseen(current_user: CurrentUser, db: DbSession) -> UnseenCounts:
         )
     )
     return UnseenCounts(
-        anotacoes_novas=anotacoes_novas or 0,
+        trombadices_novas=anotacoes_por_tipo(Kind.TROMBADICE),
+        conquistas_novas=anotacoes_por_tipo(Kind.CONQUISTA),
         castigos_novos=castigos_novos or 0,
         decisoes_novas=decisoes_novas or 0,
     )
