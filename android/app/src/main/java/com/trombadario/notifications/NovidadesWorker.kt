@@ -41,9 +41,15 @@ class NovidadesWorker(
         val store = NotificationBaselineStore(applicationContext)
         val baseline = store.read()
 
-        if (shouldNotify(baseline, fresh) &&
-            NotificationManagerCompat.from(applicationContext).areNotificationsEnabled()
-        ) {
+        if (shouldNotify(baseline, fresh)) {
+            // Sem permissão de notificação ninguém ficou sabendo da novidade.
+            // Avançar o baseline aqui a perderia pra sempre: quando a permissão
+            // voltasse, a contagem já não estaria "subindo" em relação ao que
+            // ficou guardado, e o item nunca mais geraria notificação. Melhor
+            // deixar o baseline como está e tentar de novo no próximo ciclo.
+            if (!NotificationManagerCompat.from(applicationContext).areNotificationsEnabled()) {
+                return Result.success()
+            }
             postNotification(applicationContext, fresh)
         }
 
