@@ -246,6 +246,7 @@
     <string name="trombadice_form_category_label">Que tipo de coisa foi</string>
 
     <!-- Filtros e busca -->
+    <string name="filtro_abrir">Filtrar</string>
     <string name="filtro_buscar">Buscar</string>
     <string name="filtro_busca_dica">Buscar no título ou nos detalhes</string>
     <string name="filtro_limpar">Limpar filtros</string>

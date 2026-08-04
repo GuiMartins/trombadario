@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,20 +19,28 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SentimentDissatisfied
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -69,6 +78,7 @@ fun FeedScreen(
         factory = viewModelFactory { FeedViewModel(container, currentUser) }
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var mostrarFiltros by remember { mutableStateOf(false) }
 
     // Covers both entering the screen and coming back to it - after saving a new
     // event, after editing one, after deleting one from the detail screen.
@@ -76,7 +86,25 @@ fun FeedScreen(
 
     Scaffold(
         containerColor = Color.Transparent,
-        topBar = { AppTopBar(title = stringResource(R.string.feed_title), currentUser = currentUser) },
+        topBar = {
+            AppTopBar(
+                title = stringResource(R.string.feed_title),
+                currentUser = currentUser,
+                actions = {
+                    IconButton(onClick = { mostrarFiltros = true }) {
+                        // A bolinha substitui repetir "Conquistas · Falta de
+                        // respeito" na tela - quem quer saber o quê exatamente
+                        // está filtrado abre a folha de novo.
+                        BadgedBox(badge = { if (state.filtrando) Badge() }) {
+                            Icon(
+                                Icons.Default.FilterList,
+                                contentDescription = stringResource(R.string.filtro_abrir),
+                            )
+                        }
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             if (currentUser.isAdmin) {
                 FloatingActionButton(
@@ -104,29 +132,6 @@ fun FeedScreen(
                 )
 
                 else -> Column(Modifier.fillMaxSize()) {
-                    // Visão diária com calendário, filtro de tipo (bom/ruim) e
-                    // busca - pro filho também, não só pro pai. A fileira de
-                    // "qual filho" dentro do FiltroBar não aparece sozinha:
-                    // state.children só é populado no ramo admin de load(), e
-                    // o FiltroBar já esconde essa fileira com um filho só.
-                    FiltroBar(
-                        children = state.children,
-                        selectedChildId = state.selectedChildId,
-                        onSelectChild = viewModel::selectChild,
-                        kind = state.kind,
-                        onSelectKind = viewModel::selectKind,
-                        category = state.category,
-                        onSelectCategory = viewModel::selectCategory,
-                        busca = state.busca,
-                        onBuscaChange = viewModel::onBuscaChange,
-                        onBuscar = viewModel::buscar,
-                        dia = state.dia,
-                        diasComRegistro = state.diasComRegistro,
-                        onSelectDia = viewModel::selectDia,
-                        filtrando = state.filtrando,
-                        onLimpar = viewModel::limparFiltros,
-                    )
-
                     PullToRefreshBox(
                         isRefreshing = state.refreshing,
                         onRefresh = { viewModel.load(isRefresh = true) },
@@ -171,6 +176,34 @@ fun FeedScreen(
                     }
                 }
             }
+        }
+    }
+
+    if (mostrarFiltros) {
+        ModalBottomSheet(onDismissRequest = { mostrarFiltros = false }) {
+            // Cada toque num chip já filtra a lista por trás na hora
+            // (FeedViewModel.trocarFiltro chama load() a cada mudança) - a
+            // folha não precisa de um botão "aplicar" separado.
+            FiltroBar(
+                children = state.children,
+                selectedChildId = state.selectedChildId,
+                onSelectChild = viewModel::selectChild,
+                kind = state.kind,
+                onSelectKind = viewModel::selectKind,
+                category = state.category,
+                onSelectCategory = viewModel::selectCategory,
+                busca = state.busca,
+                onBuscaChange = viewModel::onBuscaChange,
+                onBuscar = viewModel::buscar,
+                dia = state.dia,
+                diasComRegistro = state.diasComRegistro,
+                onSelectDia = viewModel::selectDia,
+                filtrando = state.filtrando,
+                onLimpar = viewModel::limparFiltros,
+                // O último chip ("Limpar filtros") não pode ficar colado na
+                // borda de baixo - encosta na área de gestos do sistema.
+                modifier = Modifier.navigationBarsPadding().padding(bottom = 16.dp),
+            )
         }
     }
 }
