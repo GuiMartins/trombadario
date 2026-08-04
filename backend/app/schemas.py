@@ -288,11 +288,17 @@ class Health(BaseModel):
 
 class UnseenCounts(BaseModel):
     """O que ainda não foi visto, sem marcar nada como visto - ver
-    `routers/unseen.py`. Os quatro campos sempre vêm juntos; os que não valem
-    pro papel de quem pergunta ficam em 0, em vez de uma união discriminada."""
+    `routers/unseen.py`. Os cinco campos sempre vêm juntos; os que não valem
+    pro papel de quem pergunta ficam em 0, em vez de uma união discriminada.
+
+    Trombadice e conquista vêm **separadas** mesmo sendo a mesma tabela: o app
+    toca um som diferente pra cada uma, e o som no Android é propriedade do
+    canal de notificação, então cada uma precisa da própria contagem pra saber
+    em qual canal avisar."""
 
     pedidos_pendentes: int = 0
-    anotacoes_novas: int = 0
+    trombadices_novas: int = 0
+    conquistas_novas: int = 0
     castigos_novos: int = 0
     decisoes_novas: int = 0
 

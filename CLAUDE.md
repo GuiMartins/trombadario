@@ -324,6 +324,50 @@ fazer — quem carimba é `app/visto.py`, chamado pelas próprias leituras do fi
 > vira uma mentira silenciosa para o pai. **Se algum desses três deixar de
 > valer, revisar.**
 
+### Notificação é local, só em casa, e cada tipo tem canal e som próprios
+
+Sem FCM e sem relay auto-hospedado: o escopo pedido foi **só quando o celular
+está na rede de casa**, o que dispensa qualquer infraestrutura externa. Um
+`PeriodicWorkRequest` do WorkManager (15 min, o piso oficial) pergunta ao
+servidor o que mudou e o Android notifica localmente.
+
+**`GET /api/unseen` é a única leitura do sistema que não marca nada como visto.**
+Todas as outras marcam de propósito (ver acima), e é exatamente por isso que o
+poller não pode usá-las: ele consumiria o "não visto" antes da pessoa abrir a
+tela de verdade, e o carimbo mentiria pro pai.
+
+**O som é propriedade do `NotificationChannel`, não da notificação** — então
+"um som por tipo" é obrigatoriamente "um canal por tipo". Daí caem duas coisas:
+
+- **Trombadice e conquista chegam separadas de `/api/unseen`**, mesmo sendo a
+  mesma tabela. Se viessem somadas num só `anotacoes_novas`, não daria pra saber
+  em qual canal avisar.
+- **Cada categoria vira uma notificação própria, com id próprio.** Juntar tudo
+  numa linha só (como era na v1.1.0) tocaria um som só.
+
+> **Canal criado não se edita.** O Android trata som e importância como imutáveis
+> depois que o canal existe e **ignora em silêncio** qualquer tentativa de
+> mudá-los — só quem usa consegue, nas configurações do sistema. Por isso o id
+> carrega sufixo de versão (`castigo_v1`): **trocar o som exige id novo**, senão
+> quem já tem o app instalado continua ouvindo o antigo pra sempre. A v1.1.0
+> deixou um canal `novidades` sem som próprio, que hoje é apagado no lugar.
+
+**Os sons são sintetizados, não baixados** (`tools/gerar_sons_de_notificacao.py`)
+— mesma escolha do caderno ser desenhado em vez de imagem importada. Nenhuma
+licença de áudio pra rastrear, arquivos de ~20 KB, e o timbre fica ajustável num
+script legível em vez de num binário sem procedência. O script é determinístico:
+rodar de novo não suja o diff.
+
+**O baseline só avança quando a notificação de fato saiu.** Guardar a contagem
+nova mesmo sem ter avisado (por permissão negada, por exemplo) faria aquele item
+**nunca mais** notificar: a contagem pararia de "subir" em relação ao guardado.
+Foi um bug real da v1.1.0.
+
+> **A entrega não é instantânea, e isso é do mecanismo.** Com o piso de 15 min
+> mais Doze e a gestão de bateria dos fabricantes, o aviso pode demorar bem mais
+> com o celular ocioso. Celular que marque o app como "restrito" na bateria
+> simplesmente não recebe.
+
 ### Relatório conta em Python, sobre dia local
 
 `routers/reports.py`. Nada de `GROUP BY date(occurred_at)`: o banco guarda UTC e

@@ -17,7 +17,11 @@ data class HealthDto(
 @Serializable
 data class UnseenCountsDto(
     @SerialName("pedidos_pendentes") val pedidosPendentes: Int = 0,
-    @SerialName("anotacoes_novas") val anotacoesNovas: Int = 0,
+    // Trombadice e conquista são a mesma tabela no servidor, mas chegam
+    // separadas: cada uma toca um som diferente, e som no Android é propriedade
+    // do canal de notificação.
+    @SerialName("trombadices_novas") val trombadicesNovas: Int = 0,
+    @SerialName("conquistas_novas") val conquistasNovas: Int = 0,
     @SerialName("castigos_novos") val castigosNovos: Int = 0,
     @SerialName("decisoes_novas") val decisoesNovas: Int = 0,
 )

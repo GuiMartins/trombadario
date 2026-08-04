@@ -31,7 +31,7 @@ def test_visitar_pedidos_de_verdade_zera_a_contagem(
     assert client.get("/api/unseen", headers=as_admin(client)).json()["pedidos_pendentes"] == 0
 
 
-def test_filho_ve_anotacao_nova_sem_efeito_colateral(
+def test_filho_ve_trombadice_nova_sem_efeito_colateral(
     client: TestClient, admin: User, child: User
 ) -> None:
     client.post(
@@ -44,12 +44,36 @@ def test_filho_ve_anotacao_nova_sem_efeito_colateral(
         },
     )
 
-    assert client.get("/api/unseen", headers=as_child(client)).json()["anotacoes_novas"] == 1
-    assert client.get("/api/unseen", headers=as_child(client)).json()["anotacoes_novas"] == 1
+    assert client.get("/api/unseen", headers=as_child(client)).json()["trombadices_novas"] == 1
+    assert client.get("/api/unseen", headers=as_child(client)).json()["trombadices_novas"] == 1
 
     client.get("/api/trombadices", headers=as_child(client))
 
-    assert client.get("/api/unseen", headers=as_child(client)).json()["anotacoes_novas"] == 0
+    assert client.get("/api/unseen", headers=as_child(client)).json()["trombadices_novas"] == 0
+
+
+def test_trombadice_e_conquista_contam_separado(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Mesma tabela, contagens distintas - o app toca um som pra cada uma, e o
+    som no Android é propriedade do canal, então cada tipo precisa saber sozinho
+    que subiu."""
+    for kind in ("trombadice", "conquista", "conquista"):
+        client.post(
+            "/api/trombadices",
+            headers=as_admin(client),
+            json={
+                "title": "algo",
+                "occurred_at": datetime.now(UTC).isoformat(),
+                "child_id": child.id,
+                "kind": kind,
+            },
+        )
+
+    contagens = client.get("/api/unseen", headers=as_child(client)).json()
+
+    assert contagens["trombadices_novas"] == 1
+    assert contagens["conquistas_novas"] == 2
 
 
 def test_filho_ve_castigo_novo(client: TestClient, admin: User, child: User) -> None:
@@ -105,9 +129,9 @@ def test_filho_nao_ve_novidade_do_irmao(
         },
     )
 
-    assert client.get("/api/unseen", headers=as_child(client)).json()["anotacoes_novas"] == 0
+    assert client.get("/api/unseen", headers=as_child(client)).json()["trombadices_novas"] == 0
     irma = auth_header(client, "filha", "senha-da-filha")
-    assert client.get("/api/unseen", headers=irma).json()["anotacoes_novas"] == 1
+    assert client.get("/api/unseen", headers=irma).json()["trombadices_novas"] == 1
 
 
 def test_unseen_exige_autenticacao(client: TestClient) -> None:

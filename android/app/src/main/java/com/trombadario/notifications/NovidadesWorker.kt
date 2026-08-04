@@ -4,6 +4,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.media.AudioAttributes
+import android.net.Uri
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
@@ -12,7 +14,6 @@ import com.trombadario.R
 import com.trombadario.TrombadarioApp
 import com.trombadario.data.ApiResult
 import com.trombadario.data.HomeState
-import com.trombadario.data.remote.UnseenCountsDto
 
 /**
  * Checagem periódica (a cada 15 minutos, o piso do `PeriodicWorkRequest` -
@@ -20,6 +21,8 @@ import com.trombadario.data.remote.UnseenCountsDto
  * o celular está em casa agora (não confia no `HomeNetworkGate.state` já
  * guardado - ver `checkNow()`), e alguma categoria de `/api/unseen` subiu
  * desde a última vez que este worker rodou.
+ *
+ * Cada categoria vira uma notificação separada, no canal dela, com o som dela.
  *
  * Sem `WorkerFactory` customizado: o `AppContainer` é alcançado do mesmo jeito
  * que `MainActivity` já faz, via `applicationContext as TrombadarioApp`.
@@ -39,9 +42,9 @@ class NovidadesWorker(
             ?: return Result.success()
 
         val store = NotificationBaselineStore(applicationContext)
-        val baseline = store.read()
+        val novas = novidades(store.read(), fresh)
 
-        if (shouldNotify(baseline, fresh)) {
+        if (novas.isNotEmpty()) {
             // Sem permissão de notificação ninguém ficou sabendo da novidade.
             // Avançar o baseline aqui a perderia pra sempre: quando a permissão
             // voltasse, a contagem já não estaria "subindo" em relação ao que
@@ -50,60 +53,126 @@ class NovidadesWorker(
             if (!NotificationManagerCompat.from(applicationContext).areNotificationsEnabled()) {
                 return Result.success()
             }
-            postNotification(applicationContext, fresh)
+            novas.forEach { postNotification(applicationContext, it, fresh.contagemDe(it)) }
         }
 
         store.write(fresh)
         return Result.success()
     }
 
-    private fun postNotification(context: Context, counts: UnseenCountsDto) {
-        createChannelIfNeeded(context)
+    private fun postNotification(context: Context, novidade: Novidade, quantidade: Int) {
+        val canal = Canal.de(novidade)
+        criarCanal(context, canal)
 
-        val body = buildBody(context, counts)
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
         val pendingIntent = PendingIntent.getActivity(
             context,
-            0,
+            novidade.ordinal,
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, canal.id)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(context.getString(R.string.notification_title))
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentTitle(
+                context.resources.getQuantityString(canal.texto, quantidade, quantidade)
+            )
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()
 
-        NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+        // Um id por categoria: castigo novo não pode substituir a conquista que
+        // ainda estava na barra.
+        NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_BASE + novidade.ordinal, notification)
     }
 
-    /** Junta as categorias que subiram - várias podem disparar no mesmo ciclo
-     *  se o app ficou fechado um tempo. */
-    private fun buildBody(context: Context, counts: UnseenCountsDto): String = buildList {
-        if (counts.pedidosPendentes > 0) add(context.getString(R.string.notification_pedidos_pendentes))
-        if (counts.anotacoesNovas > 0) add(context.getString(R.string.notification_anotacoes_novas))
-        if (counts.castigosNovos > 0) add(context.getString(R.string.notification_castigos_novos))
-        if (counts.decisoesNovas > 0) add(context.getString(R.string.notification_decisoes_novas))
-    }.joinToString(" · ")
-
-    private fun createChannelIfNeeded(context: Context) {
+    /**
+     * Idempotente pro nome e a descrição, mas **não pro som**: o Android trata
+     * som e importância como imutáveis depois que o canal existe, e ignora
+     * silenciosamente qualquer tentativa de mudá-los. Por isso o id carrega
+     * `_v1` - trocar o som de um tipo exige um id novo, senão quem já tem o app
+     * instalado continua ouvindo o antigo pra sempre.
+     */
+    private fun criarCanal(context: Context, canal: Canal) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            context.getString(R.string.notification_channel_novidades),
-            NotificationManager.IMPORTANCE_DEFAULT,
-        ).apply {
-            description = context.getString(R.string.notification_channel_novidades_description)
+
+        // A v1.1.0 criou um canal único "novidades", sem som próprio. Ele não
+        // serve mais e ficaria órfão nas configurações do sistema.
+        manager.deleteNotificationChannel(CANAL_ANTIGO)
+
+        manager.createNotificationChannel(
+            NotificationChannel(
+                canal.id,
+                context.getString(canal.nome),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = context.getString(canal.descricao)
+                setSound(
+                    Uri.parse("android.resource://${context.packageName}/${canal.som}"),
+                    AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .build(),
+                )
+            }
+        )
+    }
+
+    /** O que cada tipo de novidade tem de próprio: canal, som e texto. */
+    private data class Canal(
+        val id: String,
+        val nome: Int,
+        val descricao: Int,
+        val som: Int,
+        val texto: Int,
+    ) {
+        companion object {
+            fun de(novidade: Novidade): Canal = when (novidade) {
+                Novidade.PEDIDO -> Canal(
+                    id = "pedido_v1",
+                    nome = R.string.canal_pedido,
+                    descricao = R.string.canal_pedido_descricao,
+                    som = R.raw.som_pedido,
+                    texto = R.plurals.notificacao_pedido,
+                )
+
+                Novidade.TROMBADICE -> Canal(
+                    id = "trombadice_v1",
+                    nome = R.string.canal_trombadice,
+                    descricao = R.string.canal_trombadice_descricao,
+                    som = R.raw.som_trombadice,
+                    texto = R.plurals.notificacao_trombadice,
+                )
+
+                Novidade.CONQUISTA -> Canal(
+                    id = "conquista_v1",
+                    nome = R.string.canal_conquista,
+                    descricao = R.string.canal_conquista_descricao,
+                    som = R.raw.som_conquista,
+                    texto = R.plurals.notificacao_conquista,
+                )
+
+                Novidade.CASTIGO -> Canal(
+                    id = "castigo_v1",
+                    nome = R.string.canal_castigo,
+                    descricao = R.string.canal_castigo_descricao,
+                    som = R.raw.som_castigo,
+                    texto = R.plurals.notificacao_castigo,
+                )
+
+                Novidade.DECISAO -> Canal(
+                    id = "decisao_v1",
+                    nome = R.string.canal_decisao,
+                    descricao = R.string.canal_decisao_descricao,
+                    som = R.raw.som_decisao,
+                    texto = R.plurals.notificacao_decisao,
+                )
+            }
         }
-        manager.createNotificationChannel(channel)
     }
 
     private companion object {
-        const val CHANNEL_ID = "novidades"
-        const val NOTIFICATION_ID = 1
+        const val CANAL_ANTIGO = "novidades"
+        const val NOTIFICATION_ID_BASE = 100
     }
 }
