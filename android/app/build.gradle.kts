@@ -12,8 +12,8 @@ android {
         applicationId = "com.trombadario"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -89,6 +89,16 @@ dependencies {
 
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // CoroutineWorker mora aqui, não em work-runtime-ktx (que virou um shim
+    // vazio a partir da 2.9). Notificação local do "novidades" chegou - ver
+    // notifications/NovidadesWorker.kt.
+    //
+    // Pinado em 2.9.1, não na última estável: a partir da 2.10 o AAR passa a
+    // exigir compileSdk 35 + AGP 8.6+ (checado batendo de frente com o build -
+    // ver histórico do commit). Subir isso arrastaria compileSdk/AGP do projeto
+    // inteiro, fora do escopo desta feature.
+    implementation("androidx.work:work-runtime:2.9.1")
 
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")

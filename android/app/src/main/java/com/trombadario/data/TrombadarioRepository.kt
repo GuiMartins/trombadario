@@ -25,6 +25,7 @@ import com.trombadario.data.remote.TaskDto
 import com.trombadario.data.remote.TaskUpdateDto
 import com.trombadario.data.remote.TokenDto
 import com.trombadario.data.remote.TrombadarioApi
+import com.trombadario.data.remote.UnseenCountsDto
 import com.trombadario.data.remote.UserCreateDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.data.remote.UserUpdateDto
@@ -98,6 +99,8 @@ class TrombadarioRepository(
         call { it.login(username, password) }.onSuccess { sessionStore.save(it.accessToken) }
 
     suspend fun me(): ApiResult<UserDto> = call { it.me() }
+
+    suspend fun unseenCounts(): ApiResult<UnseenCountsDto> = call { it.unseenCounts() }
 
     suspend fun listTrombadices(
         childId: Int? = null,
