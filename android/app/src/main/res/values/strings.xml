@@ -277,4 +277,13 @@
     <string name="report_por_tarefa">Tarefas mais descumpridas</string>
     <string name="report_dia_mais_pesado">Dia mais pesado: %1$s (%2$d)</string>
     <string name="report_vazio">Nada registrado nesse período. Bom sinal.</string>
+
+    <!-- Notificações locais ("novidades") -->
+    <string name="notification_channel_novidades">Novidades</string>
+    <string name="notification_channel_novidades_description">Avisa quando tem algo novo pra ver no Trombadário, só enquanto o celular está em casa.</string>
+    <string name="notification_title">Trombadário</string>
+    <string name="notification_pedidos_pendentes">Pedido esperando decisão</string>
+    <string name="notification_anotacoes_novas">Anotação nova</string>
+    <string name="notification_castigos_novos">Novo castigo</string>
+    <string name="notification_decisoes_novas">Resposta pro seu pedido chegou</string>
 </resources>

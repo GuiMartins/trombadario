@@ -286,6 +286,17 @@ class Health(BaseModel):
     setup_required: bool
 
 
+class UnseenCounts(BaseModel):
+    """O que ainda não foi visto, sem marcar nada como visto - ver
+    `routers/unseen.py`. Os quatro campos sempre vêm juntos; os que não valem
+    pro papel de quem pergunta ficam em 0, em vez de uma união discriminada."""
+
+    pedidos_pendentes: int = 0
+    anotacoes_novas: int = 0
+    castigos_novos: int = 0
+    decisoes_novas: int = 0
+
+
 class SplashMessageOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

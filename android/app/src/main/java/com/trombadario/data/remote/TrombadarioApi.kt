@@ -27,6 +27,9 @@ interface TrombadarioApi {
     @GET("api/auth/me")
     suspend fun me(): Response<UserDto>
 
+    @GET("api/unseen")
+    suspend fun unseenCounts(): Response<UnseenCountsDto>
+
     @GET("api/trombadices")
     suspend fun listTrombadices(
         @Query("child_id") childId: Int? = null,

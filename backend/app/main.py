@@ -20,6 +20,7 @@ from app.routers import (
     splash_messages,
     tasks,
     trombadices,
+    unseen,
     users,
 )
 from app.server_identity import get_identity
@@ -87,5 +88,6 @@ app.include_router(splash_messages.router)
 app.include_router(reports.router)
 app.include_router(pedidos.router)
 app.include_router(pedidos.conquistas_propostas_router)
+app.include_router(unseen.router)
 # Last: its routes live at the root and would otherwise shadow /api paths.
 app.include_router(web_routes.router)
