@@ -13,8 +13,11 @@ from app.models import (
     CATEGORIAS_POR_TIPO,
     Category,
     Kind,
+    Pedido,
     Periodicity,
     Punishment,
+    RequestKind,
+    RequestStatus,
     Role,
     SplashMessage,
     Task,
@@ -34,6 +37,7 @@ from app.periodo import (
 from app.routers.reports import report
 from app.security import create_access_token, hash_password, verify_password
 from app.setup_state import setup_required
+from app.visto import marcar_visto_pai
 from app.web.deps import SESSION_COOKIE, AdminWeb, MaybeUser, RedirectTo
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -987,3 +991,123 @@ def user_toggle(user_id: int, db: DbSession, user: AdminWeb):
         target.is_active = not target.is_active
         db.commit()
     return _redirect("/contas")
+
+
+@router.post("/contas/{user_id}/toggle-pedidos")
+def user_toggle_can_request(user_id: int, db: DbSession, user: AdminWeb):
+    # Rota própria, não um parâmetro genérico em cima de /toggle: os dois
+    # toggles significam coisas diferentes (conta ligada vs. pode pedir), e um
+    # parâmetro tipo string pra escolher qual campo mexer é o tipo de
+    # ramificação implícita que este projeto evita.
+    if (target := db.get(User, user_id)) is not None:
+        target.can_request = not target.can_request
+        db.commit()
+    return _redirect("/contas")
+
+
+# --------------------------------------------------------------------------
+# Pedidos
+# --------------------------------------------------------------------------
+
+
+@router.get("/pedidos", response_class=HTMLResponse)
+def pedidos_page(
+    request: Request,
+    db: DbSession,
+    user: AdminWeb,
+    status: str | None = None,
+    child_id: int | None = None,
+    kind: str | None = None,
+):
+    filtro = RequestStatus(status) if status in {s.value for s in RequestStatus} else None
+    filtro_kind = RequestKind(kind) if kind in {k.value for k in RequestKind} else None
+
+    base = select(Pedido)
+    if filtro is not None:
+        base = base.where(Pedido.status == filtro)
+    if filtro_kind is not None:
+        base = base.where(Pedido.kind == filtro_kind)
+    if child_id:
+        base = base.where(Pedido.child_id == child_id)
+    pedidos = list(db.scalars(base.order_by(Pedido.created_at.desc())))
+
+    # O pai vendo a lista é o próprio "visto" - mesma ideia de visto.py, só
+    # que na direção contrária (ver comentário lá).
+    marcar_visto_pai(db, [p for p in pedidos if p.status is RequestStatus.PENDENTE])
+
+    children = _children(db)
+    return _render(
+        request,
+        "pedidos.html",
+        user=user,
+        pedidos=pedidos,
+        children=children,
+        children_by_id={c.id: c for c in children},
+        status_escolhido=filtro,
+        kind_escolhido=filtro_kind,
+        selected_child=child_id,
+        categorias={c.value: r for c, r in CATEGORIA_ROTULOS.items()},
+        url=_construtor_de_url(
+            "/pedidos",
+            {
+                "status": filtro.value if filtro else None,
+                "child_id": child_id,
+                "kind": filtro_kind.value if filtro_kind else None,
+            },
+        ),
+    )
+
+
+def _promover_se_conquista(pedido: Pedido, db: DbSession, autor_id: int) -> None:
+    """Aprovar uma proposta de conquista cria, além de decidir o pedido, a
+    Trombadice de verdade - inserção nova, não o Pedido mutado com um status
+    especial. author_id é de quem aprovou: o pai confirmando, não o filho que
+    teve a ideia, preservando a regra de que autor é sempre quem registrou."""
+    if pedido.kind is not RequestKind.CONQUISTA_PROPOSTA:
+        return
+    db.add(
+        Trombadice(
+            kind=Kind.CONQUISTA,
+            title=pedido.title,
+            description=pedido.justification,
+            category=pedido.category,
+            occurred_at=pedido.decided_at,
+            child_id=pedido.child_id,
+            author_id=autor_id,
+        )
+    )
+
+
+@router.post("/pedidos/{pedido_id}/aprovar")
+def pedido_aprovar(
+    pedido_id: int,
+    db: DbSession,
+    user: AdminWeb,
+    decision_note: Annotated[str, Form()] = "",
+):
+    pedido = db.get(Pedido, pedido_id)
+    if pedido is not None and pedido.status is RequestStatus.PENDENTE:
+        pedido.status = RequestStatus.APROVADO
+        pedido.decision_note = decision_note.strip()
+        pedido.decided_at = datetime.now(UTC)
+        pedido.decided_by_id = user.id
+        _promover_se_conquista(pedido, db, user.id)
+        db.commit()
+    return _redirect("/pedidos")
+
+
+@router.post("/pedidos/{pedido_id}/negar")
+def pedido_negar(
+    pedido_id: int,
+    db: DbSession,
+    user: AdminWeb,
+    decision_note: Annotated[str, Form()] = "",
+):
+    pedido = db.get(Pedido, pedido_id)
+    if pedido is not None and pedido.status is RequestStatus.PENDENTE:
+        pedido.status = RequestStatus.NEGADO
+        pedido.decision_note = decision_note.strip()
+        pedido.decided_at = datetime.now(UTC)
+        pedido.decided_by_id = user.id
+        db.commit()
+    return _redirect("/pedidos")

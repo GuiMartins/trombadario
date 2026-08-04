@@ -29,7 +29,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -47,13 +46,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.remote.Categoria
+import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
 import com.trombadario.data.remote.Tipo
+import com.trombadario.ui.components.AppTopBar
 import com.trombadario.ui.components.ehConquista
 import com.trombadario.ui.components.rotuloDaCategoria
 import com.trombadario.ui.components.rotuloDoTipo
-import com.trombadario.ui.theme.NotebookGutter
-import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.viewModelFactory
 import java.time.Instant
@@ -66,6 +65,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun TrombadiceFormScreen(
     container: AppContainer,
+    currentUser: UserDto,
     trombadiceId: Int?,
     onDone: () -> Unit,
     onBack: () -> Unit,
@@ -85,17 +85,12 @@ fun TrombadiceFormScreen(
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                colors = transparentTopBar(),
-                modifier = Modifier.padding(start = NotebookGutter),
-                title = {
-                    Text(
-                        stringResource(
-                            if (trombadiceId == null) R.string.trombadice_form_new_title
-                            else R.string.trombadice_form_edit_title
-                        )
-                    )
-                },
+            AppTopBar(
+                title = stringResource(
+                    if (trombadiceId == null) R.string.trombadice_form_new_title
+                    else R.string.trombadice_form_edit_title
+                ),
+                currentUser = currentUser,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(

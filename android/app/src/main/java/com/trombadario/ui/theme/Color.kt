@@ -30,11 +30,23 @@ val MarkerRed = Color(0xFFE8562D)
 val MarkerInk = Color(0xFFC13A14)
 val OnMarkerRed = Color(0xFFFFFFFF)
 
-// Cores dos avatares e etiquetas. Ficam iguais nos dois temas - são identidade,
-// não superfície.
-val AccentTeal = Color(0xFF40A4A1)
+// AccentTeal pinta o papel `secondary` do Material (fundo com texto branco em
+// cima). "São identidade, não superfície, ficam iguais nos dois temas" era a
+// desculpa daqui antes - e é a mesma que quebrou o teal da web: o mesmo tom
+// no claro e no escuro dava 2,98:1 contra o texto branco no claro (o mínimo é
+// 4,5:1). Este, escurecido, dá 5,12:1 no claro; no escuro o tom original já
+// passava contra o texto escuro usado lá (5,01:1), então só o claro precisou
+// de um valor novo - ver ConquistaTeal/ConquistaTealDark pro mesmo padrão.
+val AccentTeal = Color(0xFF1D7A77)
+val AccentTealDark = Color(0xFF40A4A1)
+
+// AccentAmber pinta `tertiary`. Ao contrário do teal, o tom em si não precisa
+// mudar entre os temas - quem faltava fixar era o texto por cima: `onTertiary`
+// nunca tinha sido definido em Theme.kt, então herdava o branco padrão do
+// Material em vez de tinta escura (1,86:1, ilegível). Com `onTertiary = InkLight`
+// nos dois esquemas (Theme.kt), este mesmo tom dá 5,79:1 - o mesmo raciocínio
+// do `--on-amber` da web, onde o âmbar também não muda mas o texto sim.
 val AccentAmber = Color(0xFFE0A030)
-val AccentCoral = Color(0xFFE4634F)
 
 // Tema escuro: mesma metáfora, papel de caderno velho sob luz baixa. Não é o
 // claro invertido - inverter um papel creme dá cinza sujo.

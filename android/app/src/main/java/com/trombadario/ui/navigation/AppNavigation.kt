@@ -114,7 +114,7 @@ private fun AuthenticatedApp(container: AppContainer) {
         // No phrase registered that applies to them: skip the screen entirely
         // rather than show an empty one.
         splashMessage != null && !splashDone -> {
-            SplashScreen(message = splashMessage!!)
+            SplashScreen(childName = user.displayName, message = splashMessage!!)
             LaunchedEffect(Unit) {
                 delay(SPLASH_DURATION_MS.toLong())
                 splashDone = true

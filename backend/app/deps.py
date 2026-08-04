@@ -49,3 +49,18 @@ def require_admin(current_user: CurrentUser) -> User:
 
 
 AdminUser = Annotated[User, Depends(require_admin)]
+
+
+def require_child(current_user: CurrentUser) -> User:
+    """Simétrico a `require_admin`: algumas rotas passam a ser escrita do
+    filho (reação a castigo, tarefa "feito", pedido) - o pai não usa essas,
+    tem as próprias telas de cadastro."""
+    if current_user.role is not Role.CHILD:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Só o filho pode fazer isso",
+        )
+    return current_user
+
+
+ChildUser = Annotated[User, Depends(require_child)]

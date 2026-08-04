@@ -8,6 +8,7 @@ import com.trombadario.R
 import com.trombadario.data.ApiResult
 import com.trombadario.data.remote.PunishmentCreateDto
 import com.trombadario.data.remote.PunishmentDto
+import com.trombadario.data.remote.PunishmentReactionDto
 import com.trombadario.data.remote.PunishmentUpdateDto
 import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.UserDto
@@ -31,6 +32,9 @@ data class PunishmentEditor(
 
 data class PunishmentState(
     val loading: Boolean = true,
+    /** Puxar-pra-atualizar: diferente de `loading`, que é a tela cheia da
+     *  primeira entrada. Os dois nunca ficam `true` ao mesmo tempo. */
+    val refreshing: Boolean = false,
     /** Ativos agora - é a resposta que a tela do filho existe pra dar. */
     val active: List<PunishmentDto> = emptyList(),
     val history: List<PunishmentDto> = emptyList(),
@@ -49,8 +53,8 @@ class PunishmentViewModel(
     private val _state = MutableStateFlow(PunishmentState())
     val state: StateFlow<PunishmentState> = _state.asStateFlow()
 
-    fun load() {
-        _state.update { it.copy(loading = true) }
+    fun load(isRefresh: Boolean = false) {
+        _state.update { if (isRefresh) it.copy(refreshing = true) else it.copy(loading = true) }
         viewModelScope.launch {
             if (currentUser.isAdmin) {
                 (container.repository.listUsers() as? ApiResult.Success)?.let { users ->
@@ -65,6 +69,7 @@ class PunishmentViewModel(
             _state.update {
                 it.copy(
                     loading = false,
+                    refreshing = false,
                     // isActive vem calculado do servidor: o relógio do celular
                     // não decide se alguém está de castigo.
                     active = all.filter { p -> p.isActive },
@@ -79,6 +84,25 @@ class PunishmentViewModel(
 
     fun trombadiceTitle(id: Int): String? =
         _state.value.trombadices.firstOrNull { it.id == id }?.title
+
+    /** Só o filho chama isto - o backend também barra, mas a tela nem oferece
+     *  o campo pro pai (ver ChildAnswer). */
+    fun react(punishmentId: Int, text: String) {
+        viewModelScope.launch {
+            val result = container.repository.reactToPunishment(
+                punishmentId,
+                PunishmentReactionDto(reactionText = text.ifBlank { null }),
+            )
+            if (result is ApiResult.Success) {
+                _state.update { current ->
+                    current.copy(
+                        active = current.active.map { if (it.id == punishmentId) result.data else it },
+                        history = current.history.map { if (it.id == punishmentId) result.data else it },
+                    )
+                }
+            }
+        }
+    }
 
     fun startCreate() = _state.update {
         it.copy(editor = PunishmentEditor(childId = it.children.singleOrNull()?.id), error = null)

@@ -25,6 +25,8 @@ data class UserDto(
     @SerialName("display_name") val displayName: String,
     val role: String,
     @SerialName("is_active") val isActive: Boolean,
+    // Só faz sentido pro filho; o pai lê o próprio valor como true e nunca usa.
+    @SerialName("can_request") val canRequest: Boolean = true,
 ) {
     val isAdmin: Boolean get() = role == ROLE_ADMIN
 
@@ -47,6 +49,7 @@ data class UserUpdateDto(
     @SerialName("display_name") val displayName: String? = null,
     val password: String? = null,
     @SerialName("is_active") val isActive: Boolean? = null,
+    @SerialName("can_request") val canRequest: Boolean? = null,
 )
 
 @Serializable
@@ -188,6 +191,20 @@ data class TaskUpdateDto(
     @SerialName("is_active") val isActive: Boolean? = null,
 )
 
+@Serializable
+data class TaskCompletionDto(
+    val id: Int,
+    @SerialName("task_id") val taskId: Int,
+    @SerialName("child_id") val childId: Int,
+    val note: String,
+    @SerialName("completed_at") val completedAt: String,
+)
+
+@Serializable
+data class TaskCompletionCreateDto(
+    val note: String = "",
+)
+
 // --------------------------------------------------------------------------
 // Castigos
 // --------------------------------------------------------------------------
@@ -201,11 +218,23 @@ data class PunishmentDto(
     @SerialName("ended_early_at") val endedEarlyAt: String? = null,
     /** Quando o filho viu este castigo. Nulo = ainda não viu. */
     @SerialName("seen_at") val seenAt: String? = null,
+    /** O filho escreve, os dois papéis leem - nunca é o pai quem grava aqui. */
+    @SerialName("reaction_text") val reactionText: String? = null,
+    @SerialName("reaction_at") val reactionAt: String? = null,
     @SerialName("child_id") val childId: Int,
     @SerialName("trombadice_ids") val trombadiceIds: List<Int> = emptyList(),
+    // As trombadices completas - o filho não precisa de uma segunda busca só
+    // pra saber o título de cada uma, e o pai já as tinha de graça.
+    val trombadices: List<TrombadiceDto> = emptyList(),
     // Computed server-side: the phone's clock is not the authority on whether
     // someone is grounded.
     @SerialName("is_active") val isActive: Boolean = false,
+)
+
+/** Nulo/vazio apaga a reação - o filho pode mudar de ideia. */
+@Serializable
+data class PunishmentReactionDto(
+    @SerialName("reaction_text") val reactionText: String? = null,
 )
 
 @Serializable
@@ -290,3 +319,53 @@ data class ReportDto(
 
 @Serializable
 data class DatasComRegistroDto(val datas: List<String> = emptyList())
+
+// --------------------------------------------------------------------------
+// Pedidos
+// --------------------------------------------------------------------------
+
+@Serializable
+data class PedidoDto(
+    val id: Int,
+    /** pedido | conquista_proposta - mesma tabela, dois fluxos que só diferem
+     *  no que acontece na aprovação (ver PropostaConquistaCreateDto). */
+    val kind: String = "pedido",
+    val title: String,
+    val justification: String,
+    /** Só preenchido quando kind == conquista_proposta. */
+    val category: String? = null,
+    /** pendente | aprovado | negado. */
+    val status: String,
+    @SerialName("decision_note") val decisionNote: String = "",
+    @SerialName("decided_at") val decidedAt: String? = null,
+    @SerialName("child_id") val childId: Int,
+    @SerialName("created_at") val createdAt: String,
+) {
+    companion object {
+        const val PENDENTE = "pendente"
+        const val APROVADO = "aprovado"
+        const val NEGADO = "negado"
+
+        const val PEDIDO = "pedido"
+        const val CONQUISTA_PROPOSTA = "conquista_proposta"
+    }
+}
+
+@Serializable
+data class PedidoCreateDto(
+    val title: String,
+    val justification: String = "",
+)
+
+@Serializable
+data class PropostaConquistaCreateDto(
+    val title: String,
+    val justification: String = "",
+    val category: String,
+)
+
+@Serializable
+data class PedidoDecisionDto(
+    val status: String,
+    @SerialName("decision_note") val decisionNote: String = "",
+)

@@ -11,6 +11,8 @@ premissa do app inteiro.
 
 from datetime import date, datetime, time, timedelta
 
+from app.models import Periodicity
+
 
 def hoje_local() -> date:
     return datetime.now().astimezone().date()
@@ -77,3 +79,22 @@ def semana_de(dia: date) -> str:
 
 def mes_de(dia: date) -> str:
     return dia.strftime("%Y-%m")
+
+
+def chave_do_periodo(periodicity: Periodicity, dia: date) -> str:
+    """A chave que 'feito' precisa bater pra contar como o mesmo período -
+    UniqueConstraint(task_id, period_key) no banco é quem trava de verdade.
+
+    Diária usa o dia isolado (ISO), porque cada dia é o próprio período.
+    Semanal e mensal reaproveitam os rótulos que o relatório já usa - a mesma
+    pergunta ("que período é esse?") não devia ter duas respostas no projeto.
+    Avulsa usa uma chave fixa: se usasse o dia, "feito" travaria só até virar
+    a meia-noite e destravaria de novo, quando o certo é travar para sempre.
+    """
+    if periodicity is Periodicity.WEEKLY:
+        return semana_de(dia)
+    if periodicity is Periodicity.MONTHLY:
+        return mes_de(dia)
+    if periodicity is Periodicity.ONCE:
+        return "once"
+    return dia.isoformat()

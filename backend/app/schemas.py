@@ -1,8 +1,18 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models import Category, Kind, Periodicity, Role, categoria_combina, categoria_padrao
+from app.models import (
+    Category,
+    Kind,
+    Periodicity,
+    RequestKind,
+    RequestStatus,
+    Role,
+    categoria_combina,
+    categoria_padrao,
+)
 
 
 class Token(BaseModel):
@@ -18,6 +28,9 @@ class UserOut(BaseModel):
     display_name: str
     role: Role
     is_active: bool
+    # Só faz sentido pro filho, mas mandado sempre - o pai lê o próprio valor
+    # como "true" e nunca usa.
+    can_request: bool
     created_at: datetime
 
 
@@ -32,6 +45,7 @@ class UserUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
     password: str | None = Field(default=None, min_length=6, max_length=128)
     is_active: bool | None = None
+    can_request: bool | None = None
 
 
 class SetupRequest(BaseModel):
@@ -149,6 +163,20 @@ class TaskUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class TaskCompletionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    task_id: int
+    child_id: int
+    note: str
+    completed_at: datetime
+
+
+class TaskCompletionCreate(BaseModel):
+    note: str = Field(default="", max_length=500)
+
+
 class PunishmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -158,10 +186,19 @@ class PunishmentOut(BaseModel):
     ends_at: datetime
     ended_early_at: datetime | None
     seen_at: datetime | None
+    # O filho escreve, os dois papéis leem - mesmo padrão de seen_at, mas na
+    # direção contrária: o pai nunca grava aqui.
+    reaction_text: str | None
+    reaction_at: datetime | None
     child_id: int
     author_id: int
     created_at: datetime
     trombadice_ids: list[int] = Field(default_factory=list)
+    # As trombadices completas, não só o id: sem isto o filho precisaria de uma
+    # segunda busca (e de uma segunda tela de carregamento) só pra saber o
+    # título de cada uma - o pai já lê isso de graça porque busca a lista
+    # inteira de qualquer forma.
+    trombadices: list[TrombadiceOut] = Field(default_factory=list)
     is_active: bool = False
 
 
@@ -180,6 +217,12 @@ class PunishmentUpdate(BaseModel):
     # True ends it now; the original ends_at is kept so the history shows what
     # was handed down as well as what was actually served.
     end_now: bool | None = None
+
+
+class PunishmentReaction(BaseModel):
+    """Nulo/vazio apaga a reação - o filho pode mudar de ideia."""
+
+    reaction_text: str | None = Field(default=None, max_length=256)
 
 
 class SplashMessageRandom(BaseModel):
@@ -263,3 +306,49 @@ class SplashMessageUpdate(BaseModel):
     text: str | None = Field(default=None, min_length=1, max_length=300)
     child_id: int | None = None
     is_active: bool | None = None
+
+
+class PedidoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    kind: RequestKind
+    title: str
+    justification: str
+    category: Category | None
+    status: RequestStatus
+    decision_note: str
+    decided_at: datetime | None
+    decided_by_id: int | None
+    child_id: int
+    created_at: datetime
+    seen_by_parent_at: datetime | None
+    seen_by_child_at: datetime | None
+
+
+class PedidoCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    justification: str = Field(default="", max_length=1000)
+
+
+class PropostaConquistaCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    justification: str = Field(default="", max_length=1000)
+    category: Category
+
+    @field_validator("category")
+    @classmethod
+    def categoria_de_conquista(cls, category: Category) -> Category:
+        # Mesma regra de TrombadiceCreate.coerente: uma proposta de conquista
+        # promove pra Kind.CONQUISTA na aprovação, então a categoria já
+        # precisa ser desse tipo - senão a Trombadice nasceria com uma
+        # combinação que o resto do sistema nunca deixa acontecer.
+        if not categoria_combina(category, Kind.CONQUISTA):
+            raise ValueError("essa categoria não é de conquista")
+        return category
+
+
+class PedidoDecision(BaseModel):
+    # Nunca PENDENTE aqui - decidir é sair de pendente, não voltar pra ele.
+    status: Literal[RequestStatus.APROVADO, RequestStatus.NEGADO]
+    decision_note: str = Field(default="", max_length=1000)

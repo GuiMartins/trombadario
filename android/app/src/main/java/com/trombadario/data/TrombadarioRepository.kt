@@ -7,12 +7,19 @@ import com.trombadario.data.remote.TrombadiceCreateDto
 import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.TrombadiceUpdateDto
 import com.trombadario.data.remote.PunishmentCreateDto
+import com.trombadario.data.remote.PedidoCreateDto
+import com.trombadario.data.remote.PedidoDecisionDto
+import com.trombadario.data.remote.PedidoDto
+import com.trombadario.data.remote.PropostaConquistaCreateDto
 import com.trombadario.data.remote.PunishmentDto
+import com.trombadario.data.remote.PunishmentReactionDto
 import com.trombadario.data.remote.PunishmentUpdateDto
 import com.trombadario.data.remote.SplashMessageCreateDto
 import com.trombadario.data.remote.SplashMessageDto
 import com.trombadario.data.remote.SplashMessageRandomDto
 import com.trombadario.data.remote.SplashMessageUpdateDto
+import com.trombadario.data.remote.TaskCompletionCreateDto
+import com.trombadario.data.remote.TaskCompletionDto
 import com.trombadario.data.remote.TaskCreateDto
 import com.trombadario.data.remote.TaskDto
 import com.trombadario.data.remote.TaskUpdateDto
@@ -144,6 +151,26 @@ class TrombadarioRepository(
 
     suspend fun deleteTask(id: Int): ApiResult<Unit> = callNoContent { it.deleteTask(id) }
 
+    suspend fun listTaskCompletions(taskId: Int): ApiResult<List<TaskCompletionDto>> =
+        call { it.listTaskCompletions(taskId) }
+
+    suspend fun listPedidos(childId: Int? = null): ApiResult<List<PedidoDto>> =
+        call { it.listPedidos(childId) }
+
+    suspend fun createPedido(pedido: PedidoCreateDto): ApiResult<PedidoDto> =
+        call { it.createPedido(pedido) }
+
+    suspend fun createPropostaConquista(proposta: PropostaConquistaCreateDto): ApiResult<PedidoDto> =
+        call { it.createPropostaConquista(proposta) }
+
+    suspend fun decidePedido(id: Int, decision: PedidoDecisionDto): ApiResult<PedidoDto> =
+        call { it.decidePedido(id, decision) }
+
+    suspend fun markTaskDone(
+        taskId: Int,
+        completion: TaskCompletionCreateDto,
+    ): ApiResult<TaskCompletionDto> = call { it.markTaskDone(taskId, completion) }
+
     suspend fun listPunishments(childId: Int? = null): ApiResult<List<PunishmentDto>> =
         call { it.listPunishments(childId) }
 
@@ -160,6 +187,11 @@ class TrombadarioRepository(
 
     suspend fun deletePunishment(id: Int): ApiResult<Unit> =
         callNoContent { it.deletePunishment(id) }
+
+    suspend fun reactToPunishment(
+        id: Int,
+        reaction: PunishmentReactionDto,
+    ): ApiResult<PunishmentDto> = call { it.reactToPunishment(id, reaction) }
 
     suspend fun listSplashMessages(): ApiResult<List<SplashMessageDto>> =
         call { it.listSplashMessages() }

@@ -29,7 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -46,12 +46,11 @@ import com.trombadario.R
 import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
+import com.trombadario.ui.components.AppTopBar
 import com.trombadario.ui.components.FiltroBar
 import com.trombadario.ui.components.corDaConquista
 import com.trombadario.ui.components.ehConquista
 import com.trombadario.ui.components.rotuloDaCategoria
-import com.trombadario.ui.theme.NotebookGutter
-import com.trombadario.ui.components.transparentTopBar
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.components.MessageScreen
 import com.trombadario.ui.components.formatDateTime
@@ -77,10 +76,7 @@ fun FeedScreen(
 
     Scaffold(
         containerColor = Color.Transparent,
-        topBar = { TopAppBar(
-                colors = transparentTopBar(),
-                modifier = Modifier.padding(start = NotebookGutter),
-                title = { Text(stringResource(R.string.feed_title)) }) },
+        topBar = { AppTopBar(title = stringResource(R.string.feed_title), currentUser = currentUser) },
         floatingActionButton = {
             if (currentUser.isAdmin) {
                 FloatingActionButton(
@@ -108,61 +104,68 @@ fun FeedScreen(
                 )
 
                 else -> Column(Modifier.fillMaxSize()) {
-                    // Filtro só pro pai: o filho vê o que é dele e pronto, e uma
-                    // barra de filtros na conta dele só daria trabalho.
-                    if (currentUser.isAdmin) {
-                        FiltroBar(
-                            children = state.children,
-                            selectedChildId = state.selectedChildId,
-                            onSelectChild = viewModel::selectChild,
-                            kind = state.kind,
-                            onSelectKind = viewModel::selectKind,
-                            category = state.category,
-                            onSelectCategory = viewModel::selectCategory,
-                            busca = state.busca,
-                            onBuscaChange = viewModel::onBuscaChange,
-                            onBuscar = viewModel::buscar,
-                            dia = state.dia,
-                            diasComRegistro = state.diasComRegistro,
-                            onSelectDia = viewModel::selectDia,
-                            filtrando = state.filtrando,
-                            onLimpar = viewModel::limparFiltros,
-                        )
-                    }
+                    // Visão diária com calendário, filtro de tipo (bom/ruim) e
+                    // busca - pro filho também, não só pro pai. A fileira de
+                    // "qual filho" dentro do FiltroBar não aparece sozinha:
+                    // state.children só é populado no ramo admin de load(), e
+                    // o FiltroBar já esconde essa fileira com um filho só.
+                    FiltroBar(
+                        children = state.children,
+                        selectedChildId = state.selectedChildId,
+                        onSelectChild = viewModel::selectChild,
+                        kind = state.kind,
+                        onSelectKind = viewModel::selectKind,
+                        category = state.category,
+                        onSelectCategory = viewModel::selectCategory,
+                        busca = state.busca,
+                        onBuscaChange = viewModel::onBuscaChange,
+                        onBuscar = viewModel::buscar,
+                        dia = state.dia,
+                        diasComRegistro = state.diasComRegistro,
+                        onSelectDia = viewModel::selectDia,
+                        filtrando = state.filtrando,
+                        onLimpar = viewModel::limparFiltros,
+                    )
 
-                    if (state.events.isEmpty()) {
-                        MessageScreen(
-                            icon = Icons.Default.SentimentDissatisfied,
-                            title = stringResource(
-                                when {
-                                    state.filtrando -> R.string.filtro_nenhum_resultado
-                                    currentUser.isAdmin -> R.string.feed_empty_admin
-                                    else -> R.string.feed_empty
+                    PullToRefreshBox(
+                        isRefreshing = state.refreshing,
+                        onRefresh = { viewModel.load(isRefresh = true) },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    ) {
+                        if (state.events.isEmpty()) {
+                            MessageScreen(
+                                icon = Icons.Default.SentimentDissatisfied,
+                                title = stringResource(
+                                    when {
+                                        state.filtrando -> R.string.filtro_nenhum_resultado
+                                        currentUser.isAdmin -> R.string.feed_empty_admin
+                                        else -> R.string.feed_empty
+                                    }
+                                ),
+                                message = "",
+                            )
+                        } else {
+                            LazyColumn(
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                    start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp,
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                items(state.events, key = { it.id }) { event ->
+                                    EventCard(
+                                        event = event,
+                                        childName = if (currentUser.isAdmin && state.children.size > 1) {
+                                            viewModel.displayNameOf(event.childId)
+                                        } else {
+                                            null
+                                        },
+                                        // "Visto" é informação pro pai. Mostrar pro
+                                        // filho que o pai sabe que ele viu não
+                                        // acrescenta nada e pesa.
+                                        mostrarVisto = currentUser.isAdmin,
+                                        onClick = { onOpenTrombadice(event.id) },
+                                    )
                                 }
-                            ),
-                            message = "",
-                        )
-                    } else {
-                        LazyColumn(
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp,
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            items(state.events, key = { it.id }) { event ->
-                                EventCard(
-                                    event = event,
-                                    childName = if (currentUser.isAdmin && state.children.size > 1) {
-                                        viewModel.displayNameOf(event.childId)
-                                    } else {
-                                        null
-                                    },
-                                    // "Visto" é informação pro pai. Mostrar pro
-                                    // filho que o pai sabe que ele viu não
-                                    // acrescenta nada e pesa.
-                                    mostrarVisto = currentUser.isAdmin,
-                                    onClick = { onOpenTrombadice(event.id) },
-                                )
                             }
                         }
                     }
@@ -200,7 +203,7 @@ private fun EventCard(
                         imageVector = Icons.Default.Star,
                         contentDescription = stringResource(R.string.tipo_conquista),
                         tint = destaque,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
                 Text(

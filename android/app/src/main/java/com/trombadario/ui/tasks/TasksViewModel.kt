@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.ApiResult
+import com.trombadario.data.remote.TaskCompletionCreateDto
+import com.trombadario.data.remote.TaskCompletionDto
 import com.trombadario.data.remote.TaskCreateDto
 import com.trombadario.data.remote.TaskDto
 import com.trombadario.data.remote.TaskUpdateDto
@@ -29,6 +31,9 @@ data class TaskEditor(
 
 data class TasksState(
     val loading: Boolean = true,
+    /** Puxar-pra-atualizar: diferente de `loading`, que é a tela cheia da
+     *  primeira entrada. Os dois nunca ficam `true` ao mesmo tempo. */
+    val refreshing: Boolean = false,
     val tasks: List<TaskDto> = emptyList(),
     val children: List<UserDto> = emptyList(),
     val selectedChildId: Int? = null,
@@ -36,6 +41,15 @@ data class TasksState(
     val confirmingDeleteOf: TaskDto? = null,
     val submitting: Boolean = false,
     @StringRes val error: Int? = null,
+    /** Por tarefa, mais recente primeiro - os dois papéis leem, só o filho
+     *  escreve. */
+    val completions: Map<Int, List<TaskCompletionDto>> = emptyMap(),
+    /** Só do filho: qual tarefa está com o diálogo de "Feito" aberto. */
+    val markingDoneFor: TaskDto? = null,
+    val markDoneNote: String = "",
+    /** Texto que já vem pronto do backend (ex.: "já marcado nesse período") -
+     *  não precisa de string própria pra cada erro possível da rota. */
+    val markDoneError: String? = null,
 )
 
 class TasksViewModel(
@@ -46,8 +60,8 @@ class TasksViewModel(
     private val _state = MutableStateFlow(TasksState())
     val state: StateFlow<TasksState> = _state.asStateFlow()
 
-    fun load() {
-        _state.update { it.copy(loading = true) }
+    fun load(isRefresh: Boolean = false) {
+        _state.update { if (isRefresh) it.copy(refreshing = true) else it.copy(loading = true) }
         viewModelScope.launch {
             if (currentUser.isAdmin) {
                 (container.repository.listUsers() as? ApiResult.Success)?.let { users ->
@@ -57,8 +71,16 @@ class TasksViewModel(
                 }
             }
             val result = container.repository.listTasks(_state.value.selectedChildId)
+            val tasks = (result as? ApiResult.Success)?.data.orEmpty()
+            // Um GET por tarefa - aceitável na escala de uma casa (um punhado
+            // de tarefas), não vale a pena um endpoint em lote só pra isto.
+            val completions = tasks.associate { task ->
+                task.id to
+                    ((container.repository.listTaskCompletions(task.id) as? ApiResult.Success)
+                        ?.data.orEmpty())
+            }
             _state.update {
-                it.copy(loading = false, tasks = (result as? ApiResult.Success)?.data.orEmpty())
+                it.copy(loading = false, refreshing = false, tasks = tasks, completions = completions)
             }
         }
     }
@@ -174,6 +196,37 @@ class TasksViewModel(
             container.repository.deleteTask(task.id)
             _state.update { it.copy(confirmingDeleteOf = null) }
             load()
+        }
+    }
+
+    fun startMarkDone(task: TaskDto) =
+        _state.update { it.copy(markingDoneFor = task, markDoneNote = "", markDoneError = null) }
+
+    fun cancelMarkDone() =
+        _state.update { it.copy(markingDoneFor = null, markDoneNote = "", markDoneError = null) }
+
+    fun onMarkDoneNoteChange(value: String) = _state.update { it.copy(markDoneNote = value) }
+
+    fun confirmMarkDone() {
+        val task = _state.value.markingDoneFor ?: return
+        viewModelScope.launch {
+            val result = container.repository.markTaskDone(
+                task.id,
+                TaskCompletionCreateDto(note = _state.value.markDoneNote.trim()),
+            )
+            when (result) {
+                is ApiResult.Success -> _state.update { current ->
+                    current.copy(
+                        completions = current.completions +
+                            (task.id to (listOf(result.data) + current.completions[task.id].orEmpty())),
+                        markingDoneFor = null,
+                        markDoneNote = "",
+                        markDoneError = null,
+                    )
+                }
+                is ApiResult.Failure -> _state.update { it.copy(markDoneError = result.message) }
+                else -> _state.update { it.copy(markDoneError = null) }
+            }
         }
     }
 }

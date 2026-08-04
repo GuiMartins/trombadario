@@ -83,6 +83,34 @@ interface TrombadarioApi {
     @DELETE("api/tasks/{id}")
     suspend fun deleteTask(@Path("id") id: Int): Response<Unit>
 
+    @GET("api/pedidos")
+    suspend fun listPedidos(@Query("child_id") childId: Int? = null): Response<List<PedidoDto>>
+
+    @POST("api/pedidos")
+    suspend fun createPedido(@Body pedido: PedidoCreateDto): Response<PedidoDto>
+
+    // Rota própria, não um parâmetro em cima de /api/pedidos - mesma tabela do
+    // lado do servidor, mas o corpo difere (categoria só existe aqui).
+    @POST("api/conquistas-propostas")
+    suspend fun createPropostaConquista(
+        @Body proposta: PropostaConquistaCreateDto,
+    ): Response<PedidoDto>
+
+    @PATCH("api/pedidos/{id}/decidir")
+    suspend fun decidePedido(
+        @Path("id") id: Int,
+        @Body decision: PedidoDecisionDto,
+    ): Response<PedidoDto>
+
+    @GET("api/tasks/{id}/completions")
+    suspend fun listTaskCompletions(@Path("id") id: Int): Response<List<TaskCompletionDto>>
+
+    @POST("api/tasks/{id}/completions")
+    suspend fun markTaskDone(
+        @Path("id") id: Int,
+        @Body completion: TaskCompletionCreateDto,
+    ): Response<TaskCompletionDto>
+
     @GET("api/reports")
     suspend fun report(
         @Query("child_id") childId: Int? = null,
@@ -110,6 +138,12 @@ interface TrombadarioApi {
 
     @DELETE("api/punishments/{id}")
     suspend fun deletePunishment(@Path("id") id: Int): Response<Unit>
+
+    @PATCH("api/punishments/{id}/reaction")
+    suspend fun reactToPunishment(
+        @Path("id") id: Int,
+        @Body reaction: PunishmentReactionDto,
+    ): Response<PunishmentDto>
 
     @GET("api/splash-messages")
     suspend fun listSplashMessages(): Response<List<SplashMessageDto>>

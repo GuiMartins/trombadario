@@ -3,7 +3,7 @@ import secrets
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Column, Enum, ForeignKey, Integer, String, Table, Text, func
+from sqlalchemy import Column, Enum, ForeignKey, Integer, String, Table, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -99,6 +99,23 @@ class Periodicity(str, enum.Enum):
     ONCE = "once"
 
 
+class RequestStatus(str, enum.Enum):
+    PENDENTE = "pendente"
+    APROVADO = "aprovado"
+    NEGADO = "negado"
+
+
+class RequestKind(str, enum.Enum):
+    """Pedido é o que o filho está pedindo pra fazer; proposta de conquista é
+    o filho relatando algo bom que já fez, pedindo que o pai confirme. Mesma
+    tabela e mesmo fluxo de decisão pros dois - a diferença real é só o que
+    acontece quando o pai aprova (ver Trombadice criada na aprovação de uma
+    proposta, em routers/pedidos.py)."""
+
+    PEDIDO = "pedido"
+    CONQUISTA_PROPOSTA = "conquista_proposta"
+
+
 def _utcnow() -> datetime:
     return datetime.now(UTC)
 
@@ -124,6 +141,11 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(120))
     role: Mapped[Role] = mapped_column(Enum(Role, native_enum=False), default=Role.CHILD)
     is_active: Mapped[bool] = mapped_column(default=True)
+    # Só o pai liga/desliga, por filho - se o filho pode iniciar um pedido (ou,
+    # desde a fase seguinte, propor uma conquista). Inline como is_active, não
+    # uma tabela de settings à parte: não existe outro flag por filho no
+    # schema que justificasse o padrão.
+    can_request: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
 
     trombadices_about_me: Mapped[list["Trombadice"]] = relationship(
@@ -228,6 +250,37 @@ class Task(Base):
     child: Mapped[User] = relationship(back_populates="tasks", foreign_keys=[child_id])
     author: Mapped[User] = relationship(foreign_keys=[author_id])
     trombadices: Mapped[list[Trombadice]] = relationship(back_populates="task")
+    completions: Mapped[list["TaskCompletion"]] = relationship(
+        back_populates="task", cascade="all, delete-orphan"
+    )
+
+
+class TaskCompletion(Base):
+    """O filho marcando que fez a tarefa, uma vez por período.
+
+    `ondelete="CASCADE"` no `task_id`, e não `SET NULL` como
+    `Trombadice.task_id` - lá o `SET NULL` existe porque apagar a tarefa não
+    pode apagar o registro do que aconteceu por causa dela. Aqui é o
+    contrário: uma conclusão não tem sentido nenhum sem a tarefa que ela
+    completa, então apagar a tarefa apaga as conclusões junto.
+    """
+
+    __tablename__ = "task_completions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    child_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    note: Mapped[str] = mapped_column(Text, default="")
+    # A chave do período que esta conclusão satisfaz (ver app/periodo.py). É o
+    # que a UniqueConstraint trava - "uma vez por período" é regra do banco,
+    # não só da rota.
+    period_key: Mapped[str] = mapped_column(String(10), index=True)
+    completed_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+    task: Mapped[Task] = relationship(back_populates="completions")
+    child: Mapped[User] = relationship(foreign_keys=[child_id])
+
+    __table_args__ = (UniqueConstraint("task_id", "period_key", name="uq_task_completion_period"),)
 
 
 class Punishment(Base):
@@ -245,6 +298,12 @@ class Punishment(Base):
     # Quando o filho abriu a tela de castigo e viu este castigo. Mesma ideia do
     # seen_at da trombadice.
     seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
+    # A primeira coluna gravável pelo filho no schema inteiro - texto livre (o
+    # teclado já tem seletor de emoji) ou um dos emojis prontos da tela. O pai
+    # nunca escreve aqui, só lê.
+    reaction_text: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    reaction_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
     child_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
@@ -303,3 +362,46 @@ class SplashMessage(Base):
 
     child: Mapped["User | None"] = relationship(foreign_keys=[child_id])
     author: Mapped[User] = relationship(foreign_keys=[author_id])
+
+
+class Pedido(Base):
+    """O filho pede, o pai aprova ou nega - com justificativa dos dois lados.
+
+    Duas colunas de "visto" em vez de reaproveitar `app/visto.py` como está:
+    aquele helper só cobre "o filho vê o que o pai cadastrou". Pedido precisa
+    das duas direções - o pai precisa saber que chegou um pedido novo, o
+    filho precisa saber que saiu uma decisão - e são fatos genuinamente
+    diferentes, não um único `seen_at` bidirecional.
+    """
+
+    __tablename__ = "pedidos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[RequestKind] = mapped_column(
+        Enum(RequestKind, native_enum=False), default=RequestKind.PEDIDO, index=True
+    )
+    title: Mapped[str] = mapped_column(String(200))
+    justification: Mapped[str] = mapped_column(Text, default="")
+    # Só relevante pra CONQUISTA_PROPOSTA - mesmo padrão de campo-só-de-um-caso
+    # já usado em Task.weekdays/day_of_month.
+    category: Mapped[Category | None] = mapped_column(
+        Enum(Category, native_enum=False), nullable=True
+    )
+    status: Mapped[RequestStatus] = mapped_column(
+        Enum(RequestStatus, native_enum=False), default=RequestStatus.PENDENTE, index=True
+    )
+    # Escrito pelo pai, só quando decide. Vazio enquanto pendente.
+    decision_note: Mapped[str] = mapped_column(Text, default="")
+    decided_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    decided_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+
+    child_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+    seen_by_parent_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    seen_by_child_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
+    child: Mapped[User] = relationship(foreign_keys=[child_id])
+    decided_by: Mapped["User | None"] = relationship(foreign_keys=[decided_by_id])

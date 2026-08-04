@@ -96,11 +96,9 @@ sem internet):
 Ambas OFL; a licença acompanha os arquivos em `web/static/fonts/`.
 
 **A folha é desenhada, não é imagem.** No Android, `NotebookBackground` usa
-`drawBehind` e fica **na raiz** — desenhada uma vez, aparece em toda tela sem
-cada uma se lembrar dela (dentro do `MainNavHost` cada tela também desenha a sua,
-para poder virar — ver "Trocar de tela é virar a página"). Por isso todo
-`Scaffold` e `TopAppBar` do app é
-`Color.Transparent`: um container opaco tapa a folha. Na web é
+`drawBehind` e fica **na raiz** (`MainActivity`) — desenhada uma vez, aparece em
+toda tela sem cada uma se lembrar dela. Por isso todo `Scaffold` e `TopAppBar`
+do app é `Color.Transparent`: um container opaco tapa a folha. Na web é
 `repeating-linear-gradient`. Nos dois casos as linhas acompanham qualquer altura
 sem esticar nem cortar.
 
@@ -125,41 +123,27 @@ de tudo. **Verificado num AVD de tablet real** (`trombadario_tablet`,
 Material entrega o lilás padrão em chip selecionado e no indicador da nav bar —
 destoa de tudo e não é óbvio de onde vem.
 
-### Trocar de tela é virar a página
+### Trocar de tela no Android é fade, não mais virar a página
 
-A folha gira presa pela **lombada esquerda**, do lado da margem vermelha, e a de
-baixo assenta. Mesmos 360ms e mesmos ângulos nos dois lados — `PAGE_TURN_MS` no
-Android, `folha-virando`/`folha-assentando` na web.
+Existiu uma virada de página em 3D (`PageSheet`, girando pela lombada esquerda,
+360ms) até 03/08/2026. Foi **removida, não ajustada** — o pedido original era
+"melhora ou joga fora" e jogar fora venceu porque a animação nunca tinha sido
+vista de verdade antes de ir pro ar: a `MainActivity` é `FLAG_SECURE`, então o
+único jeito de conferir era um teste instrumentado (`PageTurnTest`) capturando
+quadro por quadro numa activity separada, não secreta — caro de escrever, caro
+de manter, e o resultado real (como ficava pra quem segura o celular) nunca
+tinha sido olhado com os próprios olhos. "Melhorar" correria o mesmo risco de
+nascer errado de novo.
 
-Três coisas aqui não são óbvias e quebram em silêncio se mexidas:
+Ficou a transição padrão do `NavHost` do Compose: `fadeIn`/`fadeOut` de 220ms,
+igual nos quatro sentidos (entrar, sair, voltar-entrando, voltar-saindo),
+declarada uma vez nos parâmetros do `NavHost` — não precisa de nada por tela.
+`NotebookBackground` continua desenhado só na raiz (`MainActivity`), que já era
+suficiente antes do `PageSheet` existir e volta a ser suficiente agora.
 
-**O `NavHost` declara `EnterTransition.None` de propósito.** As transições
-prontas do Compose não sabem rotacionar em 3D; quem anima é a `graphicsLayer` de
-cada tela, dentro do `PageSheet`. O que segura a tela viva durante a virada é a
-própria animação de ângulo — sem ela a troca vira corte seco. É o que o
-`PageTurnTest` protege.
-
-**A folha é desenhada dentro do `PageSheet`, não só na raiz.** Se a pauta e a
-margem ficassem paradas no fundo, o que se veria era o texto deslizando sobre um
-papel imóvel. A da raiz continua lá, e é ela que aparece como "próxima página"
-enquanto a de cima está levantada.
-
-**O sentido sai do nome da rota** (`pageDepth`), não de ida-e-volta na pilha:
-assim o botão "voltar" do sistema e o toque na aba anterior viram para o mesmo
-lado. Aba nova entra na tabela; tela que se abre de dentro de uma aba não
-precisa, cai no ramo "mais fundo".
-
-> **Como olhar a animação.** Não dá rodando o app: a `MainActivity` é
-> `FLAG_SECURE`, então captura e gravação saem em branco. O `PageTurnTest` roda
-> numa activity de teste, que não é secreta, para o relógio no meio do movimento
-> e grava o quadro no `cacheDir`. Para pegar o arquivo é preciso instalar os dois
-> APKs na mão e chamar `am instrument` — o `connectedAndroidTest` desinstala tudo
-> no fim e leva o cache junto.
-
-Na web é a mesma virada com `@view-transition`, em CSS puro. Navegador sem
-suporte simplesmente troca de página como antes — nada depende disso para
-funcionar. **Só foi conferida a olho no Android**; na web foi conferido que as
-regras são entendidas pelo navegador, não o movimento.
+Na web continua a mesma virada de sempre, em CSS puro com `@view-transition`
+(`folha-virando`/`folha-assentando`) — **não foi tocada**, esta remoção foi só
+do Android. Navegador sem suporte simplesmente troca de página como antes.
 
 ## Decisões de arquitetura (não reverter sem motivo)
 

@@ -51,11 +51,18 @@
         <button class="mini secundario">Trocar senha</button>
       </form>
     </div>
-    {% if u.id != user.id %}
-    <form method="post" action="/contas/{{ u.id }}/toggle">
-      <button class="mini secundario">{{ 'Reativar' if not u.is_active else 'Desativar' }}</button>
-    </form>
-    {% endif %}
+    <div class="acoes">
+      {% if u.role.value == 'child' %}
+      <form method="post" action="/contas/{{ u.id }}/toggle-pedidos">
+        <button class="mini secundario">{{ 'Bloquear pedidos' if u.can_request else 'Liberar pedidos' }}</button>
+      </form>
+      {% endif %}
+      {% if u.id != user.id %}
+      <form method="post" action="/contas/{{ u.id }}/toggle">
+        <button class="mini secundario">{{ 'Reativar' if not u.is_active else 'Desativar' }}</button>
+      </form>
+      {% endif %}
+    </div>
   </div>
 </div>
 {% endfor %}

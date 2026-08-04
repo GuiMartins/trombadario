@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% set pagina = 'pedidos' %}
+{% block titulo %}Pedidos — Trombadário{% endblock %}
+
+{% block conteudo %}
+<h1>Pedidos</h1>
+
+{% set rotulos_status = {'pendente': 'Pendente', 'aprovado': 'Aprovado', 'negado': 'Negado'} %}
+{% set rotulos_kind = {'pedido': 'Pedidos', 'conquista_proposta': 'Propostas de conquista'} %}
+
+<div class="filtros">
+  <a href="{{ url(kind=None) }}" class="{% if not kind_escolhido %}ativo{% endif %}">Tudo</a>
+  {% for valor, rotulo in rotulos_kind.items() %}
+  <a href="{{ url(kind=valor) }}" class="{% if kind_escolhido and kind_escolhido.value == valor %}ativo{% endif %}">{{ rotulo }}</a>
+  {% endfor %}
+</div>
+
+<div class="filtros">
+  <a href="{{ url(status=None) }}" class="{% if not status_escolhido %}ativo{% endif %}">Todos</a>
+  {% for valor, rotulo in rotulos_status.items() %}
+  <a href="{{ url(status=valor) }}" class="{% if status_escolhido and status_escolhido.value == valor %}ativo{% endif %}">{{ rotulo }}</a>
+  {% endfor %}
+</div>
+
+{% if children|length > 1 %}
+<div class="filtros">
+  <a href="{{ url(child_id=None) }}" class="{% if not selected_child %}ativo{% endif %}">Todos os filhos</a>
+  {% for c in children %}
+  <a href="{{ url(child_id=c.id) }}" class="{% if selected_child == c.id %}ativo{% endif %}">{{ c.display_name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if pedidos %}
+  {% for p in pedidos %}
+  <div class="cartao">
+    <div class="linha">
+      <div class="cresce">
+        {% if p.status.value == 'pendente' %}
+          <span class="etiqueta ativo">pendente</span>
+        {% elif p.status.value == 'aprovado' %}
+          <span class="etiqueta">aprovado</span>
+        {% else %}
+          <span class="etiqueta fim">negado</span>
+        {% endif %}
+        {% if p.kind.value == 'conquista_proposta' %}
+          <span class="etiqueta">proposta de conquista{% if p.category %} · {{ categorias[p.category.value] }}{% endif %}</span>
+        {% endif %}
+        <p class="titulo">{{ p.title }}</p>
+        <p class="sub">
+          {{ children_by_id[p.child_id].display_name if p.child_id in children_by_id else 'Filho' }}
+          {% if p.justification %}— {{ p.justification }}{% endif %}
+        </p>
+        {% if p.decision_note %}
+          <p class="sub">Resposta: {{ p.decision_note }}</p>
+        {% endif %}
+      </div>
+      {% if p.status.value == 'pendente' %}
+      <div class="acoes">
+        <form method="post" action="/pedidos/{{ p.id }}/aprovar" class="linha" style="gap:0.5rem">
+          <input type="text" name="decision_note" placeholder="Justificativa (opcional)" style="max-width:12rem">
+          <button class="mini">Aprovar</button>
+        </form>
+        <form method="post" action="/pedidos/{{ p.id }}/negar" class="linha" style="gap:0.5rem">
+          <input type="text" name="decision_note" placeholder="Justificativa (opcional)" style="max-width:12rem">
+          <button class="mini perigo">Negar</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="vazio">Nada por aqui com esses filtros.</div>
+{% endif %}
+{% endblock %}
