@@ -12,6 +12,16 @@ data class HealthDto(
     @SerialName("setup_required") val setupRequired: Boolean = false,
 )
 
+/** O que ainda não foi visto - pai ou filho, nunca os dois ao mesmo tempo (os
+ *  campos que não valem pro papel de quem pergunta vêm 0 do servidor). */
+@Serializable
+data class UnseenCountsDto(
+    @SerialName("pedidos_pendentes") val pedidosPendentes: Int = 0,
+    @SerialName("anotacoes_novas") val anotacoesNovas: Int = 0,
+    @SerialName("castigos_novos") val castigosNovos: Int = 0,
+    @SerialName("decisoes_novas") val decisoesNovas: Int = 0,
+)
+
 @Serializable
 data class TokenDto(
     @SerialName("access_token") val accessToken: String,

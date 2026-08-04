@@ -74,7 +74,10 @@ class HomeNetworkGate(
     }
 
     fun refresh() {
-        scope.launch { check() }
+        scope.launch {
+            _state.value = HomeState.Checking
+            _state.value = checkNow()
+        }
     }
 
     /** Called by the repository when a request failed on the network layer, so
@@ -83,15 +86,18 @@ class HomeNetworkGate(
         if (_state.value == HomeState.AtHome) refresh()
     }
 
-    private suspend fun check() = checkLock.withLock {
-        val baseUrl = serverConfigStore.baseUrl.first()
-        if (baseUrl == null) {
-            _state.value = HomeState.Unpaired
-            return@withLock
-        }
+    /**
+     * A checagem pura, sem tocar em [_state] - usada pelo [refresh] (que ainda
+     * pisca `Checking` pra quem observa o StateFlow) e por quem precisa de uma
+     * resposta pontual sem afetar a UI, como o worker de notificação. Ele não
+     * pode confiar no `state.value` já guardado: se o processo foi recriado
+     * pelo WorkManager só pra rodar o worker, esse valor pode estar
+     * desatualizado ou ainda em `Checking`.
+     */
+    suspend fun checkNow(): HomeState = checkLock.withLock {
+        val baseUrl = serverConfigStore.baseUrl.first() ?: return@withLock HomeState.Unpaired
 
-        _state.value = HomeState.Checking
-        _state.value = try {
+        try {
             val health = apiProvider.api(baseUrl).health()
             when {
                 health.app != EXPECTED_APP -> HomeState.WrongServer

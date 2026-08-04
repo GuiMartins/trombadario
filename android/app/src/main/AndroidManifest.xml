@@ -5,6 +5,10 @@
     <!-- Needed by the home-network gate to react to the phone changing networks
          without waiting for a request to time out. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Runtime-requested on API 33+ (see AppNavigation.kt); the periodic
+         notification worker checks NotificationManagerCompat.areNotificationsEnabled
+         and just stays quiet if this was never granted. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".TrombadarioApp"

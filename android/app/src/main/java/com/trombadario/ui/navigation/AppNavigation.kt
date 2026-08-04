@@ -1,5 +1,9 @@
 package com.trombadario.ui.navigation
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -105,6 +109,18 @@ private fun AuthenticatedApp(container: AppContainer) {
                 ?.text
         }
         currentUser = user
+    }
+
+    // Pede a permissão de notificação (a "novidades" do NovidadesWorker) toda
+    // vez que alguém autentica. Seguro chamar sempre: se já concedida, o
+    // sistema não mostra nada; se negada de vez, o próprio Android suprime o
+    // diálogo - não precisa de estado próprio pra lembrar "já pedi".
+    val notificationPermission =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    LaunchedEffect(currentUser) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && currentUser != null) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     val user = currentUser
