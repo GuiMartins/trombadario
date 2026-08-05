@@ -17,7 +17,13 @@ from app.models import (  # noqa: F401  (registers the tables)
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # `disable_existing_loggers=False` não é detalhe: as migrations rodam dentro
+    # do lifespan do FastAPI (ver `main.run_migrations`), então o padrão `True`
+    # desligaria os loggers que o uvicorn já tinha criado - `uvicorn.access` e
+    # `uvicorn.error` - e o servidor passaria a rodar sem log de acesso nenhum
+    # depois de subir. Foi o que aconteceu em produção, e cegou o diagnóstico do
+    # poller de notificação: não dava pra ver se o celular estava chamando a API.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Quem chama pode mandar o banco explicitamente (é o que os testes de migration
 # fazem). Sem isso vale o do app, que é o caso de sempre - em produção ninguém

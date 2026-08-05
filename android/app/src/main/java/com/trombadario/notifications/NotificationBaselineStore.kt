@@ -12,7 +12,7 @@ private val Context.notificationBaselineDataStore
         by preferencesDataStore(name = "trombadario_notification_baseline")
 
 /** Guarda a última contagem de `/api/unseen` que o worker viu, pra
- *  [shouldNotify] saber se subiu desde então. Store próprio, separado do
+ *  [novidades] saber quais subiram desde então. Store próprio, separado do
  *  `ServerConfigStore` - não é config de servidor, é estado interno do
  *  poller. */
 class NotificationBaselineStore(private val context: Context) {
@@ -21,7 +21,8 @@ class NotificationBaselineStore(private val context: Context) {
         val prefs = context.notificationBaselineDataStore.data.first()
         return NotificationBaseline(
             pedidos = prefs[KEY_PEDIDOS] ?: 0,
-            anotacoes = prefs[KEY_ANOTACOES] ?: 0,
+            trombadices = prefs[KEY_TROMBADICES] ?: 0,
+            conquistas = prefs[KEY_CONQUISTAS] ?: 0,
             castigos = prefs[KEY_CASTIGOS] ?: 0,
             decisoes = prefs[KEY_DECISOES] ?: 0,
         )
@@ -30,7 +31,8 @@ class NotificationBaselineStore(private val context: Context) {
     suspend fun write(counts: UnseenCountsDto) {
         context.notificationBaselineDataStore.edit { prefs ->
             prefs[KEY_PEDIDOS] = counts.pedidosPendentes
-            prefs[KEY_ANOTACOES] = counts.anotacoesNovas
+            prefs[KEY_TROMBADICES] = counts.trombadicesNovas
+            prefs[KEY_CONQUISTAS] = counts.conquistasNovas
             prefs[KEY_CASTIGOS] = counts.castigosNovos
             prefs[KEY_DECISOES] = counts.decisoesNovas
         }
@@ -38,7 +40,12 @@ class NotificationBaselineStore(private val context: Context) {
 
     private companion object {
         val KEY_PEDIDOS: Preferences.Key<Int> = intPreferencesKey("pedidos")
-        val KEY_ANOTACOES: Preferences.Key<Int> = intPreferencesKey("anotacoes")
+        // A chave antiga "anotacoes" juntava trombadice e conquista e não é mais
+        // lida. Quem atualizar começa com os dois em 0, então a primeira passada
+        // do worker pode avisar de coisa que já estava lá - uma vez só, e é
+        // preferível a calar uma novidade de verdade.
+        val KEY_TROMBADICES: Preferences.Key<Int> = intPreferencesKey("trombadices")
+        val KEY_CONQUISTAS: Preferences.Key<Int> = intPreferencesKey("conquistas")
         val KEY_CASTIGOS: Preferences.Key<Int> = intPreferencesKey("castigos")
         val KEY_DECISOES: Preferences.Key<Int> = intPreferencesKey("decisoes")
     }
