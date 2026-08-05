@@ -46,13 +46,21 @@
         {% if p.kind.value == 'conquista_proposta' %}
           <span class="etiqueta">proposta de conquista{% if p.category %} · {{ categorias[p.category.value] }}{% endif %}</span>
         {% endif %}
+        {% if p.status.value == 'pendente' %}
+          <span class="etiqueta fim">não respondido</span>
+        {% else %}
+          <span class="etiqueta visto">respondido</span>
+        {% endif %}
         <p class="titulo">{{ p.title }}</p>
         <p class="sub">
           {{ children_by_id[p.child_id].display_name if p.child_id in children_by_id else 'Filho' }}
           {% if p.justification %}— {{ p.justification }}{% endif %}
         </p>
         {% if p.decision_note %}
-          <p class="sub">Resposta: {{ p.decision_note }}</p>
+        <details class="resposta">
+          <summary>Ver resposta</summary>
+          <p class="sub">{{ p.decision_note }}</p>
+        </details>
         {% endif %}
       </div>
       {% if p.status.value == 'pendente' %}

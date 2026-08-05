@@ -161,6 +161,8 @@
     <string name="pedidos_status_aprovado">aprovado</string>
     <string name="pedidos_status_negado">negado</string>
     <string name="pedidos_resposta">Resposta: %1$s</string>
+    <string name="pedidos_respondido">Respondido</string>
+    <string name="pedidos_nao_respondido">Não respondido</string>
     <string name="pedidos_resposta_placeholder">Justificativa (opcional)</string>
     <string name="pedidos_aprovar">Aprovar</string>
     <string name="pedidos_negar">Negar</string>
