@@ -203,3 +203,104 @@ def test_ida_e_volta_da_migration(banco_antigo: str) -> None:
         assert conexao.execute("select count(*) from trombadices").fetchone()[0] == 1
     finally:
         conexao.close()
+
+
+def test_conclusao_semanal_vira_chave_por_dia(tmp_path: Path) -> None:
+    """A migration precisa achar a tarefa semanal pelo **nome** do membro do
+    enum ('WEEKLY'), não pelo valor ('weekly') - filtrar pelo valor não daria
+    erro nenhum, só não acharia linha e deixaria a chave antiga no lugar.
+
+    A chave antiga é a segunda-feira da semana. Deixada como está, ela travaria
+    por engano a segunda seguinte, que na chave nova significa outra coisa."""
+    arquivo = tmp_path / "semanal.db"
+    url = f"sqlite:///{arquivo}"
+    # Uma revisão antes da que reescreve as chaves: o banco precisa nascer com
+    # o formato antigo pra migration ter o que consertar.
+    command.upgrade(_alembic(url), "a7b8c9d0e1f2")
+
+    agora = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
+    # Quinta-feira, 06/08/2026, meio-dia UTC - longe da virada do dia em
+    # qualquer fuso do Brasil, então o dia local é 06 com ou sem TZ no ambiente.
+    quinta = "2026-08-06 12:00:00.000000"
+    conexao = sqlite3.connect(arquivo)
+    conexao.execute(
+        "insert into users (username,password_hash,display_name,role,is_active,created_at)"
+        " values ('pai','x','Pai','ADMIN',1,?)",
+        (agora,),
+    )
+    conexao.execute(
+        "insert into users (username,password_hash,display_name,role,is_active,created_at)"
+        " values ('filho','x','Joao','CHILD',1,?)",
+        (agora,),
+    )
+    conexao.execute(
+        "insert into tasks (name,description,periodicity,weekdays,day_of_month,child_id,"
+        "author_id,is_active,created_at,updated_at) values "
+        "('Levar o lixo','','WEEKLY','0,3',null,2,1,1,?,?)",
+        (agora, agora),
+    )
+    conexao.execute(
+        # A segunda-feira daquela semana: o que a versão antiga gravava.
+        "insert into task_completions (task_id,child_id,note,period_key,completed_at)"
+        " values (1,2,'','2026-08-03',?)",
+        (quinta,),
+    )
+    conexao.commit()
+    conexao.close()
+
+    command.upgrade(_alembic(url), "head")
+
+    conexao = sqlite3.connect(arquivo)
+    try:
+        assert conexao.execute("select period_key from task_completions").fetchone()[0] == "2026-08-06"
+        # A segunda-feira seguinte precisa continuar livre pra ser marcada.
+        conexao.execute(
+            "insert into task_completions (task_id,child_id,note,period_key,completed_at)"
+            " values (1,2,'','2026-08-10',?)",
+            (agora,),
+        )
+        conexao.commit()
+    finally:
+        conexao.close()
+
+
+def test_conclusao_de_tarefa_diaria_nao_e_tocada(tmp_path: Path) -> None:
+    """Só semanal muda de significado. Reescrever a chave da diária (que já era
+    o dia) seria trabalho à toa, e a da mensal ('2026-08') viraria lixo."""
+    arquivo = tmp_path / "diaria.db"
+    url = f"sqlite:///{arquivo}"
+    command.upgrade(_alembic(url), "a7b8c9d0e1f2")
+
+    agora = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
+    conexao = sqlite3.connect(arquivo)
+    conexao.execute(
+        "insert into users (username,password_hash,display_name,role,is_active,created_at)"
+        " values ('pai','x','Pai','ADMIN',1,?)",
+        (agora,),
+    )
+    conexao.execute(
+        "insert into users (username,password_hash,display_name,role,is_active,created_at)"
+        " values ('filho','x','Joao','CHILD',1,?)",
+        (agora,),
+    )
+    conexao.execute(
+        "insert into tasks (name,description,periodicity,weekdays,day_of_month,child_id,"
+        "author_id,is_active,created_at,updated_at) values "
+        "('Guardar os brinquedos','','MONTHLY','',10,2,1,1,?,?)",
+        (agora, agora),
+    )
+    conexao.execute(
+        "insert into task_completions (task_id,child_id,note,period_key,completed_at)"
+        " values (1,2,'','2026-08',?)",
+        ("2026-08-10 12:00:00.000000",),
+    )
+    conexao.commit()
+    conexao.close()
+
+    command.upgrade(_alembic(url), "head")
+
+    conexao = sqlite3.connect(arquivo)
+    try:
+        assert conexao.execute("select period_key from task_completions").fetchone()[0] == "2026-08"
+    finally:
+        conexao.close()

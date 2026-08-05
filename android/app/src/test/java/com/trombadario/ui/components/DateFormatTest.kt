@@ -57,6 +57,12 @@ class DateFormatTest {
     }
 
     @Test
+    fun `so a hora, pro feito de hoje`() {
+        // "feito hoje, às 14:30" - repetir a data ao lado de "hoje" seria ruído.
+        assertEquals("14:30", parseInstant("2026-08-01T17:30:00Z").formatTime())
+    }
+
+    @Test
     fun `formatacao usa o fuso do aparelho, nao um fixo`() {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
 

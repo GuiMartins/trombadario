@@ -176,6 +176,16 @@ data class TaskDto(
     @SerialName("day_of_month") val dayOfMonth: Int? = null,
     @SerialName("child_id") val childId: Int,
     @SerialName("is_active") val isActive: Boolean,
+    /** Hoje é dia dessa tarefa? Calculado no servidor, como o `is_active` do
+     *  castigo - o calendário do celular não decide isso. */
+    @SerialName("due_today") val dueToday: Boolean = false,
+    /** A conclusão do período de agora, ou nulo se ainda não foi feita.
+     *  Traduzir data em período é conta do servidor: "feito em 03/08" não diz
+     *  se a semana desta tarefa está cumprida. */
+    @SerialName("current_completion") val currentCompletion: TaskCompletionDto? = null,
+    /** As últimas vezes, pro cartão. O histórico inteiro (uma linha por dia,
+     *  pra sempre) fica em /completions, paginado. */
+    @SerialName("recent_completions") val recentCompletions: List<TaskCompletionDto> = emptyList(),
 ) {
     companion object {
         const val DAILY = "daily"
@@ -211,6 +221,8 @@ data class TaskCompletionDto(
     @SerialName("task_id") val taskId: Int,
     @SerialName("child_id") val childId: Int,
     val note: String,
+    /** Qual período esta conclusão satisfaz (o dia, o mês, ou "once"). */
+    @SerialName("period_key") val periodKey: String,
     @SerialName("completed_at") val completedAt: String,
 )
 

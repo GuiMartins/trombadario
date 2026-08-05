@@ -86,10 +86,27 @@
           {% else %}Uma vez{% endif %}
           {% if t.description %}— {{ t.description }}{% endif %}
         </p>
-        {# Só leitura: quem marca é o filho, pelo app. #}
-        {% for c in t.completions | sort(attribute='completed_at', reverse=true) %}
+        {# Quem marca é o filho, pelo app. O pai lê e, se for o caso, desmarca:
+           sem isso um toque errado numa tarefa avulsa ficava "feito" pra
+           sempre, e a única saída era apagar a tarefa inteira. #}
+        {% set st = estado[t.id] %}
+        {% set periodo = rotulo_do_periodo[t.periodicity] %}
+        {% if st.current_completion %}
+          <p class="sub feito">
+            ✓ feito {{ periodo }}, às {{ st.current_completion.completed_at.astimezone().strftime('%H:%M') }}{% if st.current_completion.note %} — {{ st.current_completion.note }}{% endif %}
+          </p>
+        {% elif st.due_today %}
+          <p class="sub">ainda não fez{% if periodo %} {{ periodo }}{% endif %}</p>
+        {% endif %}
+        {# Só as últimas: uma tarefa diária acumula uma linha por dia, pra
+           sempre, e o cartão inteiro virava histórico. #}
+        {% for c in st.recent_completions %}
           <span class="etiqueta visto">
             feito {{ c.completed_at.astimezone().strftime('%d/%m às %H:%M') }}{% if c.note %} — {{ c.note }}{% endif %}
+            <form method="post" action="/tarefas/{{ t.id }}/conclusoes/{{ c.id }}/apagar"
+                  hx-confirm="Desmarcar esse &quot;feito&quot;?">
+              <button class="como-link">desfazer</button>
+            </form>
           </span>
         {% endfor %}
       </div>
