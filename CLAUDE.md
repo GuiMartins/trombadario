@@ -208,6 +208,48 @@ trombadices de um castigo.
 não pode apagar o registro do que aconteceu por causa dela), `child_id` é
 CASCADE, `author_id` é RESTRICT (a história sobrevive à conta de quem escreveu).
 
+### Marcar tarefa como feita: o período é conta do servidor
+
+Quem marca é **só o filho** (`ChildUser` na rota), e uma vez por período. O que
+trava de verdade é `UniqueConstraint(task_id, period_key)` no banco; a checagem
+em Python só evita a viagem no caso comum. `period_key` sai de
+`chave_do_periodo` (`app/periodo.py`).
+
+**Semanal é chaveada por dia, não por semana.** Uma tarefa de "segunda e
+quinta" tem duas ocorrências na mesma semana: com a chave da semana, marcar na
+segunda travava a quinta com 409 "já marcado nesse período" — a tarefa era
+cobrada duas vezes e só podia ser cumprida uma. Quem impede marcar em dia solto
+é o **dia agendado**, conferido na rota, nunca a chave. A migration
+`b8c9d0e1f2a3` reescreve as chaves antigas (a segunda-feira da semana) pro dia
+que está em `completed_at` — deixadas como estavam, travariam por engano a
+segunda seguinte.
+
+**Mensal também confere o dia**, e não só o mês. Antes, uma tarefa do dia 10
+podia ser marcada no dia 1º, gastava o mês inteiro e no dia 10 — o dia de fazer
+— respondia "já marcado". O dia é limitado ao último do mês, senão "todo dia
+31" não existiria em quatro meses do ano.
+
+**Avulsa é a única com chave fixa** (`"once"`): pelo dia, ela destravaria à
+meia-noite, quando o certo é travar pra sempre.
+
+**A tarefa chega na tela sabendo o próprio estado**: `due_today`,
+`current_completion` e `recent_completions` vêm calculados no `TaskOut`, como o
+`is_active` do castigo. Sem isso o app só sabia dizer "feito" depois de um GET
+por tarefa (N+1 a cada `ON_RESUME`) e ainda assim não sabia a qual período cada
+conclusão pertencia — traduzir data em período é conta de servidor. `feito` sem
+período não responde nada: por isso `period_key` vai junto na conclusão.
+
+**Dá pra desmarcar, e isso não é enfeite.** Um toque errado numa tarefa avulsa
+travava "feito" pra sempre, e nem o pai tinha como corrigir: a única saída era
+apagar a tarefa e levar o histórico junto (CASCADE). O pai desfaz qualquer uma
+(app **e** painel); o filho só a do período de agora — desmarcar a semana
+passada não é corrigir engano, é reescrever o que o pai já leu.
+
+**Só as últimas conclusões vão no cartão** (5). Uma tarefa diária acumula uma
+linha por dia, pra sempre; o histórico inteiro é `/completions`, com `limit` e
+`offset`. **Tarefa pausada não aparece pro filho**: ele não tem o que fazer com
+ela, e a linha "pausada" só faz procurar um botão que o pai tirou.
+
 ### Frases de abertura: o sorteio é do servidor
 
 O pai cadastra N frases; ao abrir o app, a conta de filho vê uma delas como tela

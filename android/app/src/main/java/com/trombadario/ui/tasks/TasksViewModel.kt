@@ -41,16 +41,21 @@ data class TasksState(
     val confirmingDeleteOf: TaskDto? = null,
     val submitting: Boolean = false,
     @StringRes val error: Int? = null,
-    /** Por tarefa, mais recente primeiro - os dois papéis leem, só o filho
-     *  escreve. */
-    val completions: Map<Int, List<TaskCompletionDto>> = emptyMap(),
     /** Só do filho: qual tarefa está com o diálogo de "Feito" aberto. */
     val markingDoneFor: TaskDto? = null,
     val markDoneNote: String = "",
     /** Texto que já vem pronto do backend (ex.: "já marcado nesse período") -
      *  não precisa de string própria pra cada erro possível da rota. */
     val markDoneError: String? = null,
+    /** Pro que o servidor não explica em texto (sessão caída, tarefa que sumiu):
+     *  sem isto essas respostas caíam num `else` mudo e o toque em "Feito" não
+     *  fazia nada nem dizia nada. */
+    @StringRes val markDoneErrorRes: Int? = null,
+    /** Qual "feito" está esperando confirmação pra ser desmarcado. */
+    val confirmingUndoOf: UndoTarget? = null,
 )
+
+data class UndoTarget(val task: TaskDto, val completion: TaskCompletionDto)
 
 class TasksViewModel(
     private val container: AppContainer,
@@ -70,18 +75,11 @@ class TasksViewModel(
                     }
                 }
             }
+            // Uma requisição só: se hoje é dia da tarefa, se o período de agora
+            // já foi cumprido e as últimas vezes vêm junto de cada tarefa.
             val result = container.repository.listTasks(_state.value.selectedChildId)
             val tasks = (result as? ApiResult.Success)?.data.orEmpty()
-            // Um GET por tarefa - aceitável na escala de uma casa (um punhado
-            // de tarefas), não vale a pena um endpoint em lote só pra isto.
-            val completions = tasks.associate { task ->
-                task.id to
-                    ((container.repository.listTaskCompletions(task.id) as? ApiResult.Success)
-                        ?.data.orEmpty())
-            }
-            _state.update {
-                it.copy(loading = false, refreshing = false, tasks = tasks, completions = completions)
-            }
+            _state.update { it.copy(loading = false, refreshing = false, tasks = tasks) }
         }
     }
 
@@ -199,11 +197,13 @@ class TasksViewModel(
         }
     }
 
-    fun startMarkDone(task: TaskDto) =
-        _state.update { it.copy(markingDoneFor = task, markDoneNote = "", markDoneError = null) }
+    fun startMarkDone(task: TaskDto) = _state.update {
+        it.copy(markingDoneFor = task, markDoneNote = "", markDoneError = null, markDoneErrorRes = null)
+    }
 
-    fun cancelMarkDone() =
-        _state.update { it.copy(markingDoneFor = null, markDoneNote = "", markDoneError = null) }
+    fun cancelMarkDone() = _state.update {
+        it.copy(markingDoneFor = null, markDoneNote = "", markDoneError = null, markDoneErrorRes = null)
+    }
 
     fun onMarkDoneNoteChange(value: String) = _state.update { it.copy(markDoneNote = value) }
 
@@ -215,18 +215,50 @@ class TasksViewModel(
                 TaskCompletionCreateDto(note = _state.value.markDoneNote.trim()),
             )
             when (result) {
-                is ApiResult.Success -> _state.update { current ->
-                    current.copy(
-                        completions = current.completions +
-                            (task.id to (listOf(result.data) + current.completions[task.id].orEmpty())),
-                        markingDoneFor = null,
-                        markDoneNote = "",
-                        markDoneError = null,
-                    )
+                is ApiResult.Success -> {
+                    _state.update {
+                        it.copy(markingDoneFor = null, markDoneNote = "", markDoneError = null)
+                    }
+                    // Recarrega em vez de remendar a lista em memória: quem diz
+                    // se o período está cumprido é o servidor.
+                    load()
                 }
+                // 400/409 vêm com o motivo escrito ("essa tarefa não é hoje",
+                // "já marcado nesse período") - é melhor texto do que qualquer
+                // um que o app inventasse.
                 is ApiResult.Failure -> _state.update { it.copy(markDoneError = result.message) }
-                else -> _state.update { it.copy(markDoneError = null) }
+                // A tarefa sumiu enquanto a tela estava aberta (o pai apagou).
+                // Antes isto não dizia nada e o botão parecia não funcionar.
+                is ApiResult.NotFound -> {
+                    _state.update {
+                        it.copy(markingDoneFor = null, markDoneErrorRes = R.string.tasks_gone)
+                    }
+                    load()
+                }
+                else -> _state.update { it.copy(markDoneErrorRes = R.string.login_error_network) }
             }
         }
     }
+
+    fun askUndo(task: TaskDto, completion: TaskCompletionDto) =
+        _state.update { it.copy(confirmingUndoOf = UndoTarget(task, completion)) }
+
+    fun cancelUndo() = _state.update { it.copy(confirmingUndoOf = null) }
+
+    fun confirmUndo() {
+        val alvo = _state.value.confirmingUndoOf ?: return
+        viewModelScope.launch {
+            val result = container.repository.undoTaskCompletion(alvo.task.id, alvo.completion.id)
+            _state.update {
+                it.copy(
+                    confirmingUndoOf = null,
+                    markDoneError = (result as? ApiResult.Failure)?.message,
+                )
+            }
+            load()
+        }
+    }
+
+    fun dismissMarkDoneError() =
+        _state.update { it.copy(markDoneError = null, markDoneErrorRes = null) }
 }

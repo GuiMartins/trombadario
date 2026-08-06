@@ -460,6 +460,27 @@ a.mini:hover { background: var(--note); }
 
 .etiqueta.visto { background: transparent; border-color: var(--teal); color: var(--ink-soft); }
 
+/* ---------- tarefa feita ---------- */
+
+/* O período de agora está cumprido ou não: é a pergunta que o pai faz de
+   relance, então vem em cor e negrito, antes do histórico. */
+.cartao .sub.feito { color: var(--teal); font-weight: 700; }
+
+/* "desfazer" mora dentro da etiqueta do carimbo. É um <form> (POST, como
+   Pausar e Excluir), não um link: apagar não é navegação. */
+.etiqueta.visto form { display: inline; }
+.como-link {
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 400;
+  margin: 0 0 0 0.35rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  text-decoration: underline;
+}
+
 /* ---------- relatório ---------- */
 
 .numerao {

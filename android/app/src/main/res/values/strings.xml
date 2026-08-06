@@ -9,6 +9,7 @@
     <string name="action_delete">Excluir</string>
     <string name="action_edit">Editar</string>
     <string name="action_back">Voltar</string>
+    <string name="action_ok">Entendi</string>
     <string name="loading">Carregando…</string>
 
     <!-- Configuração do servidor -->
@@ -129,6 +130,17 @@
     <string name="tasks_mark_done_note">Quer contar alguma coisa? (opcional)</string>
     <string name="tasks_mark_done_confirm">Marcar como feito</string>
     <string name="tasks_done_at">feito em %1$s</string>
+    <!-- %1$s é o período ("hoje", "este mês"), %2$s a hora. -->
+    <string name="tasks_done_now">✓ feito %1$s, às %2$s</string>
+    <string name="tasks_period_now_day">hoje</string>
+    <string name="tasks_period_now_month">este mês</string>
+    <string name="tasks_done_once">✓ feito em %1$s</string>
+    <string name="tasks_pending">ainda não fez</string>
+    <string name="tasks_not_today">não é hoje</string>
+    <string name="tasks_undo">Desmarcar</string>
+    <string name="tasks_undo_confirm_title">Desmarcar?</string>
+    <string name="tasks_undo_confirm_message">O \"feito\" de %1$s sai do registro.</string>
+    <string name="tasks_gone">Essa tarefa não existe mais.</string>
 
     <!-- Castigo -->
     <string name="punishment_title">Castigo</string>

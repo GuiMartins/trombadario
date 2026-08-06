@@ -12,9 +12,11 @@ from app.models import (
     Role,
     SplashMessage,
     Task,
+    TaskCompletion,
     Trombadice,
     User,
 )
+from app.periodo import chave_do_periodo, hoje_local
 from app.security import create_access_token
 from app.web.deps import SESSION_COOKIE
 from tests.conftest import ADMIN_PASSWORD, CHILD_PASSWORD, make_user
@@ -697,3 +699,81 @@ def test_tipo_nao_muda_na_edicao_pelo_painel(
     db.refresh(registrada)
     assert registrada.kind is Kind.CONQUISTA
     assert registrada.category is Category.AJUDOU
+
+
+def test_painel_mostra_se_a_tarefa_ja_foi_feita_no_periodo(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post("/tarefas", data={"name": "Arrumar a cama", "child_id": child.id, "periodicity": "daily"})
+    tarefa = db.scalars(select(Task)).one()
+
+    pendente = client.get("/tarefas").text
+    assert "ainda não fez hoje" in pendente
+
+    db.add(
+        TaskCompletion(
+            task_id=tarefa.id,
+            child_id=child.id,
+            note="antes do café",
+            period_key=chave_do_periodo(Periodicity.DAILY, hoje_local()),
+            completed_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+    # O teste divide a sessão com o app (e ela não expira no commit), então a
+    # tarefa continuaria com a lista de conclusões que já tinha em memória. Em
+    # produção cada requisição abre a sua.
+    db.expire_all()
+
+    feito = client.get("/tarefas").text
+    assert "feito hoje" in feito
+    assert "antes do café" in feito
+
+
+def test_pai_desmarca_um_feito_pelo_painel(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """Mesma correção que o filho faz pelo app - o pai precisa dela nos dois
+    lugares, e sem limite de período."""
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post("/tarefas", data={"name": "Arrumar a cama", "child_id": child.id, "periodicity": "daily"})
+    tarefa = db.scalars(select(Task)).one()
+    conclusao = TaskCompletion(
+        task_id=tarefa.id,
+        child_id=child.id,
+        note="semana passada",
+        period_key=chave_do_periodo(Periodicity.DAILY, hoje_local() - timedelta(days=7)),
+        completed_at=datetime.now(UTC) - timedelta(days=7),
+    )
+    db.add(conclusao)
+    db.commit()
+
+    response = client.post(
+        f"/tarefas/{tarefa.id}/conclusoes/{conclusao.id}/apagar", follow_redirects=False
+    )
+
+    assert response.status_code == 303
+    assert db.scalars(select(TaskCompletion)).all() == []
+
+
+def test_conclusao_de_outra_tarefa_nao_se_apaga_pelo_id(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post("/tarefas", data={"name": "Arrumar a cama", "child_id": child.id, "periodicity": "daily"})
+    client.post("/tarefas", data={"name": "Levar o lixo", "child_id": child.id, "periodicity": "daily"})
+    uma, outra = db.scalars(select(Task).order_by(Task.id)).all()
+    conclusao = TaskCompletion(
+        task_id=uma.id,
+        child_id=child.id,
+        note="",
+        period_key=chave_do_periodo(Periodicity.DAILY, hoje_local()),
+        completed_at=datetime.now(UTC),
+    )
+    db.add(conclusao)
+    db.commit()
+
+    client.post(f"/tarefas/{outra.id}/conclusoes/{conclusao.id}/apagar", follow_redirects=False)
+
+    assert db.scalars(select(TaskCompletion)).one().id == conclusao.id

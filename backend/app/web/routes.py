@@ -21,6 +21,7 @@ from app.models import (
     Role,
     SplashMessage,
     Task,
+    TaskCompletion,
     Trombadice,
     User,
     categoria_combina,
@@ -35,6 +36,7 @@ from app.periodo import (
     semanas_do_mes,
 )
 from app.routers.reports import report
+from app.routers.tasks import estado_da_tarefa
 from app.security import create_access_token, hash_password, verify_password
 from app.setup_state import setup_required
 from app.visto import marcar_visto_pai
@@ -46,6 +48,15 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 router = APIRouter(tags=["web"])
 
 WEEKDAY_NAMES = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+
+# Como chamar "o período de agora" de cada periodicidade. "Feito neste período"
+# está certo e não é como ninguém fala.
+ROTULO_DO_PERIODO = {
+    Periodicity.DAILY: "hoje",
+    Periodicity.WEEKLY: "hoje",
+    Periodicity.MONTHLY: "este mês",
+    Periodicity.ONCE: "",
+}
 WEEKDAY_INICIAIS = ["S", "T", "Q", "Q", "S", "S", "D"]
 MESES = [
     "janeiro", "fevereiro", "março", "abril", "maio", "junho",
@@ -557,11 +568,18 @@ def tasks_page(
         query = query.where(Task.child_id == child_id)
     children = _children(db)
     editando = db.get(Task, editar) if editar else None
+    tarefas = list(db.scalars(query))
+    hoje = hoje_local()
     return _render(
         request,
         "tarefas.html",
         user=user,
-        tasks=list(db.scalars(query)),
+        tasks=tarefas,
+        # Se o período de agora já foi cumprido é conta de calendário, não de
+        # template: quem sabe fazer é a mesma função que a API usa, senão o
+        # painel e o app responderiam diferente sobre a mesma tarefa.
+        estado={t.id: estado_da_tarefa(t, hoje) for t in tarefas},
+        rotulo_do_periodo=ROTULO_DO_PERIODO,
         children=children,
         children_by_id={c.id: c for c in children},
         selected_child=child_id,
@@ -652,6 +670,17 @@ def task_toggle(task_id: int, db: DbSession, user: AdminWeb):
 def task_delete(task_id: int, db: DbSession, user: AdminWeb):
     if (task := db.get(Task, task_id)) is not None:
         db.delete(task)
+        db.commit()
+    return _redirect("/tarefas")
+
+
+@router.post("/tarefas/{task_id}/conclusoes/{completion_id}/apagar")
+def task_completion_delete(task_id: int, completion_id: int, db: DbSession, user: AdminWeb):
+    """Desmarcar um "feito" - o mesmo que o filho faz pelo app, aqui sem limite
+    de período: o pai corrige qualquer registro, como em todo o resto."""
+    completion = db.get(TaskCompletion, completion_id)
+    if completion is not None and completion.task_id == task_id:
+        db.delete(completion)
         db.commit()
     return _redirect("/tarefas")
 

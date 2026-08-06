@@ -154,9 +154,6 @@ class TrombadarioRepository(
 
     suspend fun deleteTask(id: Int): ApiResult<Unit> = callNoContent { it.deleteTask(id) }
 
-    suspend fun listTaskCompletions(taskId: Int): ApiResult<List<TaskCompletionDto>> =
-        call { it.listTaskCompletions(taskId) }
-
     suspend fun listPedidos(childId: Int? = null): ApiResult<List<PedidoDto>> =
         call { it.listPedidos(childId) }
 
@@ -173,6 +170,9 @@ class TrombadarioRepository(
         taskId: Int,
         completion: TaskCompletionCreateDto,
     ): ApiResult<TaskCompletionDto> = call { it.markTaskDone(taskId, completion) }
+
+    suspend fun undoTaskCompletion(taskId: Int, completionId: Int): ApiResult<Unit> =
+        callNoContent { it.undoTaskCompletion(taskId, completionId) }
 
     suspend fun listPunishments(childId: Int? = null): ApiResult<List<PunishmentDto>> =
         call { it.listPunishments(childId) }

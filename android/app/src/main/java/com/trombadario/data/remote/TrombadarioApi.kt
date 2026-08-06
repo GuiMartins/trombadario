@@ -105,14 +105,17 @@ interface TrombadarioApi {
         @Body decision: PedidoDecisionDto,
     ): Response<PedidoDto>
 
-    @GET("api/tasks/{id}/completions")
-    suspend fun listTaskCompletions(@Path("id") id: Int): Response<List<TaskCompletionDto>>
-
     @POST("api/tasks/{id}/completions")
     suspend fun markTaskDone(
         @Path("id") id: Int,
         @Body completion: TaskCompletionCreateDto,
     ): Response<TaskCompletionDto>
+
+    @DELETE("api/tasks/{id}/completions/{completionId}")
+    suspend fun undoTaskCompletion(
+        @Path("id") id: Int,
+        @Path("completionId") completionId: Int,
+    ): Response<Unit>
 
     @GET("api/reports")
     suspend fun report(

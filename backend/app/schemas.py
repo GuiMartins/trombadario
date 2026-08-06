@@ -115,6 +115,24 @@ class TrombadiceUpdate(BaseModel):
     task_id: int | None = None
 
 
+class TaskCompletionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    task_id: int
+    child_id: int
+    note: str
+    # O período que esta conclusão satisfaz (ver app/periodo.py). Vai junto
+    # porque sem ele "feito em 03/08" não responde se o período de agora está
+    # cumprido - quem sabe traduzir data em período é o servidor.
+    period_key: str
+    completed_at: datetime
+
+
+class TaskCompletionCreate(BaseModel):
+    note: str = Field(default="", max_length=500)
+
+
 class TaskOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -128,6 +146,17 @@ class TaskOut(BaseModel):
     author_id: int
     is_active: bool
     created_at: datetime
+
+    # Os três campos abaixo são calculados pelo servidor, como o `is_active` do
+    # castigo: o relógio e o calendário do celular não decidem se hoje é dia da
+    # tarefa nem se o período de agora já foi cumprido.
+    #
+    # Vêm junto da tarefa de propósito. Enquanto não vinham, a tela só sabia
+    # dizer "feito" depois de um GET por tarefa (N+1 a cada ON_RESUME), e ainda
+    # assim não sabia a qual período cada conclusão pertencia.
+    due_today: bool = False
+    current_completion: TaskCompletionOut | None = None
+    recent_completions: list[TaskCompletionOut] = Field(default_factory=list)
 
     @field_validator("weekdays", mode="before")
     @classmethod
@@ -161,20 +190,6 @@ class TaskUpdate(BaseModel):
     weekdays: list[int] | None = None
     day_of_month: int | None = Field(default=None, ge=1, le=31)
     is_active: bool | None = None
-
-
-class TaskCompletionOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    task_id: int
-    child_id: int
-    note: str
-    completed_at: datetime
-
-
-class TaskCompletionCreate(BaseModel):
-    note: str = Field(default="", max_length=500)
 
 
 class PunishmentOut(BaseModel):
