@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    Assunto,
     Category,
     Kind,
     Periodicity,
@@ -21,7 +22,9 @@ from app.security import create_access_token
 from app.web.deps import SESSION_COOKIE
 from tests.conftest import ADMIN_PASSWORD, CHILD_PASSWORD, make_user
 
-PAGINAS_ADMIN = ["/", "/trombadices", "/tarefas", "/castigos", "/frases", "/contas"]
+PAGINAS_ADMIN = [
+    "/", "/trombadices", "/tarefas", "/castigos", "/assuntos", "/frases", "/contas",
+]
 
 
 def login_web(client: TestClient, username: str, password: str):
@@ -171,11 +174,11 @@ def test_castigo_ignora_trombadice_de_outro_filho(
         follow_redirects=False,
     )
 
-    # A trombadice da irmã foi descartada em silêncio: o castigo existe, mas sem
-    # o vínculo que colocaria o nome dela no registro do irmão.
-    punishment = db.query(Punishment).one()
-    assert punishment.child_id == child.id
-    assert punishment.trombadices == []
+    # A trombadice da irmã é descartada - o vínculo colocaria o nome dela no
+    # registro do irmão. E sem sobrar nenhuma, o castigo não nasce: castigo vem
+    # de alguma coisa que aconteceu, e nada do que foi marcado aconteceu com
+    # este filho.
+    assert db.query(Punishment).count() == 0
 
 
 # --------------------------------------------------------------------------
@@ -357,6 +360,12 @@ def test_editar_castigo_nao_mexe_em_quando_comecou(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     comeco = datetime.now(UTC) - timedelta(days=1)
+    trombadice = Trombadice(
+        title="Bagunça",
+        occurred_at=comeco,
+        child_id=child.id,
+        author_id=admin.id,
+    )
     castigo = Punishment(
         reason="bagunça",
         starts_at=comeco,
@@ -364,13 +373,20 @@ def test_editar_castigo_nao_mexe_em_quando_comecou(
         child_id=child.id,
         author_id=admin.id,
     )
+    castigo.trombadices = [trombadice]
     db.add(castigo)
     db.commit()
     login_web(client, "pai", ADMIN_PASSWORD)
 
     client.post(
         f"/castigos/{castigo.id}/editar",
-        data={"child_id": child.id, "ends_at": "2026-12-25T18:00", "reason": "bagunça grande"},
+        data={
+            "child_id": child.id,
+            "ends_at": "2026-12-25T18:00",
+            "reason": "bagunça grande",
+            # Sem isso a edição é recusada: castigo não pode ficar sem causa.
+            "trombadice_ids": [trombadice.id],
+        },
     )
 
     db.refresh(castigo)
@@ -777,3 +793,117 @@ def test_conclusao_de_outra_tarefa_nao_se_apaga_pelo_id(
     client.post(f"/tarefas/{outra.id}/conclusoes/{conclusao.id}/apagar", follow_redirects=False)
 
     assert db.scalars(select(TaskCompletion)).one().id == conclusao.id
+
+
+# --------------------------------------------------------------------------
+# Assuntos pra conversar
+# --------------------------------------------------------------------------
+
+
+def test_pai_anota_assunto_no_painel(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    client.post(
+        "/assuntos",
+        data={"title": "O jeito de falar", "description": "com a irmã", "child_id": child.id},
+        follow_redirects=False,
+    )
+
+    assunto = db.query(Assunto).one()
+    assert assunto.title == "O jeito de falar"
+    assert assunto.child_id == child.id
+    assert assunto.author_id == admin.id
+    assert assunto.talked_at is None
+
+
+def test_painel_mostra_o_assunto_que_o_filho_trouxe(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """A mesma lista pros dois - é o ponto da funcionalidade."""
+    db.add(Assunto(title="Queria falar do celular", child_id=child.id, author_id=child.id))
+    db.commit()
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    pagina = client.get("/assuntos").text
+
+    assert "Queria falar do celular" in pagina
+    # E abrir a página é o "visto" do pai, como em Pedidos.
+    assert db.query(Assunto).one().seen_by_parent_at is not None
+
+
+def test_pai_marca_e_reabre_pelo_painel(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    assunto = Assunto(title="Falar do celular", child_id=child.id, author_id=child.id)
+    db.add(assunto)
+    db.commit()
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    client.post(
+        f"/assuntos/{assunto.id}/conversado",
+        data={"note": "meia hora por dia"},
+        follow_redirects=False,
+    )
+    db.refresh(assunto)
+    assert assunto.talked_at is not None
+    assert assunto.talked_note == "meia hora por dia"
+
+    # Um clique errado não pode encerrar pra sempre uma conversa que não houve.
+    client.post(f"/assuntos/{assunto.id}/reabrir", follow_redirects=False)
+    db.refresh(assunto)
+    assert assunto.talked_at is None
+    assert assunto.talked_note == ""
+
+
+def test_painel_nao_reescreve_a_pauta_do_filho(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """Mesma regra da API: mudar o texto do outro é mudar o que ele quis dizer.
+    O pai tem Excluir para o que não deveria estar lá."""
+    assunto = Assunto(title="Queria falar do celular", child_id=child.id, author_id=child.id)
+    db.add(assunto)
+    db.commit()
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    client.post(
+        f"/assuntos/{assunto.id}/editar",
+        data={"title": "Outra coisa", "child_id": child.id},
+        follow_redirects=False,
+    )
+
+    db.refresh(assunto)
+    assert assunto.title == "Queria falar do celular"
+
+
+def test_painel_bloqueia_e_libera_assuntos_do_filho(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    client.post(f"/contas/{child.id}/toggle-assuntos", follow_redirects=False)
+    db.refresh(child)
+    assert child.can_discuss is False
+
+    client.post(f"/contas/{child.id}/toggle-assuntos", follow_redirects=False)
+    db.refresh(child)
+    assert child.can_discuss is True
+
+
+def test_painel_recusa_castigo_sem_trombadice(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """O navegador não sabe exigir "pelo menos um checkbox marcado", então quem
+    recusa é o servidor - e a página volta explicando, sem criar nada."""
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    response = client.post(
+        "/castigos",
+        data={"child_id": child.id, "ends_at": "2026-12-31T23:59", "reason": "x"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert "erro=sem-trombadice" in response.headers["location"]
+    assert db.query(Punishment).count() == 0

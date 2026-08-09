@@ -49,9 +49,18 @@ def _get_or_404(db: DbSession, punishment_id: int) -> Punishment:
 
 def _resolve_trombadices(db: DbSession, ids: list[int], child_id: int) -> list[Trombadice]:
     """Only the child's own trombadices can justify their punishment - linking
-    someone else's would put a sibling's name on this record."""
+    someone else's would put a sibling's name on this record.
+
+    **Castigo sem trombadice nenhuma não existe.** Um castigo é a consequência
+    de alguma coisa que aconteceu, e o que aconteceu já está registrado; deixar
+    criar solto produzia um castigo que a criança lê sem saber por quê - e um
+    relatório que não consegue ligar castigo a causa. Vale para criar e para
+    editar, porque as duas passam por aqui."""
     if not ids:
-        return []
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Castigo precisa apontar pelo menos uma trombadice",
+        )
     found = list(db.scalars(select(Trombadice).where(Trombadice.id.in_(ids))))
     if len(found) != len(set(ids)) or any(t.child_id != child_id for t in found):
         raise HTTPException(

@@ -198,7 +198,8 @@ cima, então não existe tela com dado renderizada por baixo. O gate vem
 - **Tarefa** — o que ele deveria fazer, com periodicidade (diária / dias da
   semana / dia do mês / avulsa). Trocar a periodicidade **limpa** os campos que
   deixaram de valer, senão a tela mostraria "diária, às segundas e quintas".
-- **Castigo** — o que veio depois. Aponta as trombadices que o causaram (N:N).
+- **Castigo** — o que veio depois. Aponta as trombadices que o causaram (N:N),
+  e **pelo menos uma é obrigatória**.
 
 Uma trombadice pode apontar a tarefa não cumprida (`task_id`), mas **só tarefa
 do mesmo filho** — o vínculo cruzado afirmaria algo falso. Mesma regra para as
@@ -250,6 +251,56 @@ linha por dia, pra sempre; o histórico inteiro é `/completions`, com `limit` e
 `offset`. **Tarefa pausada não aparece pro filho**: ele não tem o que fazer com
 ela, e a linha "pausada" só faz procurar um botão que o pai tirou.
 
+### Assunto pra conversar: os dois escrevem, e o pai pode desligar
+
+`models.Assunto`. Pai e filho anotam o que querem tratar **pessoalmente**, na
+mesma lista. É a única parte do app em que os dois lados escrevem a mesma coisa,
+do mesmo jeito — trombadice, tarefa e castigo são o pai falando; pedido e
+proposta são o filho pedindo. Por isso as rotas de ler e criar são `CurrentUser`
+e não `AdminUser`/`ChildUser`: o que muda entre os papéis é o escopo e quem
+encerra, não quem pode participar.
+
+**Guarda a pauta, não a conversa.** O texto é o assunto a tratar, não o que foi
+dito. Não existe thread de resposta de propósito: um chat aqui viraria o
+substituto da conversa em vez do lembrete dela, que é justamente o que a
+funcionalidade existe para provocar.
+
+- **"Já conversamos" é `talked_at`, nulo enquanto pendente** — mesmo espírito de
+  `Punishment.is_active_at`: nada de coluna de status para algo manter certo, e o
+  instante responde "quando", que um booleano não responde.
+- **Só o pai encerra**, mesmo o assunto que o filho trouxe. Não é hierarquia por
+  hierarquia: o filho riscando da lista o que o pai levantou apagaria a pauta do
+  outro sem ninguém ter conversado.
+- **Dá pra reabrir**, pelo mesmo motivo de desmarcar tarefa: um toque errado não
+  pode encerrar pra sempre uma conversa que não aconteceu.
+- **Só o autor corrige o próprio texto.** Nem o pai reescreve a pauta do filho —
+  mudar o texto é mudar o que ele quis dizer, e o pai já tem Excluir para o que
+  não deveria estar lá. Depois de conversado ninguém edita: reescrever a pauta
+  depois da conversa faria o registro descrever um assunto que não foi o tratado.
+- **O filho apaga o dele, e só enquanto pendente.** Desistir antes da conversa é
+  mudar de ideia; apagar depois é sumir com o que já foi tratado.
+- **Quem "vê" é sempre quem não escreveu** (`marcar_assunto_visto`). As outras
+  duas funções de `app/visto.py` têm direção fixa porque o que elas carimbam
+  também tem; aqui a direção sai do autor de cada linha. O pai relendo o próprio
+  assunto não carimba nada — senão "o filho ainda não viu" viraria mentira sem
+  ninguém ter aberto o app.
+- **`assuntos_novos` é o único campo de `/api/unseen` que vale pros dois papéis**,
+  porque é o mesmo fato dos dois lados: "o outro trouxe um assunto". Um campo por
+  papel não daria informação nova, e é um canal de notificação só (`assunto_v1`,
+  com som próprio, como todo tipo — ver a seção de notificação).
+
+**`can_discuss` desliga a funcionalidade inteira pro filho, não só o botão de
+criar.** É a diferença dele pro `can_request`, que só barra criar pedido. O
+pedido foi literal — "desabilitar acesso" — e meio acesso seria pior: ler os
+assuntos que o pai cadastrou sem poder responder nada deixaria uma tela morta na
+mão da criança. Então listar, abrir, criar e apagar respondem 403, o app troca a
+tela por uma explicação e a entrada some de Configurações. Desligar **não apaga
+nada**: religar devolve a lista inteira.
+
+> No Android a tela mora em **Configurações**, não na nav bar: cinco abas já é o
+> teto do `NavigationBar` do Material3. É a única entrada de Configurações que os
+> dois papéis alcançam.
+
 ### Frases de abertura: o sorteio é do servidor
 
 O pai cadastra N frases; ao abrir o app, a conta de filho vê uma delas como tela
@@ -267,6 +318,29 @@ nulo = todos) — a decisão é por frase, não uma configuração global.
   (`text` nulo na resposta).
 - **Só o filho vê.** É o pai falando com ele; o pai reencontrar a própria
   mensagem a cada abertura seria só ruído.
+
+### Castigo sem trombadice não existe
+
+Todo castigo aponta pelo menos uma trombadice — na API (400), no painel e no app.
+Castigo é a consequência de alguma coisa que aconteceu, e essa coisa já está
+registrada: solto, ele vira uma punição que a criança lê sem saber de onde veio,
+e um relatório que não consegue ligar castigo a causa.
+
+Quem recusa é **um lugar só**, `_resolve_trombadices` — por onde criar e editar
+já passavam para checar as outras duas regras (só trombadice do mesmo filho, e
+conquista não causa castigo). Vale para editar também: tirar todos os vínculos de
+um castigo existente é 400, não um castigo que fica órfão.
+
+- **`trombadice_ids` deixou de ter default no schema e no DTO.** Omitir não é o
+  mesmo que mandar vazio, e as duas formas precisam falhar — senão um app antigo
+  continuaria criando castigo solto. Sem default, o Kotlin transforma "esqueci de
+  preencher" em erro de compilação em vez de um 400 em tempo de execução.
+- **O que já está no banco não é reescrito.** Castigo antigo sem vínculo continua
+  como está: inventar uma causa seria pior que a ausência dela.
+- **No painel quem recusa é o servidor**: o navegador não sabe exigir "pelo menos
+  um checkbox marcado", então o POST volta com `?erro=sem-trombadice` e a página
+  explica. Sem nenhuma trombadice cadastrada, o formulário já diz para registrar
+  a anotação antes, em vez de deixar tentar e falhar.
 
 ### Castigo ativo é calculado, nunca guardado
 
@@ -574,12 +648,13 @@ construção deixava o feed desatualizado depois de cadastrar, editar ou excluir
 — bug observado ao vivo (o evento entrava no servidor e a lista continuava
 "Nada registrado ainda").
 
-### Nav bar de 4 abas; Contas mora em Configurações
+### Nav bar cheia; o que não coube mora em Configurações
 
-Trombadices · Tarefas · Castigo · Configurações, iguais pros dois papéis — o
-que muda é o conteúdo, não a estrutura. **Contas ficou fora da barra** e vira um
-item dentro de Configurações (só pro pai): com ela seriam 5 abas, o limite do
-`NavigationBar` do Material3 e apertado demais num celular.
+Anotações · Tarefas · Castigo · Pedidos · Ajustes, iguais pros dois papéis — o
+que muda é o conteúdo, não a estrutura. **Cinco é o teto do `NavigationBar` do
+Material3**, e já é apertado num celular estreito, então tudo o que veio depois
+entra como item dentro de Configurações: Contas, Frases, Relatório (só pro pai) e
+**Assuntos pra conversar** (a única que os dois papéis alcançam).
 
 A tela de **Castigo do filho** existe pra responder uma coisa só, e responde
 grande: ícone, "Você está de castigo" e até quando — ou "Você não está de

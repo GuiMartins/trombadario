@@ -25,6 +25,7 @@ class NotificationBaselineStore(private val context: Context) {
             conquistas = prefs[KEY_CONQUISTAS] ?: 0,
             castigos = prefs[KEY_CASTIGOS] ?: 0,
             decisoes = prefs[KEY_DECISOES] ?: 0,
+            assuntos = prefs[KEY_ASSUNTOS] ?: 0,
         )
     }
 
@@ -35,6 +36,7 @@ class NotificationBaselineStore(private val context: Context) {
             prefs[KEY_CONQUISTAS] = counts.conquistasNovas
             prefs[KEY_CASTIGOS] = counts.castigosNovos
             prefs[KEY_DECISOES] = counts.decisoesNovas
+            prefs[KEY_ASSUNTOS] = counts.assuntosNovos
         }
     }
 
@@ -48,5 +50,6 @@ class NotificationBaselineStore(private val context: Context) {
         val KEY_CONQUISTAS: Preferences.Key<Int> = intPreferencesKey("conquistas")
         val KEY_CASTIGOS: Preferences.Key<Int> = intPreferencesKey("castigos")
         val KEY_DECISOES: Preferences.Key<Int> = intPreferencesKey("decisoes")
+        val KEY_ASSUNTOS: Preferences.Key<Int> = intPreferencesKey("assuntos")
     }
 }

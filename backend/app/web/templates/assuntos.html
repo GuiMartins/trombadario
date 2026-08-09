@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% set pagina = 'assuntos' %}
+{% block titulo %}Assuntos — Trombadário{% endblock %}
+
+{% block conteudo %}
+<h1>Assuntos pra conversar</h1>
+
+<div class="aviso">
+  A pauta da conversa, não a conversa. Os dois lados cadastram aqui — o que o
+  filho traz aparece nesta mesma lista. Marcar como conversado é seu.
+</div>
+
+{% if not children %}
+  <div class="aviso">Cadastre uma conta de filho em <a href="/contas">Contas</a> antes.</div>
+{% else %}
+{% set e = editando %}
+<form id="editar" method="post" action="{{ '/assuntos/' ~ e.id ~ '/editar' if e else '/assuntos' }}" class="bloco">
+  {% if e %}<h2>Corrigindo o assunto</h2>{% endif %}
+
+  <label for="title">Assunto</label>
+  <input type="text" id="title" name="title" required maxlength="200"
+         placeholder="O jeito de falar com a sua irmã" value="{{ e.title if e else '' }}">
+
+  <label for="description">Detalhes (opcional)</label>
+  <textarea id="description" name="description" maxlength="2000"
+            placeholder="O que você quer tratar quando sentarem pra conversar">{{ e.description if e else '' }}</textarea>
+
+  <label for="child_id">Com quem</label>
+  <select id="child_id" name="child_id" required>
+    {% for c in children %}
+    <option value="{{ c.id }}" {% if e and e.child_id == c.id %}selected{% endif %}>{{ c.display_name }}</option>
+    {% endfor %}
+  </select>
+
+  <button type="submit">{{ 'Salvar correção' if e else 'Anotar assunto' }}</button>
+  {% if e %}<a href="/assuntos" class="cancelar">Cancelar</a>{% endif %}
+</form>
+{% endif %}
+
+<div class="filtros">
+  <a href="{{ url(pendentes=None) }}" class="{% if not pendentes %}ativo{% endif %}">Todos</a>
+  <a href="{{ url(pendentes='sim') }}" class="{% if pendentes == 'sim' %}ativo{% endif %}">Pra conversar</a>
+  <a href="{{ url(pendentes='nao') }}" class="{% if pendentes == 'nao' %}ativo{% endif %}">Já conversados</a>
+</div>
+
+{% if children|length > 1 %}
+<div class="filtros">
+  <a href="{{ url(child_id=None) }}" class="{% if not selected_child %}ativo{% endif %}">Todos os filhos</a>
+  {% for c in children %}
+  <a href="{{ url(child_id=c.id) }}" class="{% if selected_child == c.id %}ativo{% endif %}">{{ c.display_name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if assuntos %}
+  {% for a in assuntos %}
+  <div class="cartao">
+    <div class="linha">
+      <div class="cresce">
+        {% if a.talked_at %}
+          <span class="etiqueta">conversado {{ a.talked_at.astimezone().strftime('%d/%m às %H:%M') }}</span>
+        {% else %}
+          <span class="etiqueta ativo">pra conversar</span>
+        {% endif %}
+        {# Quem trouxe o assunto: é a informação que muda o tom da leitura. #}
+        {% if a.by_child %}
+          <span class="etiqueta">{{ children_by_id[a.child_id].display_name if a.child_id in children_by_id else 'Filho' }} trouxe</span>
+        {% else %}
+          <span class="etiqueta">você trouxe</span>
+        {% endif %}
+        <p class="titulo">{{ a.title }}</p>
+        <p class="sub">
+          {{ children_by_id[a.child_id].display_name if a.child_id in children_by_id else 'Filho' }}
+          · {{ a.created_at.astimezone().strftime('%d/%m/%Y') }}
+          {% if a.description %}— {{ a.description }}{% endif %}
+        </p>
+        {% if a.talked_note %}<p class="sub">💬 {{ a.talked_note }}</p>{% endif %}
+        {% if a.by_child %}
+          {# "Visto" só faz sentido na direção de quem não escreveu, então cada
+             cartão mostra a metade que vale pra ele. #}
+        {% elif a.seen_by_child_at %}
+          <span class="etiqueta visto">visto {{ a.seen_by_child_at.astimezone().strftime('%d/%m às %H:%M') }}</span>
+        {% else %}
+          <span class="etiqueta fim">ainda não viu</span>
+        {% endif %}
+      </div>
+      <div class="acoes">
+        {% if not a.talked_at %}
+          {% if a.author_id == user.id %}
+          <a class="mini secundario" href="{{ url(editar=a.id) }}#editar">Editar</a>
+          {% endif %}
+          <form method="post" action="/assuntos/{{ a.id }}/conversado" class="linha" style="gap:0.5rem">
+            <input type="text" name="note" placeholder="O que ficou decidido (opcional)" style="max-width:12rem">
+            <button class="mini">Já conversamos</button>
+          </form>
+        {% else %}
+          <form method="post" action="/assuntos/{{ a.id }}/reabrir">
+            <button class="mini secundario">Reabrir</button>
+          </form>
+        {% endif %}
+        <form method="post" action="/assuntos/{{ a.id }}/delete"
+              hx-confirm="Excluir este assunto?">
+          <button class="mini perigo">Excluir</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="vazio">Nenhum assunto por aqui com esses filtros.</div>
+{% endif %}
+{% endblock %}

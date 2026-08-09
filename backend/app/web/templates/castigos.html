@@ -9,6 +9,12 @@
   <div class="aviso">Cadastre uma conta de filho em <a href="/contas">Contas</a> antes de aplicar castigos.</div>
 {% else %}
 {% set e = editando %}
+{% if erro == 'sem-trombadice' %}
+<div class="aviso">
+  Todo castigo vem de alguma coisa que aconteceu: marque pelo menos uma
+  trombadice do filho escolhido.
+</div>
+{% endif %}
 <form id="editar" method="post" action="{{ '/castigos/' ~ e.id ~ '/editar' if e else '/castigos' }}" class="bloco">
   {% if e %}<h2>Corrigindo o castigo</h2>{% endif %}
 
@@ -27,7 +33,7 @@
   <textarea id="reason" name="reason" placeholder="O que pesou na decisão">{{ e.reason if e else '' }}</textarea>
 
   {% if trombadices %}
-  <label>Por causa de quais trombadices</label>
+  <label>Por causa de quais trombadices <span class="sub">(obrigatório)</span></label>
   <div class="dias" style="flex-direction:column;gap:0.4rem;max-height:14rem;overflow-y:auto">
     {% for t in trombadices %}
     <label>
@@ -41,6 +47,11 @@
   <p class="sub" style="margin-top:0.4rem">
     Só as trombadices do filho escolhido entram — as dos outros são ignoradas.
   </p>
+  {% else %}
+  <div class="aviso">
+    Nenhuma trombadice cadastrada ainda. Castigo vem de alguma coisa que
+    aconteceu, então registre em <a href="/trombadices">Anotações</a> antes.
+  </div>
   {% endif %}
 
   {% if e %}

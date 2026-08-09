@@ -56,6 +56,11 @@
       <form method="post" action="/contas/{{ u.id }}/toggle-pedidos">
         <button class="mini secundario">{{ 'Bloquear pedidos' if u.can_request else 'Liberar pedidos' }}</button>
       </form>
+      {# Bloquear assuntos some com a funcionalidade inteira do app dele, não só
+         com o botão de criar - ver `can_discuss` no modelo. #}
+      <form method="post" action="/contas/{{ u.id }}/toggle-assuntos">
+        <button class="mini secundario">{{ 'Bloquear assuntos' if u.can_discuss else 'Liberar assuntos' }}</button>
+      </form>
       {% endif %}
       {% if u.id != user.id %}
       <form method="post" action="/contas/{{ u.id }}/toggle">

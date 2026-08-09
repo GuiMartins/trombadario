@@ -439,8 +439,17 @@ private fun PunishmentEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                if (doFilho.isNotEmpty()) {
-                    Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
+                if (doFilho.isEmpty()) {
+                    // Sem nenhuma trombadice deste filho não há castigo a
+                    // aplicar - melhor dizer isso do que deixar salvar e levar
+                    // um erro do servidor.
+                    Text(
+                        stringResource(R.string.punishment_no_trombadices),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
                     Text(
                         stringResource(R.string.punishment_pick_trombadices),
                         style = MaterialTheme.typography.labelLarge,

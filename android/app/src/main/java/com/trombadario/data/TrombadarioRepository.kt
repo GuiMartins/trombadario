@@ -1,6 +1,10 @@
 package com.trombadario.data
 
 import com.trombadario.data.remote.ApiProvider
+import com.trombadario.data.remote.AssuntoConversaDto
+import com.trombadario.data.remote.AssuntoCreateDto
+import com.trombadario.data.remote.AssuntoDto
+import com.trombadario.data.remote.AssuntoUpdateDto
 import com.trombadario.data.remote.DatasComRegistroDto
 import com.trombadario.data.remote.ReportDto
 import com.trombadario.data.remote.TrombadiceCreateDto
@@ -165,6 +169,22 @@ class TrombadarioRepository(
 
     suspend fun decidePedido(id: Int, decision: PedidoDecisionDto): ApiResult<PedidoDto> =
         call { it.decidePedido(id, decision) }
+
+    suspend fun listAssuntos(
+        childId: Int? = null,
+        pendentes: Boolean? = null,
+    ): ApiResult<List<AssuntoDto>> = call { it.listAssuntos(childId, pendentes) }
+
+    suspend fun createAssunto(assunto: AssuntoCreateDto): ApiResult<AssuntoDto> =
+        call { it.createAssunto(assunto) }
+
+    suspend fun updateAssunto(id: Int, assunto: AssuntoUpdateDto): ApiResult<AssuntoDto> =
+        call { it.updateAssunto(id, assunto) }
+
+    suspend fun markAssuntoTalked(id: Int, conversa: AssuntoConversaDto): ApiResult<AssuntoDto> =
+        call { it.markAssuntoTalked(id, conversa) }
+
+    suspend fun deleteAssunto(id: Int): ApiResult<Unit> = callNoContent { it.deleteAssunto(id) }
 
     suspend fun markTaskDone(
         taskId: Int,

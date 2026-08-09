@@ -66,6 +66,16 @@ class NotificationBaselineTest {
     }
 
     @Test
+    fun assuntoSobeIgualAsOutras() {
+        // Assunto é o único aviso que chega pros dois papéis, mas a comparação
+        // com o baseline é a mesma - do lado de cá não existe "quem sou eu".
+        val baseline = NotificationBaseline(assuntos = 1)
+        val fresh = UnseenCountsDto(assuntosNovos = 2)
+
+        assertEquals(listOf(Novidade.ASSUNTO), novidades(baseline, fresh))
+    }
+
+    @Test
     fun contagemDeDevolveONumeroDaCategoria() {
         val fresh = UnseenCountsDto(
             pedidosPendentes = 1,
@@ -73,6 +83,7 @@ class NotificationBaselineTest {
             conquistasNovas = 3,
             castigosNovos = 4,
             decisoesNovas = 5,
+            assuntosNovos = 6,
         )
 
         assertEquals(1, fresh.contagemDe(Novidade.PEDIDO))
@@ -80,5 +91,6 @@ class NotificationBaselineTest {
         assertEquals(3, fresh.contagemDe(Novidade.CONQUISTA))
         assertEquals(4, fresh.contagemDe(Novidade.CASTIGO))
         assertEquals(5, fresh.contagemDe(Novidade.DECISAO))
+        assertEquals(6, fresh.contagemDe(Novidade.ASSUNTO))
     }
 }
