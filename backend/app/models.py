@@ -146,6 +146,12 @@ class User(Base):
     # uma tabela de settings à parte: não existe outro flag por filho no
     # schema que justificasse o padrão.
     can_request: Mapped[bool] = mapped_column(default=True)
+    # Irmão do `can_request`, com uma diferença que importa: aquele só barra o
+    # filho de **criar** um pedido, este tira a funcionalidade inteira da frente
+    # dele - não lista, não cria. Foi o pedido literal ("desabilitar acesso"), e
+    # meio acesso seria pior que nenhum: ver os assuntos que o pai cadastrou sem
+    # poder responder nada só deixaria uma tela morta na mão da criança.
+    can_discuss: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
 
     trombadices_about_me: Mapped[list["Trombadice"]] = relationship(
@@ -405,3 +411,65 @@ class Pedido(Base):
 
     child: Mapped[User] = relationship(foreign_keys=[child_id])
     decided_by: Mapped["User | None"] = relationship(foreign_keys=[decided_by_id])
+
+
+class Assunto(Base):
+    """Um assunto que alguém quer conversar pessoalmente, cara a cara.
+
+    A única coisa do app que os dois lados escrevem em pé de igualdade: pai e
+    filho cadastram, com os mesmos campos e na mesma lista. Trombadice, tarefa
+    e castigo são o pai falando; pedido e proposta são o filho pedindo. Aqui
+    ninguém está pedindo licença pro outro - é uma pauta.
+
+    **Não guarda a conversa, só a pauta.** O texto é o assunto a ser tratado,
+    não o que foi dito - a conversa acontece na sala, que é o ponto da
+    funcionalidade. Por isso não existe thread de resposta: um chat aqui viraria
+    o substituto da conversa em vez do lembrete dela.
+
+    "Já conversamos" é `talked_at`, nulo enquanto pendente - mesmo espírito de
+    `Punishment.is_active_at`: nada de coluna de status que precisaria de algo
+    rodando pra ficar certa, e o instante responde "quando", que um booleano não
+    responde.
+    """
+
+    __tablename__ = "assuntos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+
+    # De quem é a conversa. Quando o filho cadastra, é ele mesmo; quando o pai
+    # cadastra, ele escolhe. Comparar com `author_id` é o que diz quem trouxe o
+    # assunto - não existe coluna repetindo isso.
+    child_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+
+    # Nulo = ainda não conversaram. Quem marca é só o pai: o filho riscar da
+    # lista um assunto que o pai levantou seria apagar a pauta do outro.
+    talked_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    talked_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+    # O que ficou decidido, em uma linha. Opcional - conversa boa nem sempre
+    # tem conclusão pra anotar.
+    talked_note: Mapped[str] = mapped_column(Text, default="")
+
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+    # Dois carimbos como em `Pedido`, mas com regra própria: **quem vê é sempre
+    # quem não escreveu**. O assunto que o filho trouxe é o pai que precisa ver
+    # chegar; o que o pai trouxe é o filho. Um `seen_at` só não distinguiria os
+    # dois, e aqui os dois acontecem na mesma tabela.
+    seen_by_parent_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    seen_by_child_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
+    child: Mapped[User] = relationship(foreign_keys=[child_id])
+    author: Mapped[User] = relationship(foreign_keys=[author_id])
+    talked_by: Mapped["User | None"] = relationship(foreign_keys=[talked_by_id])
+
+    @property
+    def by_child(self) -> bool:
+        """Quem trouxe o assunto. Derivado do papel do autor, não de uma coluna
+        própria: duas fontes para o mesmo fato dariam duas respostas no dia em
+        que uma delas fosse escrita errado."""
+        return self.author.role is Role.CHILD

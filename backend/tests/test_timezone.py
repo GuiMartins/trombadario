@@ -46,6 +46,15 @@ def test_data_sem_fuso_e_rejeitada_com_422(client: TestClient, admin: User, chil
 def test_castigo_tambem_devolve_data_com_offset(
     client: TestClient, admin: User, child: User
 ) -> None:
+    trombadice = client.post(
+        "/api/trombadices",
+        headers=as_admin(client),
+        json={
+            "title": "Bagunça",
+            "occurred_at": "2026-08-01T14:30:00-03:00",
+            "child_id": child.id,
+        },
+    ).json()
     created = client.post(
         "/api/punishments",
         headers=as_admin(client),
@@ -53,6 +62,7 @@ def test_castigo_tambem_devolve_data_com_offset(
             "child_id": child.id,
             "starts_at": "2026-08-01T14:30:00-03:00",
             "ends_at": "2026-08-03T14:30:00-03:00",
+            "trombadice_ids": [trombadice["id"]],
         },
     ).json()
 

@@ -5,6 +5,8 @@ from fastapi.testclient import TestClient
 from app.models import User
 from tests.conftest import as_admin, as_child, auth_header
 
+OCCURRED_AT = "2026-08-01T14:30:00+00:00"
+
 
 def test_pai_ve_pedido_pendente_sem_efeito_colateral(
     client: TestClient, admin: User, child: User
@@ -77,15 +79,23 @@ def test_trombadice_e_conquista_contam_separado(
 
 
 def test_filho_ve_castigo_novo(client: TestClient, admin: User, child: User) -> None:
+    trombadice = client.post(
+        "/api/trombadices",
+        headers=as_admin(client),
+        json={"title": "Bagunça", "occurred_at": OCCURRED_AT, "child_id": child.id},
+    ).json()
     client.post(
         "/api/punishments",
         headers=as_admin(client),
         json={
             "child_id": child.id,
             "ends_at": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
+            "trombadice_ids": [trombadice["id"]],
         },
     )
 
+    # A trombadice criada junto também é nova pro filho, mas cada contagem
+    # responde só pela sua - é o que faz cada tipo tocar o próprio som.
     assert client.get("/api/unseen", headers=as_child(client)).json()["castigos_novos"] == 1
 
     client.get("/api/punishments", headers=as_child(client))

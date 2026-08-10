@@ -35,6 +35,7 @@ import com.trombadario.R
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.trombadicedetail.TrombadiceDetailScreen
 import com.trombadario.ui.trombadiceform.TrombadiceFormScreen
+import com.trombadario.ui.assuntos.AssuntosScreen
 import com.trombadario.ui.feed.FeedScreen
 import com.trombadario.ui.pedidos.PedidosScreen
 import com.trombadario.ui.punishment.PunishmentScreen
@@ -49,6 +50,7 @@ object Routes {
     const val TASKS = "tasks"
     const val PUNISHMENT = "punishment"
     const val PEDIDOS = "pedidos"
+    const val ASSUNTOS = "assuntos"
     const val USERS = "users"
     const val SPLASH_MESSAGES = "splash_messages"
     const val REPORT = "report"
@@ -132,6 +134,16 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
             composable(Routes.PEDIDOS) {
                 PedidosScreen(container = container, currentUser = currentUser)
             }
+            // Fora da nav bar: cinco abas já é o teto do NavigationBar do
+            // Material3. É a única tela de aba que os dois papéis alcançam por
+            // Configurações, e não por uma aba própria.
+            composable(Routes.ASSUNTOS) {
+                AssuntosScreen(
+                    container = container,
+                    currentUser = currentUser,
+                    onBack = navController::popBackStack,
+                )
+            }
             composable(Routes.SPLASH_MESSAGES) {
                 SplashMessagesScreen(
                     container = container,
@@ -153,6 +165,7 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
                     onOpenUsers = { navController.navigate(Routes.USERS) },
                     onOpenSplashMessages = { navController.navigate(Routes.SPLASH_MESSAGES) },
                     onOpenReport = { navController.navigate(Routes.REPORT) },
+                    onOpenAssuntos = { navController.navigate(Routes.ASSUNTOS) },
                 )
             }
             composable(Routes.REPORT) {

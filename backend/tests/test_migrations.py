@@ -304,3 +304,51 @@ def test_conclusao_de_tarefa_diaria_nao_e_tocada(tmp_path: Path) -> None:
         assert conexao.execute("select period_key from task_completions").fetchone()[0] == "2026-08"
     finally:
         conexao.close()
+
+
+def test_conta_antiga_continua_podendo_conversar(banco_antigo: str) -> None:
+    """`can_discuss` sem `server_default` nasceria NULL nas contas que já
+    existem, e o ORM leria isso como "acesso desligado": todo filho já
+    cadastrado ficaria trancado fora da funcionalidade nova, sem ninguém ter
+    desligado nada. Mesmo motivo do `can_request` na migration dos pedidos."""
+    command.upgrade(_alembic(banco_antigo), "head")
+
+    with sessionmaker(bind=create_engine(banco_antigo))() as sessao:
+        from app.models import User
+
+        filho = sessao.scalars(select(User).where(User.username == "filho")).one()
+        assert filho.can_discuss is True
+        assert filho.can_request is True
+
+
+def test_assunto_pendente_legivel_pelo_orm(banco_antigo: str) -> None:
+    """A tabela nova, lida pelo ORM depois da migration de verdade. Não tem
+    enum (o "já conversamos" é `talked_at` nulável), mas tem duas FKs pra
+    `users` com ondelete diferente - e é o banco real que diz se elas foram
+    criadas como o modelo declara."""
+    command.upgrade(_alembic(banco_antigo), "head")
+
+    agora = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
+    conexao = sqlite3.connect(banco_antigo.removeprefix("sqlite:///"))
+    conexao.execute(
+        "insert into assuntos (title,description,child_id,author_id,talked_note,created_at)"
+        " values ('Falar do celular','acho que mereço mais tempo',2,2,'',?)",
+        (agora,),
+    )
+    conexao.commit()
+    try:
+        fks = {f[3]: f[6] for f in conexao.execute("pragma foreign_key_list('assuntos')")}
+        # O autor tem que sobreviver: apagar a conta de quem escreveu não pode
+        # levar junto a pauta. O filho, esse sim, leva os assuntos dele.
+        assert fks["author_id"] == "RESTRICT"
+        assert fks["child_id"] == "CASCADE"
+    finally:
+        conexao.close()
+
+    with sessionmaker(bind=create_engine(banco_antigo))() as sessao:
+        from app.models import Assunto
+
+        assunto = sessao.scalars(select(Assunto)).one()
+        assert assunto.title == "Falar do celular"
+        assert assunto.talked_at is None
+        assert assunto.by_child is True

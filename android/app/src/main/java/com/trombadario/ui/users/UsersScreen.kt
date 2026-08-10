@@ -282,6 +282,15 @@ private fun UserEditorDialog(
                             )
                             Text(stringResource(R.string.users_form_can_request))
                         }
+                        // Desmarcar aqui some com a tela de Assuntos inteira do
+                        // app dele, não só com o botão de criar.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = editor.canDiscuss,
+                                onCheckedChange = { value -> onChange { it.copy(canDiscuss = value) } },
+                            )
+                            Text(stringResource(R.string.users_form_can_discuss))
+                        }
                     }
                 }
 

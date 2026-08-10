@@ -9,7 +9,10 @@ import com.trombadario.data.remote.UnseenCountsDto
  * brinde, quem usa ganha controle por tipo nas configurações do sistema (dá pra
  * silenciar conquista e manter castigo) sem nada de código.
  *
- * `PEDIDO` é o único que chega pro pai; os outros quatro são do filho.
+ * `PEDIDO` é o único que chega só pro pai; TROMBADICE, CONQUISTA, CASTIGO e
+ * DECISAO são só do filho. `ASSUNTO` é o único que chega pros dois - é a única
+ * coisa do app que os dois lados cadastram, e em cada um o aviso significa a
+ * mesma coisa: o outro trouxe um assunto pra conversar.
  */
 enum class Novidade {
     PEDIDO,
@@ -17,6 +20,7 @@ enum class Novidade {
     CONQUISTA,
     CASTIGO,
     DECISAO,
+    ASSUNTO,
 }
 
 /** Última contagem conhecida por categoria - guardada localmente pra decidir
@@ -28,6 +32,7 @@ data class NotificationBaseline(
     val conquistas: Int = 0,
     val castigos: Int = 0,
     val decisoes: Int = 0,
+    val assuntos: Int = 0,
 )
 
 /**
@@ -47,6 +52,7 @@ fun novidades(baseline: NotificationBaseline, fresh: UnseenCountsDto): List<Novi
     if (fresh.conquistasNovas > baseline.conquistas) add(Novidade.CONQUISTA)
     if (fresh.castigosNovos > baseline.castigos) add(Novidade.CASTIGO)
     if (fresh.decisoesNovas > baseline.decisoes) add(Novidade.DECISAO)
+    if (fresh.assuntosNovos > baseline.assuntos) add(Novidade.ASSUNTO)
 }
 
 /** Quantos ainda não vistos naquela categoria - é o número que vai no texto da
@@ -57,4 +63,5 @@ fun UnseenCountsDto.contagemDe(novidade: Novidade): Int = when (novidade) {
     Novidade.CONQUISTA -> conquistasNovas
     Novidade.CASTIGO -> castigosNovos
     Novidade.DECISAO -> decisoesNovas
+    Novidade.ASSUNTO -> assuntosNovos
 }

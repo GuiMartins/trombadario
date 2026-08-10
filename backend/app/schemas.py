@@ -28,9 +28,10 @@ class UserOut(BaseModel):
     display_name: str
     role: Role
     is_active: bool
-    # Só faz sentido pro filho, mas mandado sempre - o pai lê o próprio valor
-    # como "true" e nunca usa.
+    # Só fazem sentido pro filho, mas mandados sempre - o pai lê os próprios
+    # valores como "true" e nunca usa.
     can_request: bool
+    can_discuss: bool
     created_at: datetime
 
 
@@ -46,6 +47,7 @@ class UserUpdate(BaseModel):
     password: str | None = Field(default=None, min_length=6, max_length=128)
     is_active: bool | None = None
     can_request: bool | None = None
+    can_discuss: bool | None = None
 
 
 class SetupRequest(BaseModel):
@@ -222,7 +224,10 @@ class PunishmentCreate(BaseModel):
     starts_at: AwareDatetime | None = None
     ends_at: AwareDatetime
     child_id: int
-    trombadice_ids: list[int] = Field(default_factory=list)
+    # Sem default: castigo é consequência de alguma coisa, e essa coisa já está
+    # registrada. Quem recusa a lista vazia é a rota (400, com a mensagem que a
+    # tela mostra) - aqui só não existe mais o caminho de omitir o campo.
+    trombadice_ids: list[int]
 
 
 class PunishmentUpdate(BaseModel):
@@ -316,6 +321,12 @@ class UnseenCounts(BaseModel):
     conquistas_novas: int = 0
     castigos_novos: int = 0
     decisoes_novas: int = 0
+    # O único campo que vale pros dois papéis, porque assunto é a única coisa
+    # que os dois cadastram. Em cada um ele conta a mesma pergunta a partir do
+    # outro lado: "o que o outro trouxe e eu ainda não vi". Um campo por papel
+    # não daria informação nova nenhuma - e são notificações do mesmo canal, com
+    # o mesmo som, porque é o mesmo fato.
+    assuntos_novos: int = 0
 
 
 class SplashMessageOut(BaseModel):
@@ -384,3 +395,48 @@ class PedidoDecision(BaseModel):
     # Nunca PENDENTE aqui - decidir é sair de pendente, não voltar pra ele.
     status: Literal[RequestStatus.APROVADO, RequestStatus.NEGADO]
     decision_note: str = Field(default="", max_length=1000)
+
+
+class AssuntoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    description: str
+    child_id: int
+    author_id: int
+    talked_at: datetime | None
+    talked_by_id: int | None
+    talked_note: str
+    created_at: datetime
+    seen_by_parent_at: datetime | None
+    seen_by_child_at: datetime | None
+    # Quem trouxe o assunto, resolvido no servidor. O app poderia comparar
+    # `author_id` com o id de quem está logado, mas só acertaria pro próprio
+    # lado: o filho não conhece o id do pai, e nem toda tela tem a lista de
+    # contas na mão pra descobrir.
+    by_child: bool = False
+
+
+class AssuntoCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
+    # Só o pai escolhe de quem é o assunto. Vindo do filho o campo é ignorado,
+    # nunca respeitado - mesmo padrão do `child_id` nas listagens dele.
+    child_id: int | None = None
+
+
+class AssuntoUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+
+
+class AssuntoConversa(BaseModel):
+    """Marcar (ou desmarcar) que o assunto já foi conversado.
+
+    `talked=False` existe pelo mesmo motivo que desmarcar tarefa existe: um
+    toque errado não pode encerrar pra sempre um assunto que ninguém conversou,
+    e apagar e recadastrar levaria junto quem trouxe e quando."""
+
+    talked: bool = True
+    note: str = Field(default="", max_length=2000)
