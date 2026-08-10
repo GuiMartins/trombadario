@@ -9,6 +9,7 @@
     <string name="action_delete">Excluir</string>
     <string name="action_edit">Editar</string>
     <string name="action_back">Voltar</string>
+    <string name="action_ok">Entendi</string>
     <string name="loading">Carregando…</string>
 
     <!-- Configuração do servidor -->
@@ -73,6 +74,7 @@
     <string name="users_form_role">Tipo de conta</string>
     <string name="users_form_active">Conta ativa</string>
     <string name="users_form_can_request">Pode fazer pedidos</string>
+    <string name="users_form_can_discuss">Pode anotar assuntos pra conversar</string>
     <string name="users_delete_confirm_title">Excluir conta?</string>
     <string name="users_delete_confirm_message">As anotações, tarefas e castigos dessa pessoa também somem.</string>
     <string name="users_error_password_too_short">A senha precisa de pelo menos 6 caracteres</string>
@@ -129,6 +131,17 @@
     <string name="tasks_mark_done_note">Quer contar alguma coisa? (opcional)</string>
     <string name="tasks_mark_done_confirm">Marcar como feito</string>
     <string name="tasks_done_at">feito em %1$s</string>
+    <!-- %1$s é o período ("hoje", "este mês"), %2$s a hora. -->
+    <string name="tasks_done_now">✓ feito %1$s, às %2$s</string>
+    <string name="tasks_period_now_day">hoje</string>
+    <string name="tasks_period_now_month">este mês</string>
+    <string name="tasks_done_once">✓ feito em %1$s</string>
+    <string name="tasks_pending">ainda não fez</string>
+    <string name="tasks_not_today">não é hoje</string>
+    <string name="tasks_undo">Desmarcar</string>
+    <string name="tasks_undo_confirm_title">Desmarcar?</string>
+    <string name="tasks_undo_confirm_message">O \"feito\" de %1$s sai do registro.</string>
+    <string name="tasks_gone">Essa tarefa não existe mais.</string>
 
     <!-- Castigo -->
     <string name="punishment_title">Castigo</string>
@@ -161,6 +174,8 @@
     <string name="pedidos_status_aprovado">aprovado</string>
     <string name="pedidos_status_negado">negado</string>
     <string name="pedidos_resposta">Resposta: %1$s</string>
+    <string name="pedidos_respondido">Respondido</string>
+    <string name="pedidos_nao_respondido">Não respondido</string>
     <string name="pedidos_resposta_placeholder">Justificativa (opcional)</string>
     <string name="pedidos_aprovar">Aprovar</string>
     <string name="pedidos_negar">Negar</string>
@@ -176,6 +191,33 @@
     <string name="pedidos_form_title_conquista">O que você fez de bom</string>
     <string name="pedidos_form_category_label">Que tipo de coisa boa foi</string>
     <string name="punishment_error_end_before_start">O castigo precisa terminar depois de começar</string>
+    <string name="punishment_error_needs_trombadice">Marque pelo menos uma trombadice: todo castigo vem de alguma coisa que aconteceu</string>
+    <string name="punishment_no_trombadices">Nenhuma trombadice desse filho ainda. Castigo vem de alguma coisa que aconteceu, então registre uma anotação antes.</string>
+
+    <!-- Assuntos pra conversar -->
+    <string name="assuntos_title">Assuntos pra conversar</string>
+    <string name="assuntos_intro">Anote aqui o que quiser tratar pessoalmente. Os dois cadastram na mesma lista.</string>
+    <string name="assuntos_new">Novo assunto</string>
+    <string name="assuntos_edit">Editar assunto</string>
+    <string name="assuntos_empty">Nenhum assunto pra conversar.</string>
+    <string name="assuntos_empty_conversados">Nada conversado ainda.</string>
+    <string name="assuntos_tab_pendentes">Pra conversar</string>
+    <string name="assuntos_tab_conversados">Já conversados</string>
+    <string name="assuntos_form_title">Assunto</string>
+    <string name="assuntos_form_description">Detalhes (opcional)</string>
+    <string name="assuntos_form_child">Com quem</string>
+    <string name="assuntos_trazido_por">%1$s trouxe</string>
+    <string name="assuntos_trazido_por_voce">Você trouxe</string>
+    <string name="assuntos_trazido_pelo_pai">Seu pai trouxe</string>
+    <string name="assuntos_conversamos">Já conversamos</string>
+    <string name="assuntos_reabrir">Reabrir</string>
+    <string name="assuntos_conversado_em">Conversado em %1$s</string>
+    <string name="assuntos_nota_placeholder">O que ficou decidido (opcional)</string>
+    <string name="assuntos_delete_confirm_title">Excluir assunto?</string>
+    <string name="assuntos_error_title_required">O assunto não pode ficar vazio</string>
+    <string name="assuntos_error_child_required">Escolha com quem é a conversa</string>
+    <string name="assuntos_bloqueado">Assuntos não estão liberados pra essa conta</string>
+    <string name="assuntos_bloqueado_sub">Fale com seu pai se quiser combinar uma conversa.</string>
 
     <!-- Formulário de trombadice -->
     <string name="trombadice_form_task_label">Deixou de cumprir alguma tarefa?</string>
@@ -292,6 +334,8 @@
     <string name="canal_castigo_descricao">Avisa quando um castigo novo é aplicado. Só chega com o celular em casa.</string>
     <string name="canal_decisao">Respostas a pedidos</string>
     <string name="canal_decisao_descricao">Avisa quando sai a decisão de um pedido seu. Só chega com o celular em casa.</string>
+    <string name="canal_assunto">Assuntos pra conversar</string>
+    <string name="canal_assunto_descricao">Avisa quando a outra pessoa anota um assunto pra conversar pessoalmente. Só chega com o celular em casa.</string>
 
     <plurals name="notificacao_pedido">
         <item quantity="one">Pedido esperando decisão</item>
@@ -312,5 +356,9 @@
     <plurals name="notificacao_decisao">
         <item quantity="one">Resposta pro seu pedido chegou</item>
         <item quantity="other">%d respostas pros seus pedidos</item>
+    </plurals>
+    <plurals name="notificacao_assunto">
+        <item quantity="one">Tem assunto novo pra conversar</item>
+        <item quantity="other">%d assuntos novos pra conversar</item>
     </plurals>
 </resources>

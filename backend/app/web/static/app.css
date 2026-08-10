@@ -261,6 +261,15 @@ h2 {
 .etiqueta.ativo { background: var(--marker-ink); color: var(--on-marker); border-color: var(--marker-ink); }
 .etiqueta.fim { background: transparent; color: var(--ink-soft); }
 
+.cartao details.resposta summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-top: 0.4rem;
+}
+.cartao details.resposta[open] summary { margin-bottom: 0.25rem; }
+
 /* ---------- formulários: o bloco é o recado colado na página ---------- */
 
 form.bloco {
@@ -450,6 +459,27 @@ a.mini:hover { background: var(--note); }
 .calendario > a.mini { margin-top: 0.75rem; }
 
 .etiqueta.visto { background: transparent; border-color: var(--teal); color: var(--ink-soft); }
+
+/* ---------- tarefa feita ---------- */
+
+/* O período de agora está cumprido ou não: é a pergunta que o pai faz de
+   relance, então vem em cor e negrito, antes do histórico. */
+.cartao .sub.feito { color: var(--teal); font-weight: 700; }
+
+/* "desfazer" mora dentro da etiqueta do carimbo. É um <form> (POST, como
+   Pausar e Excluir), não um link: apagar não é navegação. */
+.etiqueta.visto form { display: inline; }
+.como-link {
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 400;
+  margin: 0 0 0 0.35rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  text-decoration: underline;
+}
 
 /* ---------- relatório ---------- */
 

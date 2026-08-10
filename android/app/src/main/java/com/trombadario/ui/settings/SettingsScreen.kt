@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.InsertChart
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.People
@@ -56,6 +57,7 @@ fun SettingsScreen(
     onOpenUsers: () -> Unit,
     onOpenSplashMessages: () -> Unit,
     onOpenReport: () -> Unit,
+    onOpenAssuntos: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val theme by container.serverConfigStore.theme
@@ -85,6 +87,18 @@ fun SettingsScreen(
                         ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                // A única entrada daqui que o filho também tem: assunto é a
+                // única coisa que os dois cadastram. Some quando o pai desliga
+                // o acesso - o servidor recusa de qualquer forma, isto é só
+                // não oferecer uma porta trancada.
+                if (currentUser.isAdmin || currentUser.canDiscuss) {
+                    ActionRow(
+                        icon = Icons.Default.Forum,
+                        label = stringResource(R.string.assuntos_title),
+                        onClick = onOpenAssuntos,
                     )
                 }
 

@@ -81,18 +81,31 @@ def mes_de(dia: date) -> str:
     return dia.strftime("%Y-%m")
 
 
+def ultimo_dia_do_mes(mes: date) -> int:
+    """Pro dia agendado de uma tarefa mensal: "todo dia 31" em fevereiro é o
+    dia 28 (ou 29), senão a tarefa simplesmente não teria dia em quatro meses
+    do ano."""
+    return ((mes.replace(day=1) + timedelta(days=32)).replace(day=1) - timedelta(days=1)).day
+
+
 def chave_do_periodo(periodicity: Periodicity, dia: date) -> str:
     """A chave que 'feito' precisa bater pra contar como o mesmo período -
     UniqueConstraint(task_id, period_key) no banco é quem trava de verdade.
 
-    Diária usa o dia isolado (ISO), porque cada dia é o próprio período.
-    Semanal e mensal reaproveitam os rótulos que o relatório já usa - a mesma
-    pergunta ("que período é esse?") não devia ter duas respostas no projeto.
-    Avulsa usa uma chave fixa: se usasse o dia, "feito" travaria só até virar
-    a meia-noite e destravaria de novo, quando o certo é travar para sempre.
+    Diária e semanal usam o dia isolado (ISO), mensal usa o mês, avulsa uma
+    chave fixa.
+
+    **Semanal é por dia, não por semana**, e isso não é descuido: uma tarefa
+    de segunda e quinta tem duas ocorrências na mesma semana. Com a chave da
+    semana (era `semana_de` até 05/08/2026), marcar na segunda travava a
+    quinta com 409 "já marcado nesse período" - a tarefa existia duas vezes e
+    só podia ser cumprida uma. Quem garante que não dá pra marcar em dia solto
+    é o dia agendado, conferido na rota, não a chave.
+
+    Avulsa é a única com chave fixa: se usasse o dia, "feito" travaria só até
+    virar a meia-noite e destravaria de novo, quando o certo é travar pra
+    sempre.
     """
-    if periodicity is Periodicity.WEEKLY:
-        return semana_de(dia)
     if periodicity is Periodicity.MONTHLY:
         return mes_de(dia)
     if periodicity is Periodicity.ONCE:

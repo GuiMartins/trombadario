@@ -105,14 +105,46 @@ interface TrombadarioApi {
         @Body decision: PedidoDecisionDto,
     ): Response<PedidoDto>
 
-    @GET("api/tasks/{id}/completions")
-    suspend fun listTaskCompletions(@Path("id") id: Int): Response<List<TaskCompletionDto>>
-
     @POST("api/tasks/{id}/completions")
     suspend fun markTaskDone(
         @Path("id") id: Int,
         @Body completion: TaskCompletionCreateDto,
     ): Response<TaskCompletionDto>
+
+    @DELETE("api/tasks/{id}/completions/{completionId}")
+    suspend fun undoTaskCompletion(
+        @Path("id") id: Int,
+        @Path("completionId") completionId: Int,
+    ): Response<Unit>
+
+    // Assuntos pra conversar. `CurrentUser` do lado do servidor, não
+    // admin/child: é a única parte do app em que os dois papéis escrevem a
+    // mesma coisa - o que muda é o escopo e quem encerra.
+    @GET("api/assuntos")
+    suspend fun listAssuntos(
+        @Query("child_id") childId: Int? = null,
+        @Query("pendentes") pendentes: Boolean? = null,
+    ): Response<List<AssuntoDto>>
+
+    @POST("api/assuntos")
+    suspend fun createAssunto(@Body assunto: AssuntoCreateDto): Response<AssuntoDto>
+
+    @PATCH("api/assuntos/{id}")
+    suspend fun updateAssunto(
+        @Path("id") id: Int,
+        @Body assunto: AssuntoUpdateDto,
+    ): Response<AssuntoDto>
+
+    /** Só o pai - o filho riscando da lista o assunto que o pai levantou
+     *  apagaria a pauta do outro. O servidor barra de qualquer forma. */
+    @PATCH("api/assuntos/{id}/conversado")
+    suspend fun markAssuntoTalked(
+        @Path("id") id: Int,
+        @Body conversa: AssuntoConversaDto,
+    ): Response<AssuntoDto>
+
+    @DELETE("api/assuntos/{id}")
+    suspend fun deleteAssunto(@Path("id") id: Int): Response<Unit>
 
     @GET("api/reports")
     suspend fun report(

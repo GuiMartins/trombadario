@@ -1,6 +1,7 @@
 package com.trombadario.ui.pedidos
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -190,6 +191,7 @@ private fun PedidoCard(
     onDecide: (aprovado: Boolean, note: String) -> Unit,
 ) {
     var nota by remember(pedido.id) { mutableStateOf("") }
+    var respostaExpandida by remember(pedido.id) { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -240,7 +242,28 @@ private fun PedidoCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (pedido.decisionNote.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = stringResource(
+                    if (pedido.status == PedidoDto.PENDENTE) {
+                        R.string.pedidos_nao_respondido
+                    } else {
+                        R.string.pedidos_respondido
+                    }
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (pedido.status == PedidoDto.PENDENTE) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
+                modifier = if (pedido.decisionNote.isNotBlank()) {
+                    Modifier.clickable { respostaExpandida = !respostaExpandida }
+                } else {
+                    Modifier
+                },
+            )
+            if (pedido.decisionNote.isNotBlank() && respostaExpandida) {
                 Text(
                     text = stringResource(R.string.pedidos_resposta, pedido.decisionNote),
                     style = MaterialTheme.typography.bodyMedium,

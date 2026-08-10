@@ -11,6 +11,7 @@ private val PT_BR = Locale("pt", "BR")
 private val DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy", PT_BR)
 private val DATE_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm", PT_BR)
 private val DAY_HEADER = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM 'de' yyyy", PT_BR)
+private val TIME = DateTimeFormatter.ofPattern("HH:mm", PT_BR)
 
 /** The API always sends UTC with an explicit offset; everything the user sees is
  *  in the phone's own timezone. */
@@ -21,6 +22,9 @@ fun Instant.toLocalDateTime(): LocalDateTime = LocalDateTime.ofInstant(this, Zon
 fun Instant.formatDateTime(): String = toLocalDateTime().format(DATE_TIME)
 
 fun Instant.formatDate(): String = toLocalDateTime().format(DATE)
+
+/** Só a hora: "feito hoje, às 08:12" já disse o dia. */
+fun Instant.formatTime(): String = toLocalDateTime().format(TIME)
 
 fun Instant.formatDayHeader(): String =
     toLocalDateTime().format(DAY_HEADER).replaceFirstChar { it.titlecase(PT_BR) }

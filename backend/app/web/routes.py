@@ -11,6 +11,7 @@ from sqlalchemy import or_, select
 from app.deps import DbSession
 from app.models import (
     CATEGORIAS_POR_TIPO,
+    Assunto,
     Category,
     Kind,
     Pedido,
@@ -21,6 +22,7 @@ from app.models import (
     Role,
     SplashMessage,
     Task,
+    TaskCompletion,
     Trombadice,
     User,
     categoria_combina,
@@ -35,9 +37,10 @@ from app.periodo import (
     semanas_do_mes,
 )
 from app.routers.reports import report
+from app.routers.tasks import estado_da_tarefa
 from app.security import create_access_token, hash_password, verify_password
 from app.setup_state import setup_required
-from app.visto import marcar_visto_pai
+from app.visto import marcar_assunto_visto, marcar_visto_pai
 from app.web.deps import SESSION_COOKIE, AdminWeb, MaybeUser, RedirectTo
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -46,6 +49,15 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 router = APIRouter(tags=["web"])
 
 WEEKDAY_NAMES = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+
+# Como chamar "o período de agora" de cada periodicidade. "Feito neste período"
+# está certo e não é como ninguém fala.
+ROTULO_DO_PERIODO = {
+    Periodicity.DAILY: "hoje",
+    Periodicity.WEEKLY: "hoje",
+    Periodicity.MONTHLY: "este mês",
+    Periodicity.ONCE: "",
+}
 WEEKDAY_INICIAIS = ["S", "T", "Q", "Q", "S", "S", "D"]
 MESES = [
     "janeiro", "fevereiro", "março", "abril", "maio", "junho",
@@ -557,11 +569,18 @@ def tasks_page(
         query = query.where(Task.child_id == child_id)
     children = _children(db)
     editando = db.get(Task, editar) if editar else None
+    tarefas = list(db.scalars(query))
+    hoje = hoje_local()
     return _render(
         request,
         "tarefas.html",
         user=user,
-        tasks=list(db.scalars(query)),
+        tasks=tarefas,
+        # Se o período de agora já foi cumprido é conta de calendário, não de
+        # template: quem sabe fazer é a mesma função que a API usa, senão o
+        # painel e o app responderiam diferente sobre a mesma tarefa.
+        estado={t.id: estado_da_tarefa(t, hoje) for t in tarefas},
+        rotulo_do_periodo=ROTULO_DO_PERIODO,
         children=children,
         children_by_id={c.id: c for c in children},
         selected_child=child_id,
@@ -656,6 +675,17 @@ def task_delete(task_id: int, db: DbSession, user: AdminWeb):
     return _redirect("/tarefas")
 
 
+@router.post("/tarefas/{task_id}/conclusoes/{completion_id}/apagar")
+def task_completion_delete(task_id: int, completion_id: int, db: DbSession, user: AdminWeb):
+    """Desmarcar um "feito" - o mesmo que o filho faz pelo app, aqui sem limite
+    de período: o pai corrige qualquer registro, como em todo o resto."""
+    completion = db.get(TaskCompletion, completion_id)
+    if completion is not None and completion.task_id == task_id:
+        db.delete(completion)
+        db.commit()
+    return _redirect("/tarefas")
+
+
 # --------------------------------------------------------------------------
 # Castigos
 # --------------------------------------------------------------------------
@@ -672,6 +702,7 @@ def punishments_page(
     q: str | None = None,
     mes: str | None = None,
     editar: int | None = None,
+    erro: str | None = None,
 ):
     now = datetime.now(UTC)
     categoria = Category(category) if category in {c.value for c in Category} else None
@@ -718,6 +749,7 @@ def punishments_page(
         fim_sugerido=_local_input(datetime.now(UTC) + timedelta(days=1)),
         editando=editando,
         editando_trombadices=[t.id for t in editando.trombadices] if editando else [],
+        erro=erro,
         selected_child=child_id,
         # Castigo só vem de trombadice, então só a lista dela faz sentido aqui.
         categorias=_rotulos_do_tipo(Kind.TROMBADICE),
@@ -740,6 +772,18 @@ def punishments_page(
     )
 
 
+def _causas(db: DbSession, trombadice_ids: list[int] | None, child_id: int) -> list[Trombadice]:
+    """As trombadices que justificam o castigo, já filtradas pelo filho escolhido
+    - marcar a de um irmão colocaria o nome dele neste castigo.
+
+    Devolve lista vazia quando não sobra nenhuma, e quem chama trata isso como
+    erro: castigo sem causa não existe (ver `_resolve_trombadices` na API)."""
+    if not trombadice_ids:
+        return []
+    chosen = db.scalars(select(Trombadice).where(Trombadice.id.in_(trombadice_ids)))
+    return [t for t in chosen if t.child_id == child_id and t.kind is Kind.TROMBADICE]
+
+
 @router.post("/castigos")
 def punishment_create(
     db: DbSession,
@@ -749,6 +793,12 @@ def punishment_create(
     reason: Annotated[str, Form()] = "",
     trombadice_ids: Annotated[list[int] | None, Form()] = None,
 ):
+    causas = _causas(db, trombadice_ids, child_id)
+    if not causas:
+        # O navegador não sabe exigir "pelo menos um checkbox marcado", então
+        # quem recusa é o servidor - o mesmo que já recusa na API.
+        raise RedirectTo("/castigos?erro=sem-trombadice")
+
     punishment = Punishment(
         reason=reason.strip(),
         starts_at=datetime.now(UTC),
@@ -756,11 +806,7 @@ def punishment_create(
         child_id=child_id,
         author_id=user.id,
     )
-    if trombadice_ids:
-        chosen = list(db.scalars(select(Trombadice).where(Trombadice.id.in_(trombadice_ids))))
-        # Only this child's own trombadices - anything else would put a
-        # sibling's name on the record.
-        punishment.trombadices = [t for t in chosen if t.child_id == child_id]
+    punishment.trombadices = causas
     db.add(punishment)
     db.commit()
     return _redirect("/castigos")
@@ -780,15 +826,14 @@ def punishment_edit(
     if punishment is None:
         return _redirect("/castigos")
 
+    causas = _causas(db, trombadice_ids, child_id)
+    if not causas:
+        raise RedirectTo(f"/castigos?editar={punishment_id}&erro=sem-trombadice#editar")
+
     punishment.reason = reason.strip()
     punishment.ends_at = _parse_local(ends_at)
     punishment.child_id = child_id
-    chosen = (
-        list(db.scalars(select(Trombadice).where(Trombadice.id.in_(trombadice_ids))))
-        if trombadice_ids
-        else []
-    )
-    punishment.trombadices = [t for t in chosen if t.child_id == child_id]
+    punishment.trombadices = causas
     # `starts_at` não se edita: quando o castigo começou é fato, não opinião.
     # Para soltar antes da hora existe o botão Encerrar, que preserva o
     # `ends_at` original.
@@ -995,14 +1040,149 @@ def user_toggle(user_id: int, db: DbSession, user: AdminWeb):
 
 @router.post("/contas/{user_id}/toggle-pedidos")
 def user_toggle_can_request(user_id: int, db: DbSession, user: AdminWeb):
-    # Rota própria, não um parâmetro genérico em cima de /toggle: os dois
-    # toggles significam coisas diferentes (conta ligada vs. pode pedir), e um
-    # parâmetro tipo string pra escolher qual campo mexer é o tipo de
-    # ramificação implícita que este projeto evita.
+    # Rota própria, não um parâmetro genérico em cima de /toggle: os três
+    # toggles significam coisas diferentes (conta ligada, pode pedir, pode
+    # levantar assunto), e um parâmetro tipo string pra escolher qual campo
+    # mexer é o tipo de ramificação implícita que este projeto evita.
     if (target := db.get(User, user_id)) is not None:
         target.can_request = not target.can_request
         db.commit()
     return _redirect("/contas")
+
+
+@router.post("/contas/{user_id}/toggle-assuntos")
+def user_toggle_can_discuss(user_id: int, db: DbSession, user: AdminWeb):
+    if (target := db.get(User, user_id)) is not None:
+        target.can_discuss = not target.can_discuss
+        db.commit()
+    return _redirect("/contas")
+
+
+# --------------------------------------------------------------------------
+# Assuntos pra conversar
+# --------------------------------------------------------------------------
+
+
+@router.get("/assuntos", response_class=HTMLResponse)
+def assuntos_page(
+    request: Request,
+    db: DbSession,
+    user: AdminWeb,
+    child_id: int | None = None,
+    pendentes: str | None = None,
+    editar: int | None = None,
+):
+    base = select(Assunto).order_by(Assunto.created_at.desc())
+    if child_id:
+        base = base.where(Assunto.child_id == child_id)
+    if pendentes == "sim":
+        base = base.where(Assunto.talked_at.is_(None))
+    elif pendentes == "nao":
+        base = base.where(Assunto.talked_at.is_not(None))
+    assuntos = list(db.scalars(base))
+
+    # O pai abrindo a página é o "visto" dele - dos assuntos que o filho
+    # trouxe, que é o que a função sabe distinguir (ver app/visto.py).
+    marcar_assunto_visto(db, assuntos, user)
+
+    children = _children(db)
+    editando = db.get(Assunto, editar) if editar else None
+    return _render(
+        request,
+        "assuntos.html",
+        user=user,
+        assuntos=assuntos,
+        children=children,
+        children_by_id={c.id: c for c in children},
+        selected_child=child_id,
+        pendentes=pendentes,
+        # Só o próprio autor corrige, então o formulário de edição não abre pro
+        # que o filho escreveu - a mesma regra da API, não uma segunda.
+        editando=editando if editando is not None and editando.author_id == user.id else None,
+        url=_construtor_de_url(
+            "/assuntos", {"child_id": child_id, "pendentes": pendentes}
+        ),
+    )
+
+
+@router.post("/assuntos")
+def assunto_create(
+    db: DbSession,
+    user: AdminWeb,
+    title: Annotated[str, Form()],
+    child_id: Annotated[int, Form()],
+    description: Annotated[str, Form()] = "",
+):
+    if not title.strip():
+        raise RedirectTo("/assuntos")
+    db.add(
+        Assunto(
+            title=title.strip(),
+            description=description.strip(),
+            child_id=child_id,
+            author_id=user.id,
+        )
+    )
+    db.commit()
+    return _redirect("/assuntos")
+
+
+@router.post("/assuntos/{assunto_id}/editar")
+def assunto_edit(
+    assunto_id: int,
+    db: DbSession,
+    user: AdminWeb,
+    title: Annotated[str, Form()],
+    child_id: Annotated[int, Form()],
+    description: Annotated[str, Form()] = "",
+):
+    assunto = db.get(Assunto, assunto_id)
+    # Nem o pai reescreve a pauta que o filho trouxe, e o que já foi conversado
+    # é história - as duas regras são as mesmas da API.
+    if assunto is None or assunto.author_id != user.id or assunto.talked_at is not None:
+        return _redirect("/assuntos")
+
+    if title.strip():
+        assunto.title = title.strip()
+    assunto.description = description.strip()
+    assunto.child_id = child_id
+    db.commit()
+    return _redirect("/assuntos")
+
+
+@router.post("/assuntos/{assunto_id}/conversado")
+def assunto_conversado(
+    assunto_id: int,
+    db: DbSession,
+    user: AdminWeb,
+    note: Annotated[str, Form()] = "",
+):
+    if (assunto := db.get(Assunto, assunto_id)) is not None:
+        assunto.talked_at = datetime.now(UTC)
+        assunto.talked_by_id = user.id
+        assunto.talked_note = note.strip()
+        db.commit()
+    return _redirect("/assuntos")
+
+
+@router.post("/assuntos/{assunto_id}/reabrir")
+def assunto_reabrir(assunto_id: int, db: DbSession, user: AdminWeb):
+    """Desmarcar, pelo mesmo motivo que desmarcar tarefa existe: um clique
+    errado não pode encerrar pra sempre uma conversa que não aconteceu."""
+    if (assunto := db.get(Assunto, assunto_id)) is not None:
+        assunto.talked_at = None
+        assunto.talked_by_id = None
+        assunto.talked_note = ""
+        db.commit()
+    return _redirect("/assuntos")
+
+
+@router.post("/assuntos/{assunto_id}/delete")
+def assunto_delete(assunto_id: int, db: DbSession, user: AdminWeb):
+    if (assunto := db.get(Assunto, assunto_id)) is not None:
+        db.delete(assunto)
+        db.commit()
+    return _redirect("/assuntos")
 
 
 # --------------------------------------------------------------------------

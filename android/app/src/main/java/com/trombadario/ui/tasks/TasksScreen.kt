@@ -1,5 +1,6 @@
 package com.trombadario.ui.tasks
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.BorderStroke
@@ -35,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringArrayResource
@@ -52,7 +54,9 @@ import com.trombadario.R
 import com.trombadario.data.remote.TaskCompletionDto
 import com.trombadario.data.remote.TaskDto
 import com.trombadario.data.remote.UserDto
+import com.trombadario.ui.components.corDaConquista
 import com.trombadario.ui.components.formatDateTime
+import com.trombadario.ui.components.formatTime
 import com.trombadario.ui.components.parseInstant
 import com.trombadario.ui.components.AdaptiveScreen
 import com.trombadario.ui.components.AppTopBar
@@ -148,11 +152,11 @@ fun TasksScreen(container: AppContainer, currentUser: UserDto) {
                                     null
                                 },
                                 isAdmin = currentUser.isAdmin,
-                                completions = state.completions[task.id].orEmpty(),
                                 onClick = { if (currentUser.isAdmin) viewModel.startEdit(task) },
                                 onToggle = { viewModel.toggleActive(task) },
                                 onDelete = { viewModel.askDelete(task) },
                                 onMarkDone = { viewModel.startMarkDone(task) },
+                                onUndo = { completion -> viewModel.askUndo(task, completion) },
                             )
                         }
                     }
@@ -192,6 +196,41 @@ fun TasksScreen(container: AppContainer, currentUser: UserDto) {
         )
     }
 
+    state.confirmingUndoOf?.let { alvo ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelUndo,
+            title = { Text(stringResource(R.string.tasks_undo_confirm_title)) },
+            text = { Text(stringResource(R.string.tasks_undo_confirm_message, alvo.task.name)) },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmUndo) {
+                    Text(stringResource(R.string.tasks_undo))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelUndo) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    // Erro que aconteceu fora do diálogo de "Feito" (ao desmarcar, ou porque a
+    // tarefa sumiu). Antes disto, a resposta do servidor não chegava a lugar
+    // nenhum e a tela ficava parada, como se o toque não tivesse acontecido.
+    if (state.markingDoneFor == null && (state.markDoneError != null || state.markDoneErrorRes != null)) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissMarkDoneError,
+            text = {
+                Text(state.markDoneError ?: stringResource(state.markDoneErrorRes!!))
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissMarkDoneError) {
+                    Text(stringResource(R.string.action_ok))
+                }
+            },
+        )
+    }
+
     state.markingDoneFor?.let { task ->
         AlertDialog(
             onDismissRequest = viewModel::cancelMarkDone,
@@ -225,6 +264,14 @@ fun TasksScreen(container: AppContainer, currentUser: UserDto) {
     }
 }
 
+/** Como chamar "o período de agora" de cada periodicidade: "feito neste
+ *  período" está certo e não é como ninguém fala. A avulsa fica de fora - ela
+ *  não tem período que se repita, então mostra a data inteira. */
+@StringRes
+private fun periodLabel(periodicity: String): Int =
+    if (periodicity == TaskDto.MONTHLY) R.string.tasks_period_now_month
+    else R.string.tasks_period_now_day
+
 @Composable
 private fun describeSchedule(task: TaskDto, weekdayShort: Array<String>): String = when (task.periodicity) {
     TaskDto.DAILY -> stringResource(R.string.tasks_period_daily)
@@ -239,11 +286,11 @@ private fun TaskCard(
     schedule: String,
     childName: String?,
     isAdmin: Boolean,
-    completions: List<TaskCompletionDto>,
     onClick: () -> Unit,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     onMarkDone: () -> Unit,
+    onUndo: (TaskCompletionDto) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(enabled = isAdmin, onClick = onClick),
@@ -288,18 +335,64 @@ private fun TaskCard(
                     )
                 }
             }
-            // Só leitura pro pai; quem marca é o filho, pelo botão abaixo.
-            completions.forEach { c ->
+            // O estado do período de agora, que é a pergunta dos dois papéis:
+            // o filho quer saber se ainda tem que fazer, o pai se já foi feito.
+            val feito = task.currentCompletion
+            if (feito != null) {
+                Text(
+                    // A avulsa não tem período que se repita: nela o que importa
+                    // é o dia, não "feito hoje às 14:30" de um dia qualquer.
+                    text = if (task.periodicity == TaskDto.ONCE) {
+                        stringResource(
+                            R.string.tasks_done_once,
+                            parseInstant(feito.completedAt).formatDateTime(),
+                        )
+                    } else {
+                        stringResource(
+                            R.string.tasks_done_now,
+                            stringResource(periodLabel(task.periodicity)),
+                            parseInstant(feito.completedAt).formatTime(),
+                        )
+                    } + if (feito.note.isNotBlank()) " — ${feito.note}" else "",
+                    style = MaterialTheme.typography.labelLarge,
+                    // Mesmo teal da conquista: é a cor de "coisa boa" do app, e
+                    // é a única com contraste medido nos dois papéis.
+                    color = corDaConquista(),
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            } else if (task.isActive) {
                 Text(
                     text = stringResource(
-                        R.string.tasks_done_at,
-                        parseInstant(c.completedAt).formatDateTime(),
-                    ) + if (c.note.isNotBlank()) " — ${c.note}" else "",
-                    style = MaterialTheme.typography.labelSmall,
+                        if (task.dueToday) R.string.tasks_pending else R.string.tasks_not_today
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
+
+            // O histórico é só do pai: pro filho, o cartão responde o de hoje e
+            // para por aí.
             if (isAdmin) {
+                task.recentCompletions.forEach { c ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = stringResource(
+                                R.string.tasks_done_at,
+                                parseInstant(c.completedAt).formatDateTime(),
+                            ) + if (c.note.isNotBlank()) " — ${c.note}" else "",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        TextButton(onClick = { onUndo(c) }) {
+                            Text(
+                                stringResource(R.string.tasks_undo),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = onToggle) {
                         Text(
@@ -311,8 +404,16 @@ private fun TaskCard(
                     TextButton(onClick = onDelete) { Text(stringResource(R.string.action_delete)) }
                 }
             } else if (task.isActive) {
-                TextButton(onClick = onMarkDone) {
-                    Text(stringResource(R.string.tasks_mark_done))
+                if (feito != null) {
+                    // Desmarcar o engano do próprio período - sem isto, um toque
+                    // errado numa tarefa avulsa ficava "feito" pra sempre.
+                    TextButton(onClick = { onUndo(feito) }) {
+                        Text(stringResource(R.string.tasks_undo))
+                    }
+                } else if (task.dueToday) {
+                    TextButton(onClick = onMarkDone) {
+                        Text(stringResource(R.string.tasks_mark_done))
+                    }
                 }
             }
         }

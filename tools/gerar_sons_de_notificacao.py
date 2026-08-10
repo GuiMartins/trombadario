@@ -58,6 +58,10 @@ SONS: dict[str, dict] = {
     # Pro filho: saiu decisão. Sobe (chegou resposta) mas discreto - a resposta
     # pode ter sido "não", então não pode soar comemorativo.
     "som_decisao": {"notas": [(784.0, 0.14), (1046.5, 0.32)], "timbre": SUAVE},
+    # Assunto pra conversar, o único aviso que chega pros dois lados. Duas notas
+    # na mesma altura, a segunda mais longa, tipo alguém chamando pelo nome: não
+    # é notícia boa nem ruim, é um convite pra sentar e conversar.
+    "som_assunto": {"notas": [(587.33, 0.15), (587.33, 0.34)], "timbre": SINETA},
 }
 
 ATAQUE = 0.006  # rampa de entrada; sem ela cada nota começa com um clique.

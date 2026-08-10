@@ -24,6 +24,9 @@ data class UnseenCountsDto(
     @SerialName("conquistas_novas") val conquistasNovas: Int = 0,
     @SerialName("castigos_novos") val castigosNovos: Int = 0,
     @SerialName("decisoes_novas") val decisoesNovas: Int = 0,
+    // O único que vale pros dois papéis: assunto é a única coisa que os dois
+    // cadastram, e em cada lado a conta é "o que o outro trouxe e eu não vi".
+    @SerialName("assuntos_novos") val assuntosNovos: Int = 0,
 )
 
 @Serializable
@@ -39,8 +42,11 @@ data class UserDto(
     @SerialName("display_name") val displayName: String,
     val role: String,
     @SerialName("is_active") val isActive: Boolean,
-    // Só faz sentido pro filho; o pai lê o próprio valor como true e nunca usa.
+    // Só fazem sentido pro filho; o pai lê os próprios valores como true e nunca
+    // usa. `canDiscuss` desligado some com a tela de Assuntos inteira, não só
+    // com o botão de criar - ver o modelo no backend.
     @SerialName("can_request") val canRequest: Boolean = true,
+    @SerialName("can_discuss") val canDiscuss: Boolean = true,
 ) {
     val isAdmin: Boolean get() = role == ROLE_ADMIN
 
@@ -64,6 +70,7 @@ data class UserUpdateDto(
     val password: String? = null,
     @SerialName("is_active") val isActive: Boolean? = null,
     @SerialName("can_request") val canRequest: Boolean? = null,
+    @SerialName("can_discuss") val canDiscuss: Boolean? = null,
 )
 
 @Serializable
@@ -176,6 +183,16 @@ data class TaskDto(
     @SerialName("day_of_month") val dayOfMonth: Int? = null,
     @SerialName("child_id") val childId: Int,
     @SerialName("is_active") val isActive: Boolean,
+    /** Hoje é dia dessa tarefa? Calculado no servidor, como o `is_active` do
+     *  castigo - o calendário do celular não decide isso. */
+    @SerialName("due_today") val dueToday: Boolean = false,
+    /** A conclusão do período de agora, ou nulo se ainda não foi feita.
+     *  Traduzir data em período é conta do servidor: "feito em 03/08" não diz
+     *  se a semana desta tarefa está cumprida. */
+    @SerialName("current_completion") val currentCompletion: TaskCompletionDto? = null,
+    /** As últimas vezes, pro cartão. O histórico inteiro (uma linha por dia,
+     *  pra sempre) fica em /completions, paginado. */
+    @SerialName("recent_completions") val recentCompletions: List<TaskCompletionDto> = emptyList(),
 ) {
     companion object {
         const val DAILY = "daily"
@@ -211,6 +228,8 @@ data class TaskCompletionDto(
     @SerialName("task_id") val taskId: Int,
     @SerialName("child_id") val childId: Int,
     val note: String,
+    /** Qual período esta conclusão satisfaz (o dia, o mês, ou "once"). */
+    @SerialName("period_key") val periodKey: String,
     @SerialName("completed_at") val completedAt: String,
 )
 
@@ -256,7 +275,10 @@ data class PunishmentCreateDto(
     @SerialName("child_id") val childId: Int,
     @SerialName("ends_at") val endsAt: String,
     val reason: String = "",
-    @SerialName("trombadice_ids") val trombadiceIds: List<Int> = emptyList(),
+    // Sem default: castigo é consequência de alguma coisa que aconteceu, e o
+    // servidor recusa a lista vazia. Sem o default, esquecer de preencher vira
+    // erro de compilação em vez de um 400 em tempo de execução.
+    @SerialName("trombadice_ids") val trombadiceIds: List<Int>,
 )
 
 @Serializable
@@ -382,4 +404,61 @@ data class PropostaConquistaCreateDto(
 data class PedidoDecisionDto(
     val status: String,
     @SerialName("decision_note") val decisionNote: String = "",
+)
+
+
+// --------------------------------------------------------------------------
+// Assuntos pra conversar
+// --------------------------------------------------------------------------
+
+/**
+ * A pauta de uma conversa que vai acontecer pessoalmente - a única coisa do app
+ * que pai e filho cadastram do mesmo jeito.
+ *
+ * Não tem campo de resposta de propósito: o texto é o assunto a tratar, não o
+ * que foi dito. Um chat aqui viraria o substituto da conversa em vez do
+ * lembrete dela.
+ */
+@Serializable
+data class AssuntoDto(
+    val id: Int,
+    val title: String,
+    val description: String = "",
+    @SerialName("child_id") val childId: Int,
+    @SerialName("author_id") val authorId: Int,
+    /** Nulo = ainda não conversaram. Instante e não booleano, como o `seenAt`:
+     *  "conversamos" sem "quando" não responde a pergunta que se faz depois. */
+    @SerialName("talked_at") val talkedAt: String? = null,
+    @SerialName("talked_by_id") val talkedById: Int? = null,
+    @SerialName("talked_note") val talkedNote: String = "",
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("seen_by_parent_at") val seenByParentAt: String? = null,
+    @SerialName("seen_by_child_at") val seenByChildAt: String? = null,
+    /** Quem trouxe o assunto, resolvido no servidor. O app não teria como saber
+     *  sozinho: o filho não conhece o id do pai. */
+    @SerialName("by_child") val byChild: Boolean = false,
+) {
+    val pendente: Boolean get() = talkedAt == null
+}
+
+@Serializable
+data class AssuntoCreateDto(
+    val title: String,
+    val description: String = "",
+    /** Só o pai manda. Vindo do filho o servidor ignora - o assunto é dele. */
+    @SerialName("child_id") val childId: Int? = null,
+)
+
+@Serializable
+data class AssuntoUpdateDto(
+    val title: String? = null,
+    val description: String? = null,
+)
+
+/** `talked = false` desmarca: um toque errado não pode encerrar pra sempre uma
+ *  conversa que não aconteceu. Mesma ideia de desmarcar tarefa. */
+@Serializable
+data class AssuntoConversaDto(
+    val talked: Boolean = true,
+    val note: String = "",
 )

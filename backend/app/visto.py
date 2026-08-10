@@ -78,3 +78,32 @@ def marcar_decisao_vista(db: Session, itens: list, current_user: User) -> None:
 
     if mudou:
         db.commit()
+
+
+def marcar_assunto_visto(db: Session, itens: list, current_user: User) -> None:
+    """Assunto tem uma regra própria: **quem vê é sempre quem não escreveu.**
+
+    As outras duas funções aqui têm uma direção fixa, porque o que elas carimbam
+    também tem (o pai cadastra, o filho vê; o filho pede, o pai vê). Assunto é a
+    única coisa do app que os dois lados criam, então a direção sai do autor de
+    cada linha, não da função. O pai relendo o assunto que ele mesmo escreveu não
+    carimba nada - senão "o filho ainda não viu" viraria mentira sem ninguém ter
+    aberto o app."""
+    agora = datetime.now(UTC)
+    mudou = False
+
+    for item in itens:
+        if current_user.role is Role.ADMIN:
+            if item.by_child and item.seen_by_parent_at is None:
+                item.seen_by_parent_at = agora
+                mudou = True
+        elif (
+            not item.by_child
+            and item.child_id == current_user.id
+            and item.seen_by_child_at is None
+        ):
+            item.seen_by_child_at = agora
+            mudou = True
+
+    if mudou:
+        db.commit()

@@ -21,10 +21,57 @@ def create_trombadice(client: TestClient, child_id: int, title: str = "Bagunça"
 
 
 def punish(client: TestClient, child_id: int, **extra) -> dict:
+    """Castigo sempre aponta pelo menos uma trombadice - é regra, não conveniência
+    do teste. Quem não passa `trombadice_ids` ganha uma trombadice nova pra
+    justificar o castigo, porque sem nenhuma a API recusa (400)."""
     payload = {"child_id": child_id, "ends_at": iso(timedelta(days=2)), **extra}
+    payload.setdefault("trombadice_ids", [create_trombadice(client, child_id)["id"]])
     response = client.post("/api/punishments", headers=as_admin(client), json=payload)
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def test_castigo_sem_trombadice_nao_existe(client: TestClient, admin: User, child: User) -> None:
+    """Castigo é consequência de alguma coisa, e essa coisa já está registrada.
+    Solto, ele viraria uma punição que a criança lê sem saber de onde veio."""
+    response = client.post(
+        "/api/punishments",
+        headers=as_admin(client),
+        json={"child_id": child.id, "ends_at": iso(timedelta(days=1)), "trombadice_ids": []},
+    )
+
+    assert response.status_code == 400
+
+
+def test_castigo_sem_o_campo_de_trombadice_e_recusado(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Omitir o campo não é o mesmo que mandar vazio, e as duas formas precisam
+    dar errado - senão um cliente antigo continuaria criando castigo solto."""
+    response = client.post(
+        "/api/punishments",
+        headers=as_admin(client),
+        json={"child_id": child.id, "ends_at": iso(timedelta(days=1))},
+    )
+
+    assert response.status_code == 422
+
+
+def test_editar_castigo_nao_deixa_ficar_sem_trombadice(
+    client: TestClient, admin: User, child: User
+) -> None:
+    punishment = punish(client, child.id)
+
+    response = client.patch(
+        f"/api/punishments/{punishment['id']}",
+        headers=as_admin(client),
+        json={"trombadice_ids": []},
+    )
+
+    assert response.status_code == 400
+    # E o vínculo original continua lá: a recusa não pode deixar meio salvo.
+    atual = client.get(f"/api/punishments/{punishment['id']}", headers=as_admin(client)).json()
+    assert atual["trombadice_ids"] == punishment["trombadice_ids"]
 
 
 def test_pai_poe_de_castigo(client: TestClient, admin: User, child: User) -> None:
@@ -68,6 +115,8 @@ def test_nao_liga_castigo_a_trombadice_de_outro_filho(
 def test_castigo_precisa_terminar_depois_de_comecar(
     client: TestClient, admin: User, child: User
 ) -> None:
+    trombadice = create_trombadice(client, child.id)
+
     response = client.post(
         "/api/punishments",
         headers=as_admin(client),
@@ -75,6 +124,7 @@ def test_castigo_precisa_terminar_depois_de_comecar(
             "child_id": child.id,
             "starts_at": iso(timedelta(days=1)),
             "ends_at": iso(timedelta(hours=1)),
+            "trombadice_ids": [trombadice["id"]],
         },
     )
 
@@ -249,3 +299,31 @@ def test_reacao_do_filho_aparece_pro_pai(client: TestClient, admin: User, child:
     response = client.get(f"/api/punishments/{punishment['id']}", headers=as_admin(client))
 
     assert response.json()["reaction_text"] == "😠 injusto"
+
+
+def test_conquista_nao_causa_castigo(client: TestClient, admin: User, child: User) -> None:
+    """A regra já existia; com trombadice virando obrigatória ela passa a ser a
+    diferença entre "escolhi a linha errada" e "castiguei por coisa boa"."""
+    conquista = client.post(
+        "/api/trombadices",
+        headers=as_admin(client),
+        json={
+            "title": "Ajudou com a louça",
+            "occurred_at": OCCURRED_AT,
+            "child_id": child.id,
+            "kind": "conquista",
+            "category": "ajudou",
+        },
+    ).json()
+
+    response = client.post(
+        "/api/punishments",
+        headers=as_admin(client),
+        json={
+            "child_id": child.id,
+            "ends_at": iso(timedelta(days=1)),
+            "trombadice_ids": [conquista["id"]],
+        },
+    )
+
+    assert response.status_code == 400

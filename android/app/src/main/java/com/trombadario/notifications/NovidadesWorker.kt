@@ -167,6 +167,18 @@ class NovidadesWorker(
                     som = R.raw.som_decisao,
                     texto = R.plurals.notificacao_decisao,
                 )
+
+                // O único canal que existe nos dois papéis - o texto serve pros
+                // dois porque o fato é o mesmo dos dois lados ("tem assunto
+                // esperando conversa"), e dizer quem trouxe exigiria buscar a
+                // lista, que é justamente o que este poller não faz.
+                Novidade.ASSUNTO -> Canal(
+                    id = "assunto_v1",
+                    nome = R.string.canal_assunto,
+                    descricao = R.string.canal_assunto_descricao,
+                    som = R.raw.som_assunto,
+                    texto = R.plurals.notificacao_assunto,
+                )
             }
         }
     }

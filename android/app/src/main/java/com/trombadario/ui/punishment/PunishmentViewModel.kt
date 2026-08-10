@@ -125,6 +125,18 @@ class PunishmentViewModel(
             return
         }
 
+        // Só as do filho escolhido: o backend recusa o resto, e mandar o que ele
+        // vai recusar só produziria erro.
+        val causas = editor.trombadiceIds.filter { id ->
+            _state.value.trombadices.any { it.id == id && it.childId == childId }
+        }
+        // Castigo vem de alguma coisa que aconteceu, e essa coisa já está
+        // registrada - o servidor recusa castigo solto (400).
+        if (causas.isEmpty()) {
+            _state.update { it.copy(error = R.string.punishment_error_needs_trombadice) }
+            return
+        }
+
         _state.update { it.copy(submitting = true, error = null) }
         viewModelScope.launch {
             val result = container.repository.createPunishment(
@@ -132,12 +144,7 @@ class PunishmentViewModel(
                     childId = childId,
                     endsAt = endsAt.toIsoUtc(),
                     reason = editor.reason.trim(),
-                    // Só as do filho escolhido: o backend recusa o resto, e
-                    // mandar o que ele vai recusar só produziria erro.
-                    trombadiceIds = editor.trombadiceIds
-                        .filter { id ->
-                            _state.value.trombadices.any { it.id == id && it.childId == childId }
-                        },
+                    trombadiceIds = causas,
                 )
             )
             if (result is ApiResult.Success) {
