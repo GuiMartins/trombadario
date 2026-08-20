@@ -5,6 +5,7 @@ import com.trombadario.data.remote.AssuntoConversaDto
 import com.trombadario.data.remote.AssuntoCreateDto
 import com.trombadario.data.remote.AssuntoDto
 import com.trombadario.data.remote.AssuntoUpdateDto
+import com.trombadario.data.remote.BirthdayDto
 import com.trombadario.data.remote.DatasComRegistroDto
 import com.trombadario.data.remote.ReportDto
 import com.trombadario.data.remote.TrombadiceCreateDto
@@ -105,6 +106,11 @@ class TrombadarioRepository(
     suspend fun me(): ApiResult<UserDto> = call { it.me() }
 
     suspend fun unseenCounts(): ApiResult<UnseenCountsDto> = call { it.unseenCounts() }
+
+    /** Se hoje é aniversário de quem está logado. Perguntado ao servidor, e não
+     *  calculado aqui, porque o relógio do aparelho não decide nada neste app -
+     *  e no dia da festa esta resposta substitui a interface inteira. */
+    suspend fun birthday(): ApiResult<BirthdayDto> = call { it.birthday() }
 
     suspend fun listTrombadices(
         childId: Int? = null,

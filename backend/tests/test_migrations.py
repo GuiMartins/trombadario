@@ -11,7 +11,7 @@ testes passavam e a página quebrava com LookupError na primeira leitura.
 """
 
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -352,3 +352,26 @@ def test_assunto_pendente_legivel_pelo_orm(banco_antigo: str) -> None:
         assert assunto.title == "Falar do celular"
         assert assunto.talked_at is None
         assert assunto.by_child is True
+
+
+def test_aniversario_cadastrado_volta_como_date(banco_antigo: str) -> None:
+    """`birth_date` não é enum, então a pegadinha do `native_enum=False` não se
+    aplica - o risco aqui é outro, e é do SQLite: ele não tem tipo de data
+    nativo, guarda texto, e uma coluna declarada com o tipo errado só apareceria
+    na primeira leitura pelo ORM, em produção.
+
+    A conta que já existia tem que continuar sem data: inventar um aniversário
+    para quem nunca cadastrou um daria festa no dia errado."""
+    command.upgrade(_alembic(banco_antigo), "head")
+
+    conexao = sqlite3.connect(banco_antigo.removeprefix("sqlite:///"))
+    conexao.execute("update users set birth_date = '2014-03-25' where username = 'filho'")
+    conexao.commit()
+    conexao.close()
+
+    with sessionmaker(bind=create_engine(banco_antigo))() as sessao:
+        from app.models import User
+
+        pai, filho = sessao.scalars(select(User).order_by(User.id)).all()
+        assert filho.birth_date == date(2014, 3, 25)
+        assert pai.birth_date is None

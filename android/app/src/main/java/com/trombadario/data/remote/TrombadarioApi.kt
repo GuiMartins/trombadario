@@ -30,6 +30,9 @@ interface TrombadarioApi {
     @GET("api/unseen")
     suspend fun unseenCounts(): Response<UnseenCountsDto>
 
+    @GET("api/birthday")
+    suspend fun birthday(): Response<BirthdayDto>
+
     @GET("api/trombadices")
     suspend fun listTrombadices(
         @Query("child_id") childId: Int? = null,

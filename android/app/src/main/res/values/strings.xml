@@ -79,6 +79,11 @@
     <string name="users_delete_confirm_message">As anotações, tarefas e castigos dessa pessoa também somem.</string>
     <string name="users_error_password_too_short">A senha precisa de pelo menos 6 caracteres</string>
     <string name="users_error_username_too_short">O usuário precisa de pelo menos 3 caracteres</string>
+    <string name="users_form_birth_date">Aniversário</string>
+    <string name="users_form_birth_date_hint">No dia do aniversário o app dele não abre: só a tela de festa.</string>
+    <string name="users_birth_date_empty">Não cadastrado</string>
+    <string name="users_birth_date_pick">Escolher</string>
+    <string name="users_birth_date_clear">Limpar</string>
 
     <!-- Configurações -->
     <string name="settings_title">Configurações</string>
@@ -336,6 +341,15 @@
     <string name="canal_decisao_descricao">Avisa quando sai a decisão de um pedido seu. Só chega com o celular em casa.</string>
     <string name="canal_assunto">Assuntos pra conversar</string>
     <string name="canal_assunto_descricao">Avisa quando a outra pessoa anota um assunto pra conversar pessoalmente. Só chega com o celular em casa.</string>
+
+    <!-- Aniversário do filho. No dia, o app inteiro vira esta tela. -->
+    <string name="birthday_title">Feliz aniversário,</string>
+    <string name="birthday_no_trombadario">Hoje não tem Trombadário. O dia é todo seu!</string>
+
+    <plurals name="birthday_age">
+        <item quantity="one">Hoje você faz %d ano!</item>
+        <item quantity="other">Hoje você faz %d anos!</item>
+    </plurals>
 
     <plurals name="notificacao_pedido">
         <item quantity="one">Pedido esperando decisão</item>

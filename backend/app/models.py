@@ -1,9 +1,20 @@
 import enum
 import secrets
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
-from sqlalchemy import Column, Enum, ForeignKey, Integer, String, Table, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Column,
+    Date,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -152,6 +163,16 @@ class User(Base):
     # meio acesso seria pior que nenhum: ver os assuntos que o pai cadastrou sem
     # poder responder nada só deixaria uma tela morta na mão da criança.
     can_discuss: Mapped[bool] = mapped_column(default=True)
+    # Dia de nascimento, sem hora e sem fuso: `Date` e não `UtcDateTime` como
+    # todo o resto do schema. Aniversário não é um instante - ninguém faz anos
+    # às 03:00Z. Guardado como datetime, o dia mudaria conforme o fuso de quem
+    # perguntasse, que é exatamente o erro que `app/periodo.py` existe pra
+    # evitar.
+    #
+    # Nulo = não cadastrado, e é o estado de toda conta que já existe. Vale pra
+    # qualquer papel porque é coluna de pessoa, mas só a do filho tem efeito:
+    # é o app dele que vira tela de aniversário no dia (ver `routers/birthday.py`).
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
 
     trombadices_about_me: Mapped[list["Trombadice"]] = relationship(

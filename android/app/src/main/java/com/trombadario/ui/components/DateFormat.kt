@@ -36,3 +36,16 @@ fun localToInstant(date: LocalDate, hour: Int, minute: Int): Instant =
     date.atTime(hour, minute).atZone(ZoneId.systemDefault()).toInstant()
 
 fun Instant.toIsoUtc(): String = DateTimeFormatter.ISO_INSTANT.format(this)
+
+/**
+ * "2014-03-25" (como a API manda o aniversário) para "25/03/2014".
+ *
+ * Dia sem hora, então **nada de fuso aqui**, ao contrário de todo o resto deste
+ * arquivo: converter um dia para instante e de volta é como ele vira o dia
+ * anterior em algum lugar do mundo.
+ *
+ * Data que não parseia volta como veio, em vez de estourar: uma tela de contas
+ * não pode cair porque um servidor mais novo mudou o formato de um campo.
+ */
+fun formatIsoDate(iso: String): String =
+    runCatching { LocalDate.parse(iso).format(DATE) }.getOrDefault(iso)
