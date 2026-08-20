@@ -63,6 +63,23 @@ class DateFormatTest {
     }
 
     @Test
+    fun `aniversario e dia, nao instante - o fuso nao pode mexer nele`() {
+        // O outro lado da moeda dos testes acima: aqui o fuso **não** entra. Se
+        // "2014-03-25" passasse por instante, no Brasil viraria 24/03.
+        assertEquals("25/03/2014", formatIsoDate("2014-03-25"))
+
+        TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Kiritimati")) // UTC+14
+        assertEquals("25/03/2014", formatIsoDate("2014-03-25"))
+        TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Midway")) // UTC-11
+        assertEquals("25/03/2014", formatIsoDate("2014-03-25"))
+    }
+
+    @Test
+    fun `data que nao parseia volta como veio em vez de derrubar a tela`() {
+        assertEquals("nem data é", formatIsoDate("nem data é"))
+    }
+
+    @Test
     fun `formatacao usa o fuso do aparelho, nao um fixo`() {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
 

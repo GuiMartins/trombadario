@@ -21,6 +21,11 @@
     <option value="admin">Pai</option>
   </select>
 
+  {# Opcional, e só faz alguma coisa na conta de filho: no dia dele o app troca
+     tudo por uma tela de festa. Dá pra cadastrar depois, no cartão da conta. #}
+  <label for="birth_date">Aniversário <span class="sub">(opcional, só vale pro filho)</span></label>
+  <input type="date" id="birth_date" name="birth_date">
+
   <button type="submit">Criar conta</button>
 </form>
 
@@ -32,6 +37,7 @@
         {{ u.display_name }}
         <span class="etiqueta">{{ 'Pai' if u.role.value == 'admin' else 'Filho' }}</span>
         {% if not u.is_active %}<span class="etiqueta fim">desativada</span>{% endif %}
+        {% if u.id in aniversariantes %}<span class="etiqueta festa">🎂 é hoje!</span>{% endif %}
       </p>
       <p class="sub">{{ u.username }}</p>
 
@@ -50,6 +56,25 @@
                autocomplete="new-password" style="max-width:16rem">
         <button class="mini secundario">Trocar senha</button>
       </form>
+
+      {% if u.role.value == 'child' %}
+      {# Só na conta de filho porque só nela a data faz alguma coisa: no
+         aniversário o app dele não abre, exibe a festa e nada mais. Campo
+         vazio apaga - é como se desfaz uma data digitada errada. #}
+      <form method="post" action="/contas/{{ u.id }}/aniversario" class="linha" style="gap:0.5rem;margin-top:0.5rem">
+        <input type="date" name="birth_date"
+               value="{{ u.birth_date.isoformat() if u.birth_date else '' }}"
+               style="max-width:16rem">
+        <button class="mini secundario">Salvar aniversário</button>
+      </form>
+      <p class="sub">
+        {% if u.birth_date %}
+          No aniversário o app dele não abre — só a tela de festa.
+        {% else %}
+          Sem aniversário cadastrado.
+        {% endif %}
+      </p>
+      {% endif %}
     </div>
     <div class="acoes">
       {% if u.role.value == 'child' %}

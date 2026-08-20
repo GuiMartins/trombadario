@@ -260,6 +260,11 @@ h2 {
 }
 .etiqueta.ativo { background: var(--marker-ink); color: var(--on-marker); border-color: var(--marker-ink); }
 .etiqueta.fim { background: transparent; color: var(--ink-soft); }
+/* "É hoje!" no cartão da conta, quando é o aniversário do filho. Reusa o par do
+   `.ativo` (--marker-ink com --on-marker por cima), que test_contraste.py já
+   mede: a etiqueta precisa pular aos olhos no meio das outras e a paleta não
+   ganha cor nova só por causa disso. */
+.etiqueta.festa { background: var(--marker-ink); color: var(--on-marker); border-color: var(--marker-ink); }
 
 .cartao details.resposta summary {
   cursor: pointer;

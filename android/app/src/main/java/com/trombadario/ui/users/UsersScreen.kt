@@ -21,6 +21,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -30,8 +32,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,7 +53,11 @@ import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
 import com.trombadario.ui.components.AppTopBar
 import com.trombadario.ui.components.LoadingScreen
+import com.trombadario.ui.components.formatIsoDate
 import com.trombadario.ui.viewModelFactory
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -185,6 +195,21 @@ private fun UserCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                // Linha própria em vez de mais um "·" na de cima, que já é
+                // maxLines = 1: o pai precisa bater o olho e ver que a data
+                // está lá sem abrir cada conta, e truncada não serve.
+                //
+                // Só a data, sem o "é hoje!" que o painel mostra: lá quem
+                // responde "é hoje" é o próprio servidor, que já tem a regra do
+                // 29 de fevereiro. Aqui daria pra repetir a conta em Kotlin, e
+                // aí seriam duas respostas pra mesma pergunta.
+                user.birthDate?.let {
+                    Text(
+                        text = "🎂 ${formatIsoDate(it)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             if (canDelete) {
                 IconButton(onClick = onDelete) {
@@ -198,6 +223,7 @@ private fun UserCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun UserEditorDialog(
     editor: UserEditor,
@@ -209,6 +235,7 @@ private fun UserEditorDialog(
     onDismiss: () -> Unit,
 ) {
     val creating = editor.id == null
+    var escolhendoData by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -294,6 +321,41 @@ private fun UserEditorDialog(
                     }
                 }
 
+                // Só na conta de filho: é a única em que a data faz alguma
+                // coisa. Um campo na conta do pai ofereceria um aniversário que
+                // nunca vira nada na tela.
+                if (!editor.isAdmin) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = stringResource(R.string.users_form_birth_date),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = editor.birthDate?.let { formatIsoDate(it) }
+                                ?: stringResource(R.string.users_birth_date_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = { escolhendoData = true }) {
+                            Text(stringResource(R.string.users_birth_date_pick))
+                        }
+                        // Limpar precisa existir: uma data errada faria a festa
+                        // no dia errado, e o filho não tem como corrigir nada.
+                        if (editor.birthDate != null) {
+                            TextButton(onClick = { onChange { it.copy(birthDate = null) } }) {
+                                Text(stringResource(R.string.users_birth_date_clear))
+                            }
+                        }
+                    }
+                    Text(
+                        text = stringResource(R.string.users_form_birth_date_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
                 val message = validationError?.let { stringResource(it) } ?: serverError
                 if (message != null) {
                     Spacer(Modifier.height(12.dp))
@@ -314,4 +376,35 @@ private fun UserEditorDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
+
+    if (escolhendoData) {
+        // O DatePicker fala em millis de meia-noite UTC, não em LocalDate;
+        // passar pelo fuso do aparelho aqui deslocaria o aniversário em um dia
+        // - a mesma armadilha documentada na tela de castigo.
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = (editor.birthDate?.let { LocalDate.parse(it) }
+                ?: LocalDate.now().minusYears(10))
+                .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            // Ninguém nasceu no ano que vem, e rolar até 2100 procurando 2014
+            // é trabalho à toa.
+            yearRange = (LocalDate.now().year - 120)..LocalDate.now().year,
+        )
+        DatePickerDialog(
+            onDismissRequest = { escolhendoData = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let { millis ->
+                        val dia = LocalDate.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC)
+                        onChange { it.copy(birthDate = dia.toString()) }
+                    }
+                    escolhendoData = false
+                }) { Text(stringResource(R.string.action_save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { escolhendoData = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        ) { DatePicker(state = pickerState) }
+    }
 }

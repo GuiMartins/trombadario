@@ -1,5 +1,7 @@
 package com.trombadario.data.remote
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -47,6 +49,10 @@ data class UserDto(
     // com o botão de criar - ver o modelo no backend.
     @SerialName("can_request") val canRequest: Boolean = true,
     @SerialName("can_discuss") val canDiscuss: Boolean = true,
+    /** Dia de nascimento em ISO ("2014-03-25"), nulo enquanto o pai não
+     *  cadastrar. Só a do filho faz alguma coisa: no dia dele o app não abre,
+     *  vira festa (ver [BirthdayDto]). */
+    @SerialName("birth_date") val birthDate: String? = null,
 ) {
     val isAdmin: Boolean get() = role == ROLE_ADMIN
 
@@ -62,8 +68,12 @@ data class UserCreateDto(
     val password: String,
     @SerialName("display_name") val displayName: String,
     val role: String,
+    @SerialName("birth_date") val birthDate: String? = null,
 )
 
+// `@EncodeDefault` (em `birthDate`) é experimental na kotlinx.serialization; o
+// opt-in é o jeito oficial de usá-la sem ligar o flag no módulo inteiro.
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class UserUpdateDto(
     @SerialName("display_name") val displayName: String? = null,
@@ -71,6 +81,32 @@ data class UserUpdateDto(
     @SerialName("is_active") val isActive: Boolean? = null,
     @SerialName("can_request") val canRequest: Boolean? = null,
     @SerialName("can_discuss") val canDiscuss: Boolean? = null,
+    /**
+     * O único campo que vai no corpo mesmo valendo null, e por isso a anotação:
+     * o backend usa `exclude_unset`, então **omitir é "não mexe" e mandar nulo
+     * é "apaga"** - e apagar precisa existir, senão uma data digitada errada
+     * faria festa no dia errado pra sempre.
+     *
+     * Seguro porque o formulário sempre carrega a data atual da conta: salvar
+     * qualquer outra coisa reescreve o aniversário com o valor que está na
+     * tela, que é o mesmo que já estava lá.
+     */
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @SerialName("birth_date") val birthDate: String? = null,
+)
+
+/**
+ * Se hoje é aniversário de quem perguntou. Quem decide é o servidor: pelo
+ * relógio do aparelho, bastaria adiantar a data em Configurações pra ter festa
+ * numa terça-feira qualquer - e a festa **substitui o app inteiro** no dia.
+ */
+@Serializable
+data class BirthdayDto(
+    @SerialName("is_birthday") val isBirthday: Boolean = false,
+    @SerialName("display_name") val displayName: String = "",
+    @SerialName("birth_date") val birthDate: String? = null,
+    /** Quantos anos faz hoje. Nulo fora do aniversário. */
+    val age: Int? = null,
 )
 
 @Serializable

@@ -9,6 +9,7 @@ O fuso usado é o do servidor (`TZ` no compose) - é o mesmo da casa, que é a
 premissa do app inteiro.
 """
 
+from calendar import isleap
 from datetime import date, datetime, time, timedelta
 
 from app.models import Periodicity
@@ -111,3 +112,36 @@ def chave_do_periodo(periodicity: Periodicity, dia: date) -> str:
     if periodicity is Periodicity.ONCE:
         return "once"
     return dia.isoformat()
+
+
+def e_aniversario(nascimento: date, dia: date) -> bool:
+    """Se `dia` é o aniversário de quem nasceu em `nascimento`.
+
+    Comparação de dia e mês, não de data inteira - e feita aqui, no servidor,
+    porque "que dia é hoje" é a mesma pergunta que `chave_do_periodo` já
+    responde por conta própria: o relógio do celular não decide nada neste app.
+
+    **29 de fevereiro cai no dia 1º de março** nos anos que não têm 29. A
+    alternativa é a criança não fazer aniversário em três de cada quatro anos,
+    o que seria pior que qualquer convenção. Dia 1º e não dia 28 pela mesma
+    leitura da Lei 810/1949, que conta o ano completo a partir do dia seguinte
+    ao fim de fevereiro.
+    """
+    if nascimento.month == 2 and nascimento.day == 29 and not isleap(dia.year):
+        return dia.month == 3 and dia.day == 1
+    return (dia.month, dia.day) == (nascimento.month, nascimento.day)
+
+
+def idade_em(nascimento: date, dia: date) -> int:
+    """Quantos anos a pessoa tem naquele dia.
+
+    Subtrai um do ano quando o aniversário ainda não chegou. `e_aniversario`
+    manda no dia do 29 de fevereiro: sem isso, quem nasceu em 29/02 faria anos
+    pelo calendário no dia 1º e a idade só viraria no dia seguinte.
+    """
+    anos = dia.year - nascimento.year
+    if e_aniversario(nascimento, dia):
+        return anos
+    if (dia.month, dia.day) < (nascimento.month, nascimento.day):
+        anos -= 1
+    return anos

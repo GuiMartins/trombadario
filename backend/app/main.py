@@ -13,6 +13,7 @@ from app.database import SessionLocal
 from app.routers import (
     assuntos,
     auth,
+    birthday,
     health,
     pedidos,
     punishments,
@@ -80,6 +81,7 @@ app.mount(
 
 app.include_router(health.router)
 app.include_router(setup.router)
+app.include_router(birthday.router)
 app.include_router(auth.router)
 app.include_router(trombadices.router)
 app.include_router(tasks.router)
