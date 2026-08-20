@@ -38,6 +38,16 @@ class NovidadesWorker(
         if (container.sessionStore.token.value == null) return Result.success()
         if (container.homeNetworkGate.checkNow() != HomeState.AtHome) return Result.success()
 
+        // No aniversário o app não abre - avisar "trombadice nova" seria
+        // justamente o Trombadário aparecendo no dia em que ele não existe.
+        //
+        // Sai sem gravar baseline nenhum, de propósito: o que aconteceu hoje
+        // continua contando como novidade e é avisado amanhã. Gravar aqui faria
+        // a contagem parar de subir em relação ao guardado, e aquele item nunca
+        // mais notificaria - o mesmo bug da v1.1.0, por outro caminho.
+        val hoje = (container.repository.birthday() as? ApiResult.Success)?.data
+        if (hoje?.isBirthday == true) return Result.success()
+
         val fresh = (container.repository.unseenCounts() as? ApiResult.Success)?.data
             ?: return Result.success()
 

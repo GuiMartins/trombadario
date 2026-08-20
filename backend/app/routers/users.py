@@ -37,6 +37,7 @@ def create_user(payload: UserCreate, admin: AdminUser, db: DbSession) -> User:
         password_hash=hash_password(payload.password),
         display_name=payload.display_name,
         role=payload.role,
+        birth_date=payload.birth_date,
     )
     db.add(user)
     db.commit()

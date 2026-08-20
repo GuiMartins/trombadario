@@ -32,6 +32,9 @@ class UserOut(BaseModel):
     # valores como "true" e nunca usa.
     can_request: bool
     can_discuss: bool
+    # Nulo enquanto o pai não cadastrar. Só a do filho tem efeito - é o app
+    # dele que vira tela de aniversário no dia (ver routers/birthday.py).
+    birth_date: date | None
     created_at: datetime
 
 
@@ -40,6 +43,7 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=6, max_length=128)
     display_name: str = Field(min_length=1, max_length=120)
     role: Role = Role.CHILD
+    birth_date: date | None = None
 
 
 class UserUpdate(BaseModel):
@@ -48,6 +52,27 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
     can_request: bool | None = None
     can_discuss: bool | None = None
+    # Aqui nulo **apaga** a data, ao contrário de `password`, onde nulo é
+    # "mantém a que está". A rota usa `exclude_unset`, então quem não quer
+    # mexer no aniversário simplesmente não manda o campo - mandar nulo é uma
+    # escolha, e a única forma de desfazer um cadastro errado.
+    birth_date: date | None = None
+
+
+class BirthdayOut(BaseModel):
+    """Se hoje é o aniversário de quem está perguntando.
+
+    Quem responde é o servidor, não o celular: o dia local é conta dele
+    (`app/periodo.py`), do mesmo jeito que a chave do período de uma tarefa e o
+    sorteio da frase de abertura. Um app que decidisse isso pelo próprio
+    relógio faria aniversário todo dia com dois toques em Data e hora."""
+
+    is_birthday: bool
+    display_name: str
+    birth_date: date | None
+    # Quantos anos faz hoje. Nulo fora do aniversário - a idade nos outros dias
+    # não é pergunta que este endpoint responde.
+    age: int | None = None
 
 
 class SetupRequest(BaseModel):

@@ -30,6 +30,7 @@ from app.models import (
 )
 from app.periodo import (
     data_local,
+    e_aniversario,
     hoje_local,
     intervalo,
     mes_anterior,
@@ -181,6 +182,20 @@ def _parse_local(value: str) -> datetime:
     """<input type="datetime-local"> submits wall-clock with no offset; the
     server attaches its own zone, which is the same house."""
     return datetime.fromisoformat(value).astimezone()
+
+
+def _parse_dia(value: str) -> date | None:
+    """<input type="date"> manda "AAAA-MM-DD", ou vazio quando a pessoa limpou
+    o campo - e limpar é a única forma de desfazer uma data cadastrada errada.
+
+    Estoura ValueError no que não for data, em vez de devolver None junto com o
+    campo vazio: quem chama decide, e as duas decisões são diferentes - criando
+    conta não há data anterior pra preservar, editando há.
+
+    Nada de `astimezone()` aqui, ao contrário do `_parse_local` acima: dia de
+    aniversário não tem hora, e colar o fuso do servidor num dia é o jeito de
+    ele virar o dia anterior em algum lugar."""
+    return date.fromisoformat(value) if value.strip() else None
 
 
 TEMA_COOKIE = "trombadario_tema"
@@ -966,11 +981,20 @@ def splash_delete(message_id: int, db: DbSession, user: AdminWeb):
 
 @router.get("/contas", response_class=HTMLResponse)
 def users_page(request: Request, db: DbSession, user: AdminWeb):
+    users = list(db.scalars(select(User).order_by(User.role, User.display_name)))
+    hoje = hoje_local()
     return _render(
         request,
         "contas.html",
         user=user,
-        users=list(db.scalars(select(User).order_by(User.role, User.display_name))),
+        users=users,
+        # Quem faz aniversário hoje. Calculado aqui e não no template porque a
+        # regra do 29 de fevereiro mora em `app/periodo.py` - repetir um
+        # `if` de dia e mês no Jinja seria a segunda resposta pra mesma
+        # pergunta.
+        aniversariantes={
+            u.id for u in users if u.birth_date and e_aniversario(u.birth_date, hoje)
+        },
     )
 
 
@@ -983,9 +1007,17 @@ def user_create(
     display_name: Annotated[str, Form()],
     password: Annotated[str, Form()],
     role: Annotated[str, Form()] = "child",
+    birth_date: Annotated[str, Form()] = "",
 ):
     if db.scalar(select(User).where(User.username == username.strip())) is not None:
         raise RedirectTo("/contas?erro=usuario-existe")
+
+    try:
+        nascimento = _parse_dia(birth_date)
+    except ValueError:
+        # Conta nova não tem data anterior pra proteger, e o aniversário é
+        # opcional: nasce sem, e o pai cadastra depois no cartão da conta.
+        nascimento = None
 
     db.add(
         User(
@@ -993,6 +1025,7 @@ def user_create(
             password_hash=hash_password(password),
             display_name=display_name.strip() or username.strip(),
             role=Role(role),
+            birth_date=nascimento,
         )
     )
     db.commit()
@@ -1024,6 +1057,35 @@ def user_password(
     if (target := db.get(User, user_id)) is not None and len(password) >= 6:
         target.password_hash = hash_password(password)
         db.commit()
+    return _redirect("/contas")
+
+
+@router.post("/contas/{user_id}/aniversario")
+def user_birthday(
+    user_id: int,
+    db: DbSession,
+    user: AdminWeb,
+    birth_date: Annotated[str, Form()] = "",
+):
+    """Cadastra (ou limpa) o dia de nascimento. Campo vazio apaga: é a única
+    forma de desfazer uma data digitada errada, e uma data errada faz a festa
+    no dia errado.
+
+    Formulário próprio como o de senha e o de nome, e não um campo a mais no
+    de renomear: são coisas diferentes, e o de cima é pra criar conta nova."""
+    target = db.get(User, user_id)
+    if target is None:
+        return _redirect("/contas")
+
+    try:
+        target.birth_date = _parse_dia(birth_date)
+    except ValueError:
+        # Data que não é data não apaga a que estava certa. O <input type="date">
+        # nunca manda isso, mas navegador antigo renderiza o campo como texto -
+        # e aí quem digita "25/03/2014" perderia o que já estava salvo.
+        return _redirect("/contas")
+
+    db.commit()
     return _redirect("/contas")
 
 

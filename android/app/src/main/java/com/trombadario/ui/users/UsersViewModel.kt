@@ -25,6 +25,9 @@ data class UserEditor(
     val isActive: Boolean = true,
     val canRequest: Boolean = true,
     val canDiscuss: Boolean = true,
+    /** Aniversário em ISO ("2014-03-25"), nulo quando não tem. Guardado como
+     *  veio da API pra não converter em `LocalDate` e de volta a cada tecla. */
+    val birthDate: String? = null,
 )
 
 data class UsersState(
@@ -73,6 +76,7 @@ class UsersViewModel(private val container: AppContainer) : ViewModel() {
                 isActive = user.isActive,
                 canRequest = user.canRequest,
                 canDiscuss = user.canDiscuss,
+                birthDate = user.birthDate,
             ),
             validationError = null,
             serverError = null,
@@ -114,6 +118,7 @@ class UsersViewModel(private val container: AppContainer) : ViewModel() {
                         password = editor.password,
                         displayName = editor.displayName.ifBlank { editor.username }.trim(),
                         role = if (editor.isAdmin) UserDto.ROLE_ADMIN else UserDto.ROLE_CHILD,
+                        birthDate = editor.birthDate,
                     )
                 )
             } else {
@@ -125,6 +130,11 @@ class UsersViewModel(private val container: AppContainer) : ViewModel() {
                         isActive = editor.isActive,
                         canRequest = editor.canRequest,
                         canDiscuss = editor.canDiscuss,
+                        // Sempre mandado, inclusive nulo - é assim que se apaga
+                        // uma data errada (ver UserUpdateDto). O editor carrega
+                        // a data atual da conta, então salvar outra coisa a
+                        // reescreve com o mesmo valor.
+                        birthDate = editor.birthDate,
                     )
                 )
             }

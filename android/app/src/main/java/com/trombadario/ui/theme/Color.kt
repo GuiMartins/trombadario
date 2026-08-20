@@ -75,3 +75,22 @@ val ErrorDark = Color(0xFFFFB4AB)
  */
 val ConquistaTeal = Color(0xFF2E7D7B)   // 4,6:1 no papel claro
 val ConquistaTealDark = Color(0xFF6FD3D0) // no papel escuro
+
+/**
+ * As cores da festa de aniversário: confete, fogos e balões.
+ *
+ * Não entram no `ColorScheme` nem no `ContrastTest` porque **não carregam texto
+ * nem delimitam campo** - são partículas desenhadas no `Canvas`, e é a regra
+ * que o CSS da web já aplica a `--amber` e `--coral`. O que elas precisam é de
+ * outra coisa: aparecer tanto sobre o papel creme quanto sobre o papel escuro,
+ * então são todas de meio-tom - nada de amarelo-claro, que some no claro, nem
+ * de vinho, que some no escuro.
+ */
+val FestaCores = listOf(
+    Color(0xFFE4634F), // coral, o mesmo acento da paleta
+    Color(0xFFE0A030), // âmbar
+    Color(0xFF2E9E9B), // teal
+    Color(0xFFD9548E), // rosa
+    Color(0xFF7C5CC4), // roxo
+    Color(0xFF4FA84F), // verde
+)

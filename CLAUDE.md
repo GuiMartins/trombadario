@@ -319,6 +319,56 @@ nulo = todos) — a decisão é por frase, não uma configuração global.
 - **Só o filho vê.** É o pai falando com ele; o pai reencontrar a própria
   mensagem a cada abertura seria só ruído.
 
+### Aniversário: no dia dele não existe Trombadário
+
+`User.birth_date`, cadastrado pelo pai — **no app e no painel**, como toda coisa
+do pai. No dia, a conta de filho abre e o app inteiro é **substituído** por uma
+tela de festa: sem nav bar, sem feed, sem tarefa, sem castigo, e sem botão pra
+sair. Foi o pedido literal ("no dia de aniversário não existe Trombadário, o dia
+é especial"), e meia medida — uma faixa no topo do feed — seria justamente o
+Trombadário aparecendo assim mesmo.
+
+- **Quem decide se é hoje é o servidor** (`GET /api/birthday`), não o relógio do
+  aparelho. Mesma razão da chave do período da tarefa e do sorteio da frase de
+  abertura: pelo relógio do celular, bastaria adiantar a data em Configurações
+  pra ter festa numa terça-feira qualquer.
+- **`Date`, não `UtcDateTime`** como todo o resto do schema. Aniversário é dia,
+  não instante — ninguém faz anos às 03:00Z. Guardado com hora, o dia mudaria
+  conforme o fuso de quem lesse.
+- **29 de fevereiro cai no dia 1º de março** nos anos que não têm 29
+  (`e_aniversario`, em `app/periodo.py`). A alternativa é a criança não fazer
+  aniversário em três de cada quatro anos.
+- **Falha de rede não liga nem desliga a festa.** Sem resposta, o app abre
+  normal; com resposta, ela vale até a próxima. Quem trata servidor fora do ar é
+  o `HomeNetworkGate`, que vem antes.
+- **Reconfere no `ON_RESUME`**, e serve pros dois sentidos: o dia virou com o app
+  aberto, ou o pai digitou a data errada e o filho não pode ficar trancado numa
+  festa que não é dele até amanhã. Corrigir a data no painel destrava na próxima
+  volta pro app.
+- **O poller de notificação sai calado no dia** (`NovidadesWorker`), e **sem
+  gravar baseline**: avisar "trombadice nova" seria o Trombadário aparecendo no
+  dia em que ele não existe, e gravar faria aquele item nunca mais notificar —
+  o mesmo bug da v1.1.0 por outro caminho. O que aconteceu hoje é avisado amanhã.
+- **Só o filho.** A coluna é de pessoa e vale pra qualquer papel, mas a tomada de
+  tela é decisão do app: pro pai o Trombadário é ferramenta de trabalho, e travar
+  o dele um dia inteiro não faria a festa de ninguém. Por isso o campo só aparece
+  na conta de filho, nos dois lugares.
+- **Nulo apaga.** No `PATCH`, omitir o campo é "não mexe" e mandar nulo é
+  "apaga" — e apagar precisa existir, senão uma data digitada errada faria festa
+  no dia errado pra sempre. No Android isso obrigou o `birth_date` do
+  `UserUpdateDto` a ser o único campo com `@EncodeDefault(ALWAYS)`, porque a
+  kotlinx omite valor default do corpo.
+
+**A festa é desenhada, não é imagem nem GIF** — mesma decisão da folha de caderno
+e da capa do diário: fogos, confete e balões acompanham qualquer tela sem esticar
+nem cortar, e o APK não engorda. Um `rememberInfiniteTransition` só, compartilhado
+por tudo, e cada partícula tira a posição da fase dela dentro do ciclo. **Toda
+conta é periódica no ciclo** (velocidade e voltas inteiras, fogo que termina antes
+do fim), senão a festa piscaria a cada volta.
+
+> O preço, assumido: no dia, o filho não alcança nem Configurações. É o que "não
+> abrir o app" quer dizer. Quem conserta uma data errada é o pai, do lado dele.
+
 ### Castigo sem trombadice não existe
 
 Todo castigo aponta pelo menos uma trombadice — na API (400), no painel e no app.
