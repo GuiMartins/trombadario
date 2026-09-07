@@ -301,6 +301,10 @@ class PunishmentOut(BaseModel):
     # inteira de qualquer forma.
     trombadices: list[TrombadiceOut] = Field(default_factory=list)
     is_active: bool = False
+    # Dado, mas ainda não começou - o próximo da fila. Calculado como
+    # `is_active`, e pelo mesmo motivo. O filho nunca recebe um destes: castigo
+    # agendado é a fila do pai (ver `_so_o_de_agora` em routers/punishments.py).
+    is_scheduled: bool = False
 
 
 class PunishmentCreate(BaseModel):
@@ -331,6 +335,17 @@ class PunishmentUpdate(BaseModel):
     # encerramento: um toque errado em Encerrar não pode marcar o castigo como
     # "encerrado antes" para sempre.
     end_now: bool | None = None
+
+
+class ProximoInicio(BaseModel):
+    """Quando começaria um castigo aplicado agora a este filho.
+
+    `em_fila` é falso quando o filho não está de castigo (começa na hora) e
+    verdadeiro quando emenda no fim de um que já existe - é a diferença entre a
+    tela dizer "começa agora" e "começa quando o de agora terminar"."""
+
+    starts_at: datetime
+    em_fila: bool
 
 
 class PunishmentReaction(BaseModel):

@@ -37,6 +37,7 @@ from app.periodo import (
     mes_seguinte,
     semanas_do_mes,
 )
+from app.routers.punishments import proximo_inicio
 from app.routers.reports import report
 from app.routers.tasks import estado_da_tarefa
 from app.security import create_access_token, hash_password, verify_password
@@ -933,6 +934,18 @@ def punishments_page(
 
     children = _children(db)
     editando = db.get(Punishment, editar) if editar else None
+
+    # A fila de cada filho: quando começaria um castigo aplicado agora. Só
+    # entram os que emendam em algo, porque "começa agora" é o normal e não
+    # precisa ser dito. Uma linha por filho porque o campo "Quem" pode ser
+    # trocado depois de a página carregar - falar só do primeiro seria mentira
+    # metade das vezes.
+    fila = [(c, inicio) for c in children if (inicio := proximo_inicio(db, c.id, now)) > now]
+    # O formulário já vem preenchido com o começo da fila do primeiro filho, que
+    # é o que ele vem com selecionado, e o prazo um dia **depois desse começo**:
+    # emendando num castigo que termina amanhã à noite, sugerir "amanhã" daria
+    # um castigo que acaba antes de começar.
+    comeco_sugerido = proximo_inicio(db, children[0].id, now) if children else now
     url_castigos = _construtor_de_url(
         "/castigos",
         {
@@ -947,14 +960,15 @@ def punishments_page(
         request,
         "castigos.html",
         user=user,
-        punishments=[(p, p.is_active_at(now)) for p in todos],
+        punishments=[(p, p.is_active_at(now), p.is_scheduled_at(now)) for p in todos],
         children=children,
         children_by_id={c.id: c for c in children},
         trombadices=list(
             db.scalars(select(Trombadice).order_by(Trombadice.occurred_at.desc()).limit(50))
         ),
-        inicio_sugerido=_local_input(datetime.now(UTC)),
-        fim_sugerido=_local_input(datetime.now(UTC) + timedelta(days=1)),
+        fila=fila,
+        inicio_sugerido=_local_input(comeco_sugerido),
+        fim_sugerido=_local_input(comeco_sugerido + timedelta(days=1)),
         editando=editando,
         editando_trombadices=[t.id for t in editando.trombadices] if editando else [],
         erro=erro,
@@ -1004,9 +1018,15 @@ def punishment_create(
         # quem recusa é o servidor - o mesmo que já recusa na API.
         raise RedirectTo("/castigos?erro=sem-trombadice")
 
-    # Campo vazio = começa agora, que é o caso comum. Preenchido, o pai está
-    # registrando um castigo que já tinha começado.
-    inicio = _parse_local(starts_at) if starts_at.strip() else datetime.now(UTC)
+    # Campo vazio = o castigo entra na fila do filho, mesma regra da API: começa
+    # quando o último dele terminar, ou agora, se ele não está de castigo. O
+    # formulário já vem preenchido com esse instante, então o pai vê onde vai
+    # emendar antes de salvar - e pode mudar, que é o caso de registrar um
+    # castigo que já tinha começado.
+    inicio = (
+        _parse_local(starts_at) if starts_at.strip()
+        else proximo_inicio(db, child_id, datetime.now(UTC))
+    )
     fim = _parse_local(ends_at)
     if fim <= inicio:
         raise RedirectTo("/castigos?erro=fim-antes-do-inicio")

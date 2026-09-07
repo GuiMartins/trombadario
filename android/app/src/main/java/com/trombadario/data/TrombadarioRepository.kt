@@ -15,6 +15,7 @@ import com.trombadario.data.remote.TrombadiceCreateDto
 import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.TrombadiceUpdateDto
 import com.trombadario.data.remote.PunishmentCreateDto
+import com.trombadario.data.remote.ProximoInicioDto
 import com.trombadario.data.remote.PedidoCreateDto
 import com.trombadario.data.remote.PedidoDecisionDto
 import com.trombadario.data.remote.PedidoDto
@@ -228,6 +229,9 @@ class TrombadarioRepository(
 
     suspend fun currentPunishments(): ApiResult<List<PunishmentDto>> =
         call { it.currentPunishments() }
+
+    suspend fun nextPunishmentStart(childId: Int): ApiResult<ProximoInicioDto> =
+        call { it.nextPunishmentStart(childId) }
 
     suspend fun createPunishment(punishment: PunishmentCreateDto): ApiResult<PunishmentDto> =
         call { it.createPunishment(punishment) }

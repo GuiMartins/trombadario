@@ -1139,3 +1139,101 @@ def test_tipo_sem_uso_e_apagado_pelo_painel(
     client.post(f"/tipos/{_tipo(db, 'Escola')}/delete")
 
     assert _tipo(db, "Escola") is None
+
+
+# --------------------------------------------------------------------------
+# A fila de castigos no painel
+# --------------------------------------------------------------------------
+
+
+def _trombadice_de(db: Session, admin: User, child: User) -> Trombadice:
+    trombadice = Trombadice(
+        title="Bagunça",
+        occurred_at=datetime.now(UTC),
+        child_id=child.id,
+        author_id=admin.id,
+    )
+    db.add(trombadice)
+    db.commit()
+    return trombadice
+
+
+def _hora_local(delta: timedelta) -> str:
+    """Como o <input type="datetime-local"> manda: hora de parede, sem fuso."""
+    return (datetime.now(UTC) + delta).astimezone().strftime("%Y-%m-%dT%H:%M")
+
+
+def _castiga_pelo_painel(client: TestClient, child: User, trombadice: Trombadice, ends_at: str):
+    """Sem `starts_at`: é o caminho da fila, o mesmo que o formulário percorre
+    quando o pai não mexe no campo que já vem preenchido."""
+    return client.post(
+        "/castigos",
+        data={"child_id": child.id, "ends_at": ends_at, "trombadice_ids": [trombadice.id]},
+        follow_redirects=False,
+    )
+
+
+def test_painel_emenda_castigo_novo_no_fim_do_anterior(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """Mesma regra da API, no painel: castigo em cima de castigo é "mais um
+    dia", não dois valendo ao mesmo tempo."""
+    trombadice = _trombadice_de(db, admin, child)
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _castiga_pelo_painel(client, child, trombadice, _hora_local(timedelta(days=1)))
+
+    _castiga_pelo_painel(client, child, trombadice, _hora_local(timedelta(days=2)))
+
+    primeiro, segundo = db.scalars(select(Punishment).order_by(Punishment.starts_at)).all()
+    assert segundo.starts_at == primeiro.ends_at
+    assert segundo.is_scheduled_at(datetime.now(UTC))
+
+
+def test_painel_ja_abre_o_formulario_no_comeco_da_fila(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """O pai vê onde o castigo novo vai emendar antes de salvar - o campo
+    "Começa em" vem preenchido com isso, não com agora."""
+    trombadice = _trombadice_de(db, admin, child)
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _castiga_pelo_painel(client, child, trombadice, _hora_local(timedelta(days=1)))
+    castigo = db.scalars(select(Punishment)).first()
+
+    html = client.get("/castigos").text
+
+    assert castigo.ends_at.astimezone().strftime("%Y-%m-%dT%H:%M") in html
+    assert "está de castigo até" in html
+
+
+def test_painel_recusa_prazo_antes_do_comeco_da_fila(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """Com fila, o prazo tem que ser depois de onde o castigo emenda - e não
+    depois de agora. Sem esta recusa nasceria um castigo que acaba antes de
+    começar, e o filho nunca ficaria de castigo."""
+    trombadice = _trombadice_de(db, admin, child)
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _castiga_pelo_painel(client, child, trombadice, _hora_local(timedelta(days=3)))
+
+    response = _castiga_pelo_painel(client, child, trombadice, _hora_local(timedelta(days=1)))
+
+    assert response.status_code == 303
+    assert "erro=fim-antes-do-inicio" in response.headers["location"]
+    assert db.query(Punishment).count() == 1
+
+
+def test_painel_nao_cobra_visto_de_castigo_na_fila(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """O filho ainda nem recebe o castigo da fila - "ainda não viu" ali cobraria
+    uma coisa impossível."""
+    trombadice = _trombadice_de(db, admin, child)
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _castiga_pelo_painel(client, child, trombadice, _hora_local(timedelta(days=1)))
+    _castiga_pelo_painel(client, child, trombadice, _hora_local(timedelta(days=2)))
+
+    html = client.get("/castigos").text
+
+    assert "na fila" in html
+    # Dois castigos na página, e só o que está valendo cobra o visto.
+    assert html.count("ainda não viu") == 1

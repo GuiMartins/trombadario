@@ -187,9 +187,18 @@ interface TrombadarioApi {
         @Query("child_id") childId: Int? = null,
     ): Response<List<PunishmentDto>>
 
-    /** What the child's punishment screen asks: am I grounded right now? */
+    /** What the child's punishment screen asks: am I grounded right now?
+     *  É a **única** leitura de castigo que o filho faz: histórico e fila são
+     *  do pai. */
     @GET("api/punishments/current")
     suspend fun currentPunishments(): Response<List<PunishmentDto>>
+
+    /** Quando um castigo aplicado agora começaria - agora mesmo, ou emendado no
+     *  fim do que este filho já está cumprindo. Só o pai pergunta. */
+    @GET("api/punishments/proximo-inicio")
+    suspend fun nextPunishmentStart(
+        @Query("child_id") childId: Int,
+    ): Response<ProximoInicioDto>
 
     @POST("api/punishments")
     suspend fun createPunishment(@Body punishment: PunishmentCreateDto): Response<PunishmentDto>

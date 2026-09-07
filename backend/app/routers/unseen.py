@@ -8,6 +8,8 @@ da pessoa abrir a tela de verdade. Por isso este router só conta - nunca
 importa nada de `app/visto.py`.
 """
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter
 from sqlalchemy import func, select
 
@@ -54,10 +56,24 @@ def unseen(current_user: CurrentUser, db: DbSession) -> UnseenCounts:
             or 0
         )
 
-    castigos_novos = db.scalar(
-        select(func.count())
-        .select_from(Punishment)
-        .where(Punishment.child_id == current_user.id, Punishment.seen_at.is_(None))
+    # Só o que está valendo **agora**: o filho não vê castigo agendado nem
+    # histórico (ver `_so_o_de_agora` em routers/punishments.py), e avisar de um
+    # castigo que ele não consegue abrir seria uma notificação sem tela. De
+    # brinde, o aviso do castigo agendado sai sozinho na hora em que ele começa,
+    # que é quando a contagem sobe.
+    #
+    # Contado em Python e não em SQL de propósito: "estar de castigo" tem uma
+    # definição só, `Punishment.is_active_at`, e reescrevê-la em WHERE daria
+    # duas que precisariam concordar pra sempre.
+    agora = datetime.now(UTC)
+    castigos_novos = sum(
+        1
+        for p in db.scalars(
+            select(Punishment).where(
+                Punishment.child_id == current_user.id, Punishment.seen_at.is_(None)
+            )
+        )
+        if p.is_active_at(agora)
     )
     # Espelho da conta do pai: o que o **pai** trouxe e este filho não viu.
     # Conta desligada quando o pai tirou o acesso - avisar de uma tela que a
@@ -88,7 +104,7 @@ def unseen(current_user: CurrentUser, db: DbSession) -> UnseenCounts:
     return UnseenCounts(
         trombadices_novas=anotacoes_por_tipo(Kind.TROMBADICE),
         conquistas_novas=anotacoes_por_tipo(Kind.CONQUISTA),
-        castigos_novos=castigos_novos or 0,
+        castigos_novos=castigos_novos,
         decisoes_novas=decisoes_novas or 0,
         assuntos_novos=assuntos_novos or 0,
     )

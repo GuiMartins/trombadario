@@ -19,6 +19,21 @@
   O castigo precisa terminar depois de começar.
 </div>
 {% endif %}
+{# A fila: castigo novo emenda no fim do que já existe, em vez de valer junto.
+   Uma linha por filho que já tem castigo, porque o campo "Quem" pode ser
+   trocado depois de a página carregar - dizer só do primeiro seria mentira
+   metade das vezes. #}
+{% if fila and not e %}
+<div class="aviso">
+  {% for c, inicio in fila %}
+  <p>
+    <strong>{{ c.display_name }}</strong> está de castigo até
+    {{ inicio.astimezone().strftime('%d/%m às %H:%M') }} — um castigo novo
+    começa aí, emendado.
+  </p>
+  {% endfor %}
+</div>
+{% endif %}
 <form id="editar" method="post" action="{{ '/castigos/' ~ e.id ~ '/editar' if e else '/castigos' }}" class="bloco">
   {% if e %}<h2>Corrigindo o castigo</h2>{% endif %}
 
@@ -29,7 +44,7 @@
     {% endfor %}
   </select>
 
-  <label for="starts_at">Começou em</label>
+  <label for="starts_at">{{ 'Começou em' if e else 'Começa em' }}</label>
   <input type="datetime-local" id="starts_at" name="starts_at"
          value="{{ e.starts_at | hora_local if e else inicio_sugerido }}" required>
 
@@ -62,6 +77,14 @@
   </div>
   {% endif %}
 
+  {% if not e %}
+  <p class="sub" style="margin-top:0.75rem">
+    Já vem preenchido com o começo da fila: se esse filho estiver de castigo, o
+    novo emenda no fim do de agora. É assim que se dá mais um dia — aplica outro
+    castigo com o prazo novo, sem fazer conta de calendário.
+  </p>
+  {% endif %}
+
   {% if e %}
   <p class="sub" style="margin-top:0.75rem">
     Para soltar antes da hora, use Encerrar — ele guarda o prazo original. Se o
@@ -86,12 +109,14 @@
 {% endif %}
 
 {% if punishments %}
-  {% for p, ativo in punishments %}
+  {% for p, ativo, agendado in punishments %}
   <div class="cartao">
     <div class="linha">
       <div class="cresce">
         {% if ativo %}
           <span class="etiqueta ativo">de castigo</span>
+        {% elif agendado %}
+          <span class="etiqueta">na fila</span>
         {% elif p.ended_early_at %}
           <span class="etiqueta fim">encerrado antes</span>
         {% else %}
@@ -113,9 +138,11 @@
         {% if p.reaction_text %}
           <p class="sub">💬 {{ p.reaction_text }}</p>
         {% endif %}
+        {# Castigo na fila o filho ainda nem recebe - ele só vê o que está
+           valendo. "Ainda não viu" ali seria cobrança de uma coisa impossível. #}
         {% if p.seen_at %}
           <span class="etiqueta visto">visto {{ p.seen_at.astimezone().strftime('%d/%m às %H:%M') }}</span>
-        {% else %}
+        {% elif not agendado %}
           <span class="etiqueta fim">ainda não viu</span>
         {% endif %}
       </div>

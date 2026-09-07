@@ -40,6 +40,14 @@ data class PunishmentEditor(
     val endDate: LocalDate = LocalDate.now().plusDays(1),
     val endTime: LocalTime = LocalTime.of(20, 0),
     val trombadiceIds: Set<Int> = emptySet(),
+    /** Quando o começo já vem preenchido com o fim de um castigo que existe -
+     *  é a fila. Só serve pra tela dizer isso; quem emenda de verdade é o
+     *  servidor, e o pai pode mudar a data à vontade. */
+    val emFila: Boolean = false,
+    /** Se o pai já escolheu o começo na mão. A resposta da fila só preenche o
+     *  campo enquanto ninguém mexeu nele - chegando depois, sobrescreveria uma
+     *  escolha deliberada. */
+    val startTouched: Boolean = false,
 ) {
     val isEditing: Boolean get() = id != null
 }
@@ -51,6 +59,10 @@ data class PunishmentState(
     val refreshing: Boolean = false,
     /** Ativos agora - é a resposta que a tela do filho existe pra dar. */
     val active: List<PunishmentDto> = emptyList(),
+    /** A fila: dados, mas ainda não começaram. Só o pai tem esta lista - o
+     *  servidor nem manda castigo da fila pro filho. */
+    val scheduled: List<PunishmentDto> = emptyList(),
+    /** Só do pai, pelo mesmo motivo: o filho não vê o que já cumpriu. */
     val history: List<PunishmentDto> = emptyList(),
     val children: List<UserDto> = emptyList(),
     val trombadices: List<TrombadiceDto> = emptyList(),
@@ -82,15 +94,25 @@ class PunishmentViewModel(
                 }
             }
 
-            val all = (container.repository.listPunishments() as? ApiResult.Success)?.data.orEmpty()
+            // O filho pergunta uma coisa só, e é `/current` que responde: estou
+            // de castigo agora? A lista inteira é do pai - o servidor já corta
+            // o resto pra ele, então pedir a lista aqui traria o mesmo castigo
+            // por um caminho mais comprido.
+            val all = if (currentUser.isAdmin) {
+                (container.repository.listPunishments() as? ApiResult.Success)?.data.orEmpty()
+            } else {
+                (container.repository.currentPunishments() as? ApiResult.Success)?.data.orEmpty()
+            }
             _state.update {
                 it.copy(
                     loading = false,
                     refreshing = false,
-                    // isActive vem calculado do servidor: o relógio do celular
-                    // não decide se alguém está de castigo.
+                    // isActive e isScheduled vêm calculados do servidor: o
+                    // relógio do celular não decide se alguém está de castigo
+                    // nem quando o próximo começa.
                     active = all.filter { p -> p.isActive },
-                    history = all.filterNot { p -> p.isActive },
+                    scheduled = all.filter { p -> p.isScheduled },
+                    history = all.filterNot { p -> p.isActive || p.isScheduled },
                 )
             }
         }
@@ -118,8 +140,53 @@ class PunishmentViewModel(
         }
     }
 
-    fun startCreate() = _state.update {
-        it.copy(editor = PunishmentEditor(childId = it.children.singleOrNull()?.id), error = null)
+    fun startCreate() {
+        val childId = _state.value.children.singleOrNull()?.id
+        _state.update { it.copy(editor = PunishmentEditor(childId = childId), error = null) }
+        if (childId != null) carregarInicio(childId)
+    }
+
+    /** Trocar de filho troca a fila: cada um tem a sua, e as trombadices
+     *  marcadas eram de outro. */
+    fun chooseChild(childId: Int) {
+        val editando = _state.value.editor?.isEditing ?: return
+        updateEditor { it.copy(childId = childId, trombadiceIds = emptySet(), emFila = false) }
+        // Corrigindo um castigo antigo não: a fila é sobre castigo novo, e
+        // repreencher a data apagaria a que está sendo corrigida.
+        if (!editando) carregarInicio(childId)
+    }
+
+    /**
+     * Pergunta ao servidor quando o castigo começaria e já preenche o
+     * formulário com isso: agora, ou emendado no fim do que este filho está
+     * cumprindo. É o que faz "mais um dia" ser aplicar outro castigo em vez de
+     * fazer conta de calendário.
+     *
+     * O prazo sugerido é um dia depois **desse começo**, não depois de agora:
+     * emendando num castigo que termina amanhã, "amanhã" daria um castigo que
+     * acaba antes de começar.
+     */
+    private fun carregarInicio(childId: Int) {
+        viewModelScope.launch {
+            val result = container.repository.nextPunishmentStart(childId)
+            if (result is ApiResult.Success) {
+                val inicio = parseInstant(result.data.startsAt).toLocalDateTime()
+                _state.update { current ->
+                    val editor = current.editor ?: return@update current
+                    // A resposta pode chegar depois de o pai trocar de filho ou
+                    // mexer na data: aí ela não vale mais.
+                    if (editor.childId != childId || editor.startTouched) return@update current
+                    current.copy(
+                        editor = editor.copy(
+                            startDate = inicio.toLocalDate(),
+                            startTime = inicio.toLocalTime(),
+                            endDate = inicio.toLocalDate().plusDays(1),
+                            emFila = result.data.emFila,
+                        )
+                    )
+                }
+            }
+        }
     }
 
     fun startEdit(punishment: PunishmentDto) {

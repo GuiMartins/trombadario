@@ -325,6 +325,19 @@ data class PunishmentDto(
     // Computed server-side: the phone's clock is not the authority on whether
     // someone is grounded.
     @SerialName("is_active") val isActive: Boolean = false,
+    /** Já foi dado, mas ainda não começou - o próximo da fila. Calculado no
+     *  servidor pelo mesmo motivo que `isActive`. Só o pai recebe castigo
+     *  agendado: pro filho, castigo que não está valendo não existe. */
+    @SerialName("is_scheduled") val isScheduled: Boolean = false,
+)
+
+/** Quando começaria um castigo aplicado agora a este filho: já, ou emendado no
+ *  fim do que ele está cumprindo. Quem responde é o servidor - o relógio do
+ *  aparelho não decide data nenhuma neste app. */
+@Serializable
+data class ProximoInicioDto(
+    @SerialName("starts_at") val startsAt: String,
+    @SerialName("em_fila") val emFila: Boolean = false,
 )
 
 /** Nulo/vazio apaga a reação - o filho pode mudar de ideia. */
