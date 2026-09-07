@@ -45,13 +45,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trombadario.AppContainer
 import com.trombadario.R
-import com.trombadario.data.remote.Categoria
+import com.trombadario.data.remote.CategoriaDeConquista
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
 import com.trombadario.data.remote.Tipo
 import com.trombadario.ui.components.AppTopBar
 import com.trombadario.ui.components.ehConquista
-import com.trombadario.ui.components.rotuloDaCategoria
+import com.trombadario.ui.components.rotuloDaConquista
 import com.trombadario.ui.components.rotuloDoTipo
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.viewModelFactory
@@ -166,19 +166,13 @@ fun TrombadiceFormScreen(
                     Spacer(Modifier.height(24.dp))
                 }
 
+                // Não existe campo de título: o que aconteceu é o tipo
+                // escolhido logo abaixo, e o que quiser detalhar vai em
+                // "Detalhes". Ver Trombadice.display_title no backend.
                 if (state.selectedTaskId == null) {
-                    OutlinedTextField(
-                        value = state.title,
-                        onValueChange = viewModel::onTitleChange,
-                        label = { Text(stringResource(R.string.trombadice_form_title_label)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-
                     // Sempre visível, mesmo com um filho só (requisito 3): quem
                     // lê a tela precisa ver de quem é sem ter que deduzir.
                     if (state.children.isNotEmpty()) {
-                        Spacer(Modifier.height(24.dp))
                         Text(
                             text = stringResource(R.string.trombadice_form_child_label),
                             style = MaterialTheme.typography.labelLarge,
@@ -200,21 +194,50 @@ fun TrombadiceFormScreen(
                     Spacer(Modifier.height(24.dp))
                 }
 
+                // Duas listas, uma por tipo de registro: a de trombadice é
+                // cadastrada pelo pai (Configurações → Tipos de trombadice), a
+                // de conquista continua fechada no código.
                 Text(
-                    text = stringResource(R.string.trombadice_form_category_label),
+                    text = stringResource(
+                        if (ehConquista(state.kind)) R.string.trombadice_form_conquista_label
+                        else R.string.trombadice_form_category_label
+                    ),
                     style = MaterialTheme.typography.labelLarge,
                 )
                 Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Categoria.de(state.kind).forEach { valor ->
-                        FilterChip(
-                            selected = state.category == valor,
-                            onClick = { viewModel.onCategoryChange(valor) },
-                            label = { Text(stringResource(rotuloDaCategoria(valor))) },
-                        )
+                if (ehConquista(state.kind)) {
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        CategoriaDeConquista.TODAS.forEach { valor ->
+                            FilterChip(
+                                selected = state.conquistaCategory == valor,
+                                onClick = { viewModel.onConquistaCategoryChange(valor) },
+                                label = { Text(stringResource(rotuloDaConquista(valor))) },
+                            )
+                        }
+                    }
+                } else if (state.tipos.isEmpty()) {
+                    // Sem tipo cadastrado não dá pra registrar nada, e o pai
+                    // precisa saber onde resolver isso.
+                    Text(
+                        text = stringResource(R.string.trombadice_form_sem_tipos),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        state.tipos.forEach { tipo ->
+                            FilterChip(
+                                selected = state.categoryId == tipo.id,
+                                onClick = { viewModel.onCategoryChange(tipo.id) },
+                                label = { Text(tipo.name) },
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(24.dp))

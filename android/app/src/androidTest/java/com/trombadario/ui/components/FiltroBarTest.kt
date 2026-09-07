@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.trombadario.data.remote.TrombadiceCategoryDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.theme.TrombadarioTheme
 import java.time.LocalDate
@@ -58,8 +59,14 @@ class FiltroBarTest {
                     onSelectChild = {},
                     kind = null,
                     onSelectKind = {},
-                    category = null,
-                    onSelectCategory = {},
+                    tipos = listOf(
+                        TrombadiceCategoryDto(1, "Falta de respeito"),
+                        TrombadiceCategoryDto(2, "Mentira"),
+                    ),
+                    categoryId = null,
+                    onSelectCategoryId = {},
+                    conquistaCategory = null,
+                    onSelectConquistaCategory = {},
                     busca = "",
                     onBuscaChange = {},
                     onBuscar = {},
@@ -78,9 +85,11 @@ class FiltroBarTest {
         montar()
 
         rule.onNodeWithText("Joao").assertExists()
+        // O tipo de trombadice vem da lista cadastrada pelo pai, que chega de
+        // fora - não existe mais enum no app pra isso.
         rule.onNodeWithText("Falta de respeito").assertExists()
         rule.onNodeWithText("Qualquer tipo").assertExists()
-        // Sem tipo escolhido valem as dezesseis categorias, das duas listas.
+        // Sem tipo de registro escolhido valem as duas listas.
         rule.onNodeWithText("Ajudou sem pedir").assertExists()
         rule.onNodeWithText("Conquistas").assertExists()
     }

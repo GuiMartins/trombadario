@@ -6,8 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.ApiResult
-import com.trombadario.data.remote.Categoria
+import com.trombadario.data.remote.CategoriaDeConquista
 import com.trombadario.data.remote.Tipo
+import com.trombadario.data.remote.TrombadiceCategoryDto
 import com.trombadario.data.remote.TrombadiceCreateDto
 import com.trombadario.data.remote.TrombadiceUpdateDto
 import com.trombadario.data.remote.TaskDto
@@ -26,7 +27,6 @@ import kotlinx.coroutines.launch
 
 data class TrombadiceFormState(
     val loading: Boolean = true,
-    val title: String = "",
     val description: String = "",
     val date: LocalDate = LocalDate.now(),
     val time: LocalTime = LocalTime.now().withSecond(0).withNano(0),
@@ -35,7 +35,11 @@ data class TrombadiceFormState(
     val tasks: List<TaskDto> = emptyList(),
     val selectedTaskId: Int? = null,
     val kind: String = Tipo.TROMBADICE,
-    val category: String = Categoria.OUTRA,
+    /** Os tipos cadastrados pelo pai. Sem nenhum não dá pra registrar
+     *  trombadice - é o tipo que diz o que aconteceu. */
+    val tipos: List<TrombadiceCategoryDto> = emptyList(),
+    val categoryId: Int? = null,
+    val conquistaCategory: String = CategoriaDeConquista.PADRAO,
     val submitting: Boolean = false,
     @StringRes val error: Int? = null,
     val saved: Boolean = false,
@@ -69,11 +73,19 @@ class TrombadiceFormViewModel(
                 ?.filter { it.isActive }
                 .orEmpty()
 
+            val tipos = (container.repository.listTrombadiceCategories() as? ApiResult.Success)
+                ?.data
+                // Só os ativos na hora de cadastrar: o pai tirou os outros da
+                // lista de propósito. O tipo da anotação que está sendo
+                // corrigida entra mesmo aposentado - corrigir a data não pode
+                // trocar o que aconteceu.
+                ?.filter { it.isActive || it.id == event?.categoryId }
+                .orEmpty()
+
             _state.update { current ->
                 val occurred = event?.let { parseInstant(it.occurredAt).toLocalDateTime() }
                 current.copy(
                     loading = false,
-                    title = event?.title ?: current.title,
                     description = event?.description ?: current.description,
                     date = occurred?.toLocalDate() ?: current.date,
                     time = occurred?.toLocalTime() ?: current.time,
@@ -84,13 +96,16 @@ class TrombadiceFormViewModel(
                     tasks = tasks,
                     selectedTaskId = event?.taskId,
                     kind = event?.kind ?: current.kind,
-                    category = event?.category ?: current.category,
+                    tipos = tipos,
+                    // Editando, o tipo é o do registro; cadastrando, o primeiro
+                    // da lista - a tela sempre abre com um escolhido, porque
+                    // escolher é obrigatório.
+                    categoryId = event?.categoryId ?: tipos.firstOrNull()?.id,
+                    conquistaCategory = event?.conquistaCategory ?: current.conquistaCategory,
                 )
             }
         }
     }
-
-    fun onTitleChange(value: String) = _state.update { it.copy(title = value, error = null) }
 
     fun onDescriptionChange(value: String) = _state.update { it.copy(description = value) }
 
@@ -104,27 +119,29 @@ class TrombadiceFormViewModel(
         it.copy(selectedChildId = childId, selectedTaskId = null, error = null)
     }
 
-    fun onCategoryChange(value: String) = _state.update { it.copy(category = value) }
+    fun onCategoryChange(categoryId: Int) = _state.update { it.copy(categoryId = categoryId) }
+
+    fun onConquistaCategoryChange(valor: String) =
+        _state.update { it.copy(conquistaCategory = valor) }
 
     /**
-     * Trocar de tipo troca a lista de categorias inteira, então a que estava
-     * marcada não serve mais - vai para a padrão do tipo novo. E conquista não
-     * se atrela a tarefa: o vínculo existe para dizer o que **não** foi
-     * cumprido, e diria o contrário do que significa.
+     * Trocar de tipo troca a lista de categorias inteira: são duas listas
+     * diferentes, a cadastrada pelo pai (trombadice) e a fechada (conquista).
+     * E conquista não se atrela a tarefa: o vínculo existe para dizer o que
+     * **não** foi cumprido, e diria o contrário do que significa.
      */
     fun onKindChange(value: String) = _state.update {
         it.copy(
             kind = value,
-            category = Categoria.padraoDe(value),
             selectedTaskId = if (value == Tipo.CONQUISTA) null else it.selectedTaskId,
             error = null,
         )
     }
 
     /**
-     * Escolher tarefa responde de quem é e, se ninguém escreveu título, qual é
-     * o título - o que aconteceu foi não ter feito aquilo. Por isso esses dois
-     * campos somem da tela quando há tarefa; ver a mesma regra no painel web.
+     * Escolher tarefa responde de quem é o registro - ela pertence a um filho
+     * só. Por isso o campo de filho some da tela quando há tarefa; ver a mesma
+     * regra no painel web.
      */
     fun onTaskChange(taskId: Int?) = _state.update { current ->
         val task = current.tasks.firstOrNull { it.id == taskId }
@@ -140,16 +157,16 @@ class TrombadiceFormViewModel(
         val current = _state.value
         if (current.submitting) return
 
-        val tarefa = current.tasks.firstOrNull { it.id == current.selectedTaskId }
-        // Sem tarefa, o título é obrigatório. Com tarefa, ele vem do nome dela.
-        val titulo = current.title.trim().ifBlank { tarefa?.name.orEmpty() }
-        if (titulo.isBlank()) {
-            _state.update { it.copy(error = R.string.trombadice_form_error_title_required) }
-            return
-        }
         val childId = current.selectedChildId
         if (childId == null) {
             _state.update { it.copy(error = R.string.trombadice_form_error_no_children) }
+            return
+        }
+        val conquista = current.kind == Tipo.CONQUISTA
+        // Sem tipo escolhido a anotação não diria o que aconteceu - e desde que
+        // o título saiu da tela, não há texto livre para salvá-la.
+        if (!conquista && current.categoryId == null) {
+            _state.update { it.copy(error = R.string.trombadice_form_error_no_category) }
             return
         }
 
@@ -160,24 +177,24 @@ class TrombadiceFormViewModel(
             val result = if (trombadiceId == null) {
                 container.repository.createTrombadice(
                     TrombadiceCreateDto(
-                        title = titulo,
                         description = current.description.trim(),
                         occurredAt = occurredAt,
                         childId = childId,
                         taskId = current.selectedTaskId,
                         kind = current.kind,
-                        category = current.category,
+                        categoryId = if (conquista) null else current.categoryId,
+                        conquistaCategory = if (conquista) current.conquistaCategory else null,
                     )
                 )
             } else {
                 container.repository.updateTrombadice(
                     trombadiceId,
                     TrombadiceUpdateDto(
-                        title = titulo,
                         description = current.description.trim(),
                         occurredAt = occurredAt,
                         taskId = current.selectedTaskId,
-                        category = current.category,
+                        categoryId = if (conquista) null else current.categoryId,
+                        conquistaCategory = if (conquista) current.conquistaCategory else null,
                     )
                 )
             }

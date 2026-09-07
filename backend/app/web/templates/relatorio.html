@@ -73,9 +73,7 @@
 
 {% if dados.conquistas %}
   <h2>Conquistas por tipo</h2>
-  {% set boas = [] %}
-  {% for c in dados.conquistas_por_categoria %}{% set _ = boas.append({'rotulo': categorias.get(c.rotulo, c.rotulo), 'total': c.total}) %}{% endfor %}
-  {{ barras(boas, dados.conquistas_por_categoria[0].total) }}
+  {{ barras(dados.conquistas_por_categoria, dados.conquistas_por_categoria[0].total) }}
 {% endif %}
 
 {% if dados.total %}
@@ -97,9 +95,7 @@
   </p>
 
   <h2>Por tipo</h2>
-  {% set por_tipo = [] %}
-  {% for c in dados.por_categoria %}{% set _ = por_tipo.append({'rotulo': categorias.get(c.rotulo, c.rotulo), 'total': c.total}) %}{% endfor %}
-  {{ barras(por_tipo, dados.por_categoria[0].total) }}
+  {{ barras(dados.por_categoria, dados.por_categoria[0].total) }}
 
   {% if dados.por_filho|length > 1 %}
   <h2>Por filho</h2>

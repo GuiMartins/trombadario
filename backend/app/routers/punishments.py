@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.deps import AdminUser, ChildUser, CurrentUser, DbSession
-from app.models import Category, Kind, Punishment, Role, Trombadice, User
+from app.models import Kind, Punishment, Role, Trombadice, User
 from app.periodo import data_local, intervalo
 from app.schemas import (
     DatasComRegistro,
@@ -82,13 +82,16 @@ def _escopo(query, current_user: User, child_id: int | None):
     return query.where(Punishment.child_id == current_user.id)
 
 
-def _filtros(query, category: Category | None, de: date | None, ate: date | None, q: str | None):
-    if category is not None:
+def _filtros(query, category_id: int | None, de: date | None, ate: date | None, q: str | None):
+    if category_id is not None:
         # Castigo não tem categoria própria - ele herda a das trombadices que o
         # causaram. Filtrar por "agressão" aqui quer dizer "castigos que vieram
         # de alguma agressão", que é a pergunta que o pai faz de verdade.
+        #
+        # Só a lista de trombadice: castigo nunca vem de conquista, então não
+        # existe filtro por categoria de conquista para oferecer aqui.
         query = query.where(
-            Punishment.trombadices.any(Trombadice.category == category)
+            Punishment.trombadices.any(Trombadice.category_id == category_id)
         )
 
     inicio, fim = intervalo(de, ate)
@@ -110,14 +113,14 @@ def list_punishments(
     current_user: CurrentUser,
     db: DbSession,
     child_id: int | None = None,
-    category: Category | None = None,
+    category_id: int | None = None,
     de: date | None = None,
     ate: date | None = None,
     q: str | None = None,
 ) -> list[PunishmentOut]:
     now = datetime.now(UTC)
     query = select(Punishment).order_by(Punishment.starts_at.desc(), Punishment.id.desc())
-    query = _filtros(_escopo(query, current_user, child_id), category, de, ate, q)
+    query = _filtros(_escopo(query, current_user, child_id), category_id, de, ate, q)
     achados = list(db.scalars(query))
     marcar_visto(db, achados, current_user)
     return [_serialize(p, now) for p in achados]

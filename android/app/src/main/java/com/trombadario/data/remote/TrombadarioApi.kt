@@ -37,7 +37,10 @@ interface TrombadarioApi {
     suspend fun listTrombadices(
         @Query("child_id") childId: Int? = null,
         @Query("kind") kind: String? = null,
-        @Query("category") category: String? = null,
+        // Dois filtros de categoria porque são duas listas: a cadastrada pelo
+        // pai (trombadice) e a fechada (conquista).
+        @Query("category_id") categoryId: Int? = null,
+        @Query("conquista_category") conquistaCategory: String? = null,
         @Query("de") de: String? = null,
         @Query("ate") ate: String? = null,
         @Query("q") q: String? = null,
@@ -49,7 +52,8 @@ interface TrombadarioApi {
     suspend fun trombadiceDates(
         @Query("child_id") childId: Int? = null,
         @Query("kind") kind: String? = null,
-        @Query("category") category: String? = null,
+        @Query("category_id") categoryId: Int? = null,
+        @Query("conquista_category") conquistaCategory: String? = null,
         @Query("q") q: String? = null,
     ): Response<DatasComRegistroDto>
 
@@ -64,6 +68,28 @@ interface TrombadarioApi {
 
     @DELETE("api/trombadices/{id}")
     suspend fun deleteTrombadice(@Path("id") id: Int): Response<Unit>
+
+    /** A lista de tipos de trombadice. Os dois papéis leem - o filho precisa
+     *  dos nomes pros chips de filtro do feed; o servidor só manda os ativos
+     *  pra ele. Escrever é só do pai. */
+    @GET("api/trombadice-categories")
+    suspend fun listTrombadiceCategories(): Response<List<TrombadiceCategoryDto>>
+
+    @POST("api/trombadice-categories")
+    suspend fun createTrombadiceCategory(
+        @Body category: TrombadiceCategoryCreateDto,
+    ): Response<TrombadiceCategoryDto>
+
+    @PATCH("api/trombadice-categories/{id}")
+    suspend fun updateTrombadiceCategory(
+        @Path("id") id: Int,
+        @Body category: TrombadiceCategoryUpdateDto,
+    ): Response<TrombadiceCategoryDto>
+
+    /** 409 quando o tipo está em uso: apagar deixaria a anotação sem dizer o
+     *  que aconteceu. Nesse caso o caminho é desativar. */
+    @DELETE("api/trombadice-categories/{id}")
+    suspend fun deleteTrombadiceCategory(@Path("id") id: Int): Response<Unit>
 
     @GET("api/users")
     suspend fun listUsers(): Response<List<UserDto>>

@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models import Trombadice, User
-from tests.conftest import as_admin, as_child
+from tests.conftest import as_admin, as_child, corpo_de_trombadice
 
 OCCURRED_AT = "2026-08-01T14:30:00+00:00"
 
@@ -13,13 +13,16 @@ def create(client: TestClient, headers: dict, child_id: int, title: str, **extra
     response = client.post(
         "/api/trombadices",
         headers=headers,
-        json={
-            "title": title,
-            "description": "quebrou o vaso",
-            "occurred_at": OCCURRED_AT,
-            "child_id": child_id,
-            **extra,
-        },
+        json=corpo_de_trombadice(
+            client,
+            child_id,
+            **{
+                "title": title,
+                "description": "quebrou o vaso",
+                "occurred_at": OCCURRED_AT,
+                **extra,
+            },
+        ),
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -106,7 +109,7 @@ def test_feed_vem_do_mais_recente_pro_mais_antigo(
         client.post(
             "/api/trombadices",
             headers=headers,
-            json={"title": title, "occurred_at": occurred_at, "child_id": child.id},
+            json=corpo_de_trombadice(client, child.id, title=title, occurred_at=occurred_at),
         )
 
     listed = client.get("/api/trombadices", headers=headers).json()
@@ -118,7 +121,7 @@ def test_nao_cadastra_pra_quem_nao_e_filho(client: TestClient, admin: User, chil
     response = client.post(
         "/api/trombadices",
         headers=as_admin(client),
-        json={"title": "teste", "occurred_at": OCCURRED_AT, "child_id": admin.id},
+        json=corpo_de_trombadice(client, admin.id, title="teste", occurred_at=OCCURRED_AT),
     )
 
     assert response.status_code == 400

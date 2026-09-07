@@ -445,9 +445,9 @@ edição e relatório**, e a responder duas vezes "o que aconteceu no dia 5".
 > `events` → `trombadices`; renomear de novo custaria mais do que explica.
 
 Regras que caem daí, todas com teste:
-- **Cada categoria pertence a um tipo** (`CATEGORIAS_POR_TIPO`). "Falta de
-  respeito" não descreve coisa boa. Categoria do tipo errado é 422 na API e cai
-  na padrão do tipo no painel.
+- **Cada lista serve a um tipo de registro.** Trombadice usa a lista cadastrada
+  pelo pai; conquista, o enum `ConquistaCategory` — "falta de respeito" não
+  descreve coisa boa. Mandar a do outro tipo é 422 na API e ignorado no painel.
 - **Conquista não se atrela a tarefa.** Tarefa registra o que **não** foi
   cumprido; o vínculo diria o contrário do que significa.
 - **Castigo não pode vir de conquista.** Se pudesse, seria erro de digitação
@@ -464,26 +464,60 @@ o formulário manda **as duas listas de categoria** e o servidor lê só a do ti
 escolhido — assim nenhuma precisa ser desabilitada no navegador, e sem `:has()`
 as duas aparecem e continua funcionando.
 
-### Categoria é lista fechada
+### O tipo da trombadice é lista do pai; o da conquista não
 
-`models.Category`, oito valores. Campo livre viraria dez jeitos de escrever
-"falta de respeito" e nenhum relatório sairia. A **ordem do enum é a ordem na
-tela**, do mais comum ao menos. Acrescentar valor é migration; tirar valor exige
-decidir o que fazer com o que já está gravado, então na prática só se aposenta
-escondendo da tela.
+`models.TrombadiceCategory` (tabela `trombadice_categories`): o pai cadastra os
+tipos, e a tela de anotação vira **escolher um deles + detalhes opcionais**. Era
+um enum fechado de oito valores; virou tabela porque cada casa repete as mesmas
+coisas e quem sabe quais são é quem convive — a lista útil não é a que o app
+imaginou. Cadastro em **Tipos** no painel e em Configurações → Tipos de
+trombadice no app, como toda coisa do pai.
 
-**Sem título e com tarefa atrelada, o título vira o nome da tarefa** — o que
-aconteceu foi não ter feito aquilo, e obrigar a repetir na mão só produziria duas
-versões do mesmo nome. Sem tarefa, o título continua obrigatório (422).
+- **Ninguém apaga tipo em uso.** A FK é `RESTRICT` e a rota devolve 409; o
+  caminho é `is_active = false`, que tira da hora de registrar e continua
+  nomeando o que já foi registrado (mesma ideia da tarefa pausada). As duas
+  telas escondem o botão de excluir do que está em uso — `em_uso` vem na
+  resposta justamente para isso, senão o botão só entregaria erro.
+- **Nome único**, sem diferenciar maiúscula: dois "Mentira" partiriam o
+  relatório ao meio sem ninguém perceber.
+- **Renomear conserta o histórico inteiro**, porque o registro aponta a linha e
+  não uma cópia do nome.
+- **A ordem é do pai** (`position`, com o nome desempatando). Era a ordem do
+  enum, do mais comum ao menos.
+- **A lista inicial é a antiga**, com os mesmos oito nomes: a migration
+  transforma os valores gravados nas oito primeiras linhas, e uma instalação
+  nova recebe as mesmas na criação da conta do pai (`app/categorias.py`).
+  Semeada **uma vez**, no setup, e não a cada subida — senão reapareceria o que
+  ele apagou de propósito.
+
+**Conquista continua com enum fechado** (`ConquistaCategory`, oito valores): ela
+é o pai reconhecendo algo, não uma taxonomia que ele mantém, e ninguém pediu
+para cadastrar essas. Por isso `Trombadice` tem duas colunas para a mesma
+pergunta — `category_id` (a lista do pai) e `conquista_category` (o enum) —,
+cada registro preenche exatamente uma, e a rota recusa a do outro tipo. Mesmo
+padrão de campo-só-de-um-caso de `Task.weekdays`/`day_of_month`.
+
+**Ninguém digita título.** `Trombadice.display_title` é derivado **na leitura**:
+o texto livre quando existe (é o que está gravado no que foi cadastrado antes
+desta mudança), senão o nome da tarefa atrelada, senão o nome do tipo. Gravado,
+ele continuaria dizendo "Mentira" depois de o pai corrigir o tipo para "Birra".
+Daí caem duas coisas: a busca por palavra também procura no **nome do tipo**
+(senão procurar "mentira" não acharia as anotações de tipo "Mentira"), e a
+etiqueta do tipo no cartão só aparece **quando difere do título** — repetir
+"Mentira" embaixo de "Mentira" é ruído.
 
 > **`Enum(..., native_enum=False)` guarda o NOME do membro, não o valor.**
-> `Role` grava `"ADMIN"`, `Periodicity` grava `"DAILY"`, `Category` grava
-> `"OUTRA"`. Um `server_default` de migration escrito como `"outra"` passa em
-> toda a suíte e estoura `LookupError` na primeira leitura em produção — porque
-> os testes montam o schema com `create_all` e nunca passam pelas migrations.
-> É o que `tests/test_migrations.py` existe para pegar: ele roda a migration de
-> verdade contra um banco com linha dentro e lê de volta pelo ORM. **Migration
-> nova que mexa em coluna de enum precisa de um caso lá.**
+> `Role` grava `"ADMIN"`, `Periodicity` grava `"DAILY"`,
+> `ConquistaCategory` grava `"AJUDOU"`. Um `server_default` de migration escrito
+> como `"ajudou"` passa em toda a suíte e estoura `LookupError` na primeira
+> leitura em produção — porque os testes montam o schema com `create_all` e
+> nunca passam pelas migrations. É o que `tests/test_migrations.py` existe para
+> pegar: ele roda a migration de verdade contra um banco com linha dentro e lê
+> de volta pelo ORM. **Migration nova que mexa em coluna de enum precisa de um
+> caso lá.** A pegadinha vale pelo avesso também: ao tirar os oito valores de
+> trombadice do enum, o perigo passou a ser o valor que **sobrou** na coluna, e
+> por isso a cópia para `category_id` e a limpeza da coluna antiga são a mesma
+> migration.
 
 ### Editar o que já foi cadastrado
 
@@ -750,8 +784,9 @@ construção deixava o feed desatualizado depois de cadastrar, editar ou excluir
 Anotações · Tarefas · Castigo · Pedidos · Ajustes, iguais pros dois papéis — o
 que muda é o conteúdo, não a estrutura. **Cinco é o teto do `NavigationBar` do
 Material3**, e já é apertado num celular estreito, então tudo o que veio depois
-entra como item dentro de Configurações: Contas, Frases, Relatório (só pro pai) e
-**Assuntos pra conversar** (a única que os dois papéis alcançam).
+entra como item dentro de Configurações: Contas, Frases, **Tipos de trombadice**,
+Relatório (só pro pai) e **Assuntos pra conversar** (a única que os dois papéis
+alcançam).
 
 A tela de **Castigo do filho** existe pra responder uma coisa só, e responde
 grande: ícone, "Você está de castigo" e até quando — ou "Você não está de

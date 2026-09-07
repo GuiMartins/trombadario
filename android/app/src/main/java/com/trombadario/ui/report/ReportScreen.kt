@@ -45,7 +45,6 @@ import com.trombadario.data.remote.ContagemDto
 import com.trombadario.ui.components.AdaptiveScreen
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.components.MessageScreen
-import com.trombadario.ui.components.rotuloDaCategoria
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AppTopBar
 import com.trombadario.ui.viewModelFactory
@@ -148,9 +147,11 @@ fun ReportScreen(container: AppContainer, currentUser: UserDto) {
                     if (dados.conquistas > 0) {
                         Secao(R.string.report_conquistas_por_tipo)
                         Barras(
-                            dados.conquistasPorCategoria.map {
-                                ContagemDto(rotuloLegivel(it.rotulo), it.total)
-                            }
+                            // O rótulo já vem pronto do servidor nos dois
+                            // gráficos: no de trombadice ele é o nome que o pai
+                            // deu ao tipo, e não existe strings.xml que saiba o
+                            // que ele vai escrever.
+                            dados.conquistasPorCategoria
                         )
                     }
 
@@ -187,9 +188,7 @@ fun ReportScreen(container: AppContainer, currentUser: UserDto) {
                     }
 
                     Secao(R.string.report_por_tipo)
-                    Barras(
-                        dados.porCategoria.map { ContagemDto(rotuloLegivel(it.rotulo), it.total) }
-                    )
+                    Barras(dados.porCategoria)
 
                     if (dados.porFilho.size > 1) {
                         Secao(R.string.report_por_filho)
@@ -207,9 +206,6 @@ fun ReportScreen(container: AppContainer, currentUser: UserDto) {
         }
     }
 }
-
-@Composable
-private fun rotuloLegivel(categoria: String): String = stringResource(rotuloDaCategoria(categoria))
 
 private fun janelaLabel(dias: Int): Int = when (dias) {
     7 -> R.string.report_janela_7

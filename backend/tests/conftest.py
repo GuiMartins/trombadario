@@ -14,6 +14,7 @@ from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+from app.categorias import semear_tipos_de_trombadice  # noqa: E402
 from app.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Role, User  # noqa: E402
@@ -64,7 +65,13 @@ def make_user(db: Session, username: str, password: str, role: Role, name: str) 
 
 @pytest.fixture
 def admin(db: Session) -> User:
-    return make_user(db, "pai", ADMIN_PASSWORD, Role.ADMIN, "Pai")
+    user = make_user(db, "pai", ADMIN_PASSWORD, Role.ADMIN, "Pai")
+    # A lista de tipos de trombadice nasce junto com a conta do pai, como em
+    # produção (ver routers/setup.py). Sem ela nenhum teste conseguiria
+    # cadastrar uma trombadice - o tipo deixou de ser opcional quando deixou de
+    # ser enum.
+    semear_tipos_de_trombadice(db)
+    return user
 
 
 @pytest.fixture
@@ -89,3 +96,29 @@ def as_admin(client: TestClient) -> dict[str, str]:
 
 def as_child(client: TestClient) -> dict[str, str]:
     return auth_header(client, "filho", CHILD_PASSWORD)
+
+
+def tipo_id(client: TestClient, nome: str = "Outra") -> int:
+    """O id de um tipo de trombadice da lista inicial.
+
+    Os testes falam por nome porque id de linha não diz nada em asserção - e o
+    nome é o que o pai vê na tela."""
+    tipos = client.get("/api/trombadice-categories", headers=as_admin(client)).json()
+    return next(t["id"] for t in tipos if t["name"] == nome)
+
+
+def corpo_de_trombadice(client: TestClient, child_id: int, **extra) -> dict:
+    """O corpo mínimo de uma anotação nova.
+
+    Trombadice precisa de um tipo: ele é obrigatório desde que virou lista
+    cadastrada pelo pai - sem ele o registro não diria o que aconteceu.
+    Conquista não usa essa lista (continua no enum fechado), então o campo só
+    entra quando é do tipo certo."""
+    corpo = {
+        "occurred_at": "2026-08-01T14:30:00+00:00",
+        "child_id": child_id,
+        **extra,
+    }
+    if corpo.get("kind", "trombadice") == "trombadice" and "category_id" not in corpo:
+        corpo["category_id"] = tipo_id(client)
+    return corpo

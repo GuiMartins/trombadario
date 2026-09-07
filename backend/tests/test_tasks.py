@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.models import Trombadice, User
-from tests.conftest import as_admin, as_child
+from tests.conftest import as_admin, as_child, corpo_de_trombadice
 
 OCCURRED_AT = "2026-08-01T14:30:00+00:00"
 
@@ -111,12 +111,13 @@ def test_trombadice_pode_apontar_pra_tarefa_nao_cumprida(
     response = client.post(
         "/api/trombadices",
         headers=as_admin(client),
-        json={
-            "title": "Não arrumou a cama",
-            "occurred_at": OCCURRED_AT,
-            "child_id": child.id,
-            "task_id": task["id"],
-        },
+        json=corpo_de_trombadice(
+            client,
+            child.id,
+            title="Não arrumou a cama",
+            occurred_at=OCCURRED_AT,
+            task_id=task["id"],
+        ),
     )
 
     assert response.status_code == 201
@@ -131,12 +132,9 @@ def test_nao_da_pra_ligar_trombadice_a_tarefa_de_outro_filho(
     response = client.post(
         "/api/trombadices",
         headers=as_admin(client),
-        json={
-            "title": "x",
-            "occurred_at": OCCURRED_AT,
-            "child_id": child.id,
-            "task_id": da_outra["id"],
-        },
+        json=corpo_de_trombadice(
+            client, child.id, title="x", occurred_at=OCCURRED_AT, task_id=da_outra["id"]
+        ),
     )
 
     # O vínculo afirmaria algo falso: esse filho nunca teve essa tarefa.
@@ -150,12 +148,13 @@ def test_apagar_tarefa_preserva_a_trombadice(
     trombadice = client.post(
         "/api/trombadices",
         headers=as_admin(client),
-        json={
-            "title": "Não arrumou a cama",
-            "occurred_at": OCCURRED_AT,
-            "child_id": child.id,
-            "task_id": task["id"],
-        },
+        json=corpo_de_trombadice(
+            client,
+            child.id,
+            title="Não arrumou a cama",
+            occurred_at=OCCURRED_AT,
+            task_id=task["id"],
+        ),
     ).json()
 
     assert client.delete(f"/api/tasks/{task['id']}", headers=as_admin(client)).status_code == 204

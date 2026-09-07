@@ -14,7 +14,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 
 from app.deps import AdminUser, DbSession
-from app.models import Kind, Punishment, Role, Task, Trombadice, User
+from app.models import ROTULO_DA_CONQUISTA, Kind, Punishment, Role, Task, Trombadice, User
 from app.periodo import data_local, hoje_local, intervalo, mes_de, semana_de
 from app.schemas import Contagem, Report
 
@@ -116,7 +116,14 @@ def report(
         por_dia=_serie_diaria(dias, por_dia),
         por_semana=_contagens([semana_de(d) for d in datas]),
         por_mes=_contagens([mes_de(d) for d in datas]),
-        por_categoria=_contagens([t.category.value for t in trombadices], ordenar_por_total=True),
+        # O nome do tipo, não um código: a lista é do pai agora, e ele
+        # reconhece "Birra / descontrole" - não "birra". Sem tipo é o registro
+        # antigo de uma instalação que nunca migrou; some do gráfico como "?"
+        # em vez de derrubar o relatório inteiro.
+        por_categoria=_contagens(
+            [t.category.name if t.category else "?" for t in trombadices],
+            ordenar_por_total=True,
+        ),
         por_filho=_contagens(
             [nomes.get(t.child_id, "?") for t in trombadices], ordenar_por_total=True
         ),
@@ -142,7 +149,8 @@ def report(
         nao_vistas=sum(1 for t in trombadices if t.seen_at is None),
         conquistas=len(conquistas),
         conquistas_por_categoria=_contagens(
-            [c.category.value for c in conquistas], ordenar_por_total=True
+            [ROTULO_DA_CONQUISTA[c.conquista_category] for c in conquistas if c.conquista_category],
+            ordenar_por_total=True,
         ),
     )
 

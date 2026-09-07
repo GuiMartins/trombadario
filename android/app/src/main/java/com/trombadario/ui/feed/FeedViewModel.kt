@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.trombadario.AppContainer
 import com.trombadario.data.ApiResult
+import com.trombadario.data.remote.TrombadiceCategoryDto
 import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.UserDto
 import java.time.LocalDate
@@ -23,7 +24,14 @@ data class FeedState(
     val children: List<UserDto> = emptyList(),
     val selectedChildId: Int? = null,
     val kind: String? = null,
-    val category: String? = null,
+    /** Os tipos cadastrados pelo pai, para os chips de filtro. O filho recebe
+     *  só os ativos - quem decide isso é o servidor. */
+    val tipos: List<TrombadiceCategoryDto> = emptyList(),
+    // Dois filtros de categoria porque são duas listas: a do pai (trombadice) e
+    // a fechada (conquista). Um campo só teria que carregar de qual lista o
+    // valor veio.
+    val categoryId: Int? = null,
+    val conquistaCategory: String? = null,
     val busca: String = "",
     val dia: LocalDate? = null,
     /**
@@ -36,8 +44,8 @@ data class FeedState(
 ) {
     /** Se há algum filtro além do padrão, para oferecer o "limpar". */
     val filtrando: Boolean
-        get() = selectedChildId != null || kind != null || category != null ||
-            busca.isNotBlank() || dia != null
+        get() = selectedChildId != null || kind != null || categoryId != null ||
+            conquistaCategory != null || busca.isNotBlank() || dia != null
 }
 
 class FeedViewModel(
@@ -67,6 +75,11 @@ class FeedViewModel(
                 }
             }
 
+            val tipos = container.repository.listTrombadiceCategories()
+            if (tipos is ApiResult.Success) {
+                _state.update { it.copy(tipos = tipos.data) }
+            }
+
             val filtros = _state.value
             val termo = filtros.busca.trim().ifBlank { null }
             val dia = filtros.dia?.toString()
@@ -74,7 +87,8 @@ class FeedViewModel(
             val datas = container.repository.trombadiceDates(
                 childId = filtros.selectedChildId,
                 kind = filtros.kind,
-                category = filtros.category,
+                categoryId = filtros.categoryId,
+                conquistaCategory = filtros.conquistaCategory,
                 q = termo,
             )
             if (datas is ApiResult.Success) {
@@ -88,7 +102,8 @@ class FeedViewModel(
             val result = container.repository.listTrombadices(
                 childId = filtros.selectedChildId,
                 kind = filtros.kind,
-                category = filtros.category,
+                categoryId = filtros.categoryId,
+                conquistaCategory = filtros.conquistaCategory,
                 // Um dia só: o mesmo valor nas duas pontas, que é o que o
                 // calendário oferece.
                 de = dia,
@@ -113,11 +128,18 @@ class FeedViewModel(
 
     fun selectChild(childId: Int?) = trocarFiltro { it.copy(selectedChildId = childId) }
 
-    fun selectCategory(category: String?) = trocarFiltro { it.copy(category = category) }
+    /** Escolher de uma lista limpa a outra: as duas ao mesmo tempo pediriam um
+     *  registro que é trombadice e conquista, e não existe. */
+    fun selectCategoryId(categoryId: Int?) =
+        trocarFiltro { it.copy(categoryId = categoryId, conquistaCategory = null) }
+
+    fun selectConquistaCategory(categoria: String?) =
+        trocarFiltro { it.copy(conquistaCategory = categoria, categoryId = null) }
 
     /** Trocar de tipo limpa a categoria: a lista dela é outra, e manter a
      *  antiga daria um filtro que nunca acha nada. */
-    fun selectKind(kind: String?) = trocarFiltro { it.copy(kind = kind, category = null) }
+    fun selectKind(kind: String?) =
+        trocarFiltro { it.copy(kind = kind, categoryId = null, conquistaCategory = null) }
 
     fun selectDia(dia: LocalDate?) = trocarFiltro { it.copy(dia = dia) }
 
@@ -127,7 +149,14 @@ class FeedViewModel(
     fun buscar() = load()
 
     fun limparFiltros() = trocarFiltro {
-        it.copy(selectedChildId = null, kind = null, category = null, busca = "", dia = null)
+        it.copy(
+            selectedChildId = null,
+            kind = null,
+            categoryId = null,
+            conquistaCategory = null,
+            busca = "",
+            dia = null,
+        )
     }
 
     private fun trocarFiltro(mudanca: (FeedState) -> FeedState) {

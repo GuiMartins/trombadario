@@ -4,9 +4,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.categorias import TIPOS_INICIAIS
 from app.models import (
     Assunto,
-    Category,
+    ConquistaCategory,
     Kind,
     Periodicity,
     Punishment,
@@ -15,6 +16,7 @@ from app.models import (
     Task,
     TaskCompletion,
     Trombadice,
+    TrombadiceCategory,
     User,
 )
 from app.periodo import chave_do_periodo, hoje_local
@@ -160,6 +162,7 @@ def test_castigo_ignora_trombadice_de_outro_filho(
             "title": "Da filha",
             "occurred_at": "2026-08-01T14:30:00+00:00",
             "child_id": other_child.id,
+            "category_id": _tipo(db),
         },
     ).json()
 
@@ -249,33 +252,28 @@ def test_tema_preserva_o_filtro_da_pagina(client: TestClient, admin: User) -> No
 # --------------------------------------------------------------------------
 
 
-def test_pai_corrige_o_texto_de_uma_trombadice(
+def test_pai_corrige_o_tipo_de_uma_trombadice(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
-    client.post(
-        "/trombadices",
-        data={
-            "title": "Machou a irma",
-            "child_id": child.id,
-            "occurred_at": "2026-08-02T11:30",
-            "description": "no parquinho",
-        },
-    )
+    _cria_trombadice(client, db, child.id, tipo="Birra / descontrole", description="no parquinho")
     registrada = db.scalars(select(Trombadice)).one()
 
     client.post(
         f"/trombadices/{registrada.id}/editar",
         data={
-            "title": "Machucou a irmã",
             "child_id": child.id,
             "occurred_at": "2026-08-02T11:30",
-            "description": "no parquinho",
+            "category_id": _tipo(db, "Agressão"),
+            "description": "machucou a irmã no parquinho",
         },
     )
 
     db.refresh(registrada)
-    assert registrada.title == "Machucou a irmã"
+    assert registrada.category.name == "Agressão"
+    assert registrada.description == "machucou a irmã no parquinho"
+    # O título de tela acompanha a correção, porque sai do tipo.
+    assert registrada.display_title == "Agressão"
 
 
 def test_editar_nao_troca_quem_cadastrou(
@@ -296,14 +294,15 @@ def test_editar_nao_troca_quem_cadastrou(
     client.post(
         f"/trombadices/{trombadice.id}/editar",
         data={
-            "title": "certo",
             "child_id": child.id,
             "occurred_at": "2026-08-02T11:30",
+            "category_id": _tipo(db, "Mentira"),
+            "description": "certo",
         },
     )
 
     db.refresh(trombadice)
-    assert trombadice.title == "certo"
+    assert trombadice.description == "certo"
     # Quem cadastrou continua sendo quem cadastrou - corrigir não é assumir.
     assert trombadice.author_id == outro_pai.id
 
@@ -324,7 +323,9 @@ def test_formulario_vem_preenchido_pra_editar(
 
     corpo = client.get(f"/trombadices?editar={trombadice.id}").text
 
-    assert 'value="Machou a irma"' in corpo
+    # O título saiu da tela: o que vem preenchido são os detalhes, o tipo e a
+    # data.
+    assert "no parquinho" in corpo
     assert f'action="/trombadices/{trombadice.id}/editar"' in corpo
     assert "Salvar correção" in corpo
 
@@ -524,17 +525,22 @@ def test_filho_nao_edita_nada(client: TestClient, db: Session, admin: User, chil
 # --------------------------------------------------------------------------
 
 
-def _cria_trombadice(client: TestClient, child_id: int, **campos) -> None:
+def _tipo(db: Session, nome: str = "Outra") -> int:
+    """O id de um tipo da lista inicial. Os testes falam por nome porque id de
+    linha não diz nada em asserção."""
+    return db.scalar(select(TrombadiceCategory.id).where(TrombadiceCategory.name == nome))
+
+
+def _cria_trombadice(client: TestClient, db: Session, child_id: int, **campos) -> None:
     # O formulário manda as duas listas de categoria; o servidor lê só a do
     # tipo escolhido. Aqui vão as duas, como o navegador faz.
-    if "category" in campos:
-        campos["categoria_trombadice"] = campos.pop("category")
+    if "tipo" in campos:
+        campos["category_id"] = _tipo(db, campos.pop("tipo"))
     dados = {
         "child_id": child_id,
         "occurred_at": "2026-08-02T11:30",
-        "title": "algo",
         "kind": "trombadice",
-        "categoria_trombadice": "outra",
+        "category_id": _tipo(db),
         "categoria_conquista": "outra_boa",
         **campos,
     }
@@ -542,25 +548,39 @@ def _cria_trombadice(client: TestClient, child_id: int, **campos) -> None:
     assert resposta.status_code == 303, resposta.text
 
 
-def test_categoria_escolhida_e_gravada(
+def test_tipo_escolhido_e_gravado(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
 
-    _cria_trombadice(client, child.id, title="Empurrou", category="agressao")
+    _cria_trombadice(client, db, child.id, tipo="Agressão")
 
-    assert db.scalars(select(Trombadice)).one().category is Category.AGRESSAO
+    registrada = db.scalars(select(Trombadice)).one()
+    assert registrada.category.name == "Agressão"
+    # Ninguém digitou título: ele sai do tipo na leitura.
+    assert registrada.title == ""
+    assert registrada.display_title == "Agressão"
 
 
-def test_categoria_invalida_vira_outra(
+def test_tipo_invalido_nao_grava_nada(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
 
-    _cria_trombadice(client, child.id, category="coisa-inventada")
+    resposta = client.post(
+        "/trombadices",
+        data={
+            "child_id": child.id,
+            "occurred_at": "2026-08-02T11:30",
+            "category_id": "9999",
+        },
+        follow_redirects=False,
+    )
 
-    # Nada de 500 e nada de gravar lixo: cai no valor neutro.
-    assert db.scalars(select(Trombadice)).one().category is Category.OUTRA
+    # Nada de 500 e nada de gravar registro que não diz o que aconteceu: volta
+    # com a página explicando.
+    assert resposta.headers["location"] == "/trombadices?erro=sem-tipo"
+    assert db.scalars(select(Trombadice)).all() == []
 
 
 def test_com_tarefa_o_titulo_e_o_filho_vem_da_tarefa(
@@ -575,20 +595,27 @@ def test_com_tarefa_o_titulo_e_o_filho_vem_da_tarefa(
 
     # O formulário manda o outro filho no campo escondido; a tarefa tem que
     # ganhar, senão o registro afirmaria uma coisa falsa.
-    _cria_trombadice(client, other_child.id, title="", task_id=str(tarefa.id))
+    _cria_trombadice(client, db, other_child.id, title="", task_id=str(tarefa.id))
 
     registrada = db.scalars(select(Trombadice)).one()
-    assert registrada.title == "Arrumar a cama"
+    assert registrada.display_title == "Arrumar a cama"
     assert registrada.child_id == child.id
 
 
-def test_sem_titulo_e_sem_tarefa_nao_grava_nada(
+def test_sem_tipo_nao_grava_nada(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
 
-    _cria_trombadice(client, child.id, title="   ")
+    resposta = client.post(
+        "/trombadices",
+        data={"child_id": child.id, "occurred_at": "2026-08-02T11:30"},
+        follow_redirects=False,
+    )
 
+    # Sem tipo o registro não diria o que aconteceu - e o título não existe
+    # mais para salvá-lo.
+    assert resposta.headers["location"] == "/trombadices?erro=sem-tipo"
     assert db.scalars(select(Trombadice)).all() == []
 
 
@@ -596,21 +623,23 @@ def test_filtro_de_categoria_no_painel(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
-    _cria_trombadice(client, child.id, title="Empurrou", category="agressao")
-    _cria_trombadice(client, child.id, title="Mentiu", category="mentira")
+    _cria_trombadice(client, db, child.id, tipo="Agressão", description="empurrou")
+    _cria_trombadice(client, db, child.id, tipo="Mentira", description="inventou uma história")
 
-    corpo = client.get("/trombadices?category=agressao").text
+    corpo = client.get(f"/trombadices?category_id={_tipo(db, 'Agressão')}").text
 
-    assert "Empurrou" in corpo
-    assert "Mentiu" not in corpo
+    # Os detalhes distinguem as duas: os **nomes** dos tipos aparecem na tela de
+    # qualquer jeito, porque o formulário de cima lista a lista inteira.
+    assert "empurrou" in corpo
+    assert "inventou uma história" not in corpo
 
 
 def test_busca_por_palavra_no_painel(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
-    _cria_trombadice(client, child.id, title="Bagunca na sala")
-    _cria_trombadice(client, child.id, title="Nada a ver")
+    _cria_trombadice(client, db, child.id, description="Bagunca na sala")
+    _cria_trombadice(client, db, child.id, description="Nada a ver")
 
     corpo = client.get("/trombadices?q=sala").text
 
@@ -622,7 +651,7 @@ def test_calendario_so_deixa_clicar_em_dia_com_registro(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
-    _cria_trombadice(client, child.id, occurred_at="2026-08-05T10:00")
+    _cria_trombadice(client, db, child.id, occurred_at="2026-08-05T10:00")
 
     corpo = client.get("/trombadices?mes=2026-08").text
 
@@ -635,10 +664,10 @@ def test_calendario_respeita_o_filtro_de_categoria(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
-    _cria_trombadice(client, child.id, occurred_at="2026-08-05T10:00", category="agressao")
-    _cria_trombadice(client, child.id, occurred_at="2026-08-07T10:00", category="mentira")
+    _cria_trombadice(client, db, child.id, occurred_at="2026-08-05T10:00", tipo="Agressão")
+    _cria_trombadice(client, db, child.id, occurred_at="2026-08-07T10:00", tipo="Mentira")
 
-    corpo = client.get("/trombadices?mes=2026-08&category=agressao").text
+    corpo = client.get(f"/trombadices?mes=2026-08&category_id={_tipo(db, 'Agressão')}").text
 
     # Acender um dia sem nenhuma agressão seria mentira.
     assert "dia=2026-08-05" in corpo
@@ -649,8 +678,8 @@ def test_filtrar_por_dia_mostra_so_aquele_dia(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
-    _cria_trombadice(client, child.id, title="Do dia 5", occurred_at="2026-08-05T10:00")
-    _cria_trombadice(client, child.id, title="Do dia 7", occurred_at="2026-08-07T10:00")
+    _cria_trombadice(client, db, child.id, description="Do dia 5", occurred_at="2026-08-05T10:00")
+    _cria_trombadice(client, db, child.id, description="Do dia 7", occurred_at="2026-08-07T10:00")
 
     corpo = client.get("/trombadices?dia=2026-08-05").text
 
@@ -662,7 +691,7 @@ def test_painel_mostra_se_o_filho_ja_viu(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
-    _cria_trombadice(client, child.id)
+    _cria_trombadice(client, db, child.id)
 
     assert "ainda não viu" in client.get("/trombadices").text
 
@@ -679,7 +708,7 @@ def test_relatorio_conta_o_que_foi_cadastrado(
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
     hoje = datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M")
-    _cria_trombadice(client, child.id, occurred_at=hoje, category="mentira")
+    _cria_trombadice(client, db, child.id, occurred_at=hoje, tipo="Mentira")
 
     corpo = client.get("/relatorio?dias=7").text
 
@@ -704,15 +733,17 @@ def test_painel_cadastra_conquista(
 
     _cria_trombadice(
         client,
+        db,
         child.id,
-        title="Ajudou a arrumar a casa",
         kind="conquista",
         categoria_conquista="ajudou",
+        description="arrumou a casa sozinho",
     )
 
     registrada = db.scalars(select(Trombadice)).one()
     assert registrada.kind is Kind.CONQUISTA
-    assert registrada.category is Category.AJUDOU
+    assert registrada.conquista_category is ConquistaCategory.AJUDOU
+    assert registrada.display_title == "Ajudou sem pedir"
 
 
 def test_a_lista_do_tipo_errado_e_ignorada(
@@ -724,13 +755,18 @@ def test_a_lista_do_tipo_errado_e_ignorada(
     # pode vazar para o registro.
     _cria_trombadice(
         client,
+        db,
         child.id,
         kind="conquista",
-        categoria_trombadice="agressao",
         categoria_conquista="gentileza",
+        tipo="Agressão",
     )
 
-    assert db.scalars(select(Trombadice)).one().category is Category.GENTILEZA
+    registrada = db.scalars(select(Trombadice)).one()
+    assert registrada.conquista_category is ConquistaCategory.GENTILEZA
+    # A lista de trombadice não vaza para a conquista nem quando o navegador a
+    # manda junto.
+    assert registrada.category_id is None
 
 
 def test_conquista_pelo_painel_ignora_a_tarefa(
@@ -743,7 +779,7 @@ def test_conquista_pelo_painel_ignora_a_tarefa(
     )
     tarefa = db.scalars(select(Task)).one()
 
-    _cria_trombadice(client, child.id, kind="conquista", task_id=str(tarefa.id))
+    _cria_trombadice(client, db, child.id, kind="conquista", task_id=str(tarefa.id))
 
     # Tarefa registra o que **não** foi cumprido; numa conquista o vínculo diria
     # o contrário. O campo nem aparece na tela, mas o servidor não confia nisso.
@@ -754,25 +790,25 @@ def test_filtro_de_tipo_no_painel(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
-    _cria_trombadice(client, child.id, title="Empurrou", category="agressao")
-    _cria_trombadice(client, child.id, title="Ajudou muito", kind="conquista")
+    _cria_trombadice(client, db, child.id, tipo="Agressão", description="empurrou")
+    _cria_trombadice(client, db, child.id, kind="conquista", description="Ajudou muito")
 
     corpo = client.get("/trombadices?kind=conquista").text
 
     assert "Ajudou muito" in corpo
-    assert "Empurrou" not in corpo
+    assert "empurrou" not in corpo
     # Com conquistas na tela, oferecer "falta de respeito" como **filtro** seria
     # oferecer um filtro que nunca acha nada. (O formulário de cadastro lá em
     # cima continua com as duas listas, e é assim que tem que ser.)
-    assert "category=ajudou" in corpo
-    assert "category=agressao" not in corpo
+    assert "conquista_category=ajudou" in corpo
+    assert f"category_id={_tipo(db, 'Agressão')}" not in corpo
 
 
 def test_tipo_nao_muda_na_edicao_pelo_painel(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
     login_web(client, "pai", ADMIN_PASSWORD)
-    _cria_trombadice(client, child.id, kind="conquista")
+    _cria_trombadice(client, db, child.id, kind="conquista")
     registrada = db.scalars(select(Trombadice)).one()
 
     client.post(
@@ -780,16 +816,17 @@ def test_tipo_nao_muda_na_edicao_pelo_painel(
         data={
             "child_id": child.id,
             "occurred_at": "2026-08-02T11:30",
-            "title": "Ajudou mesmo",
             "kind": "trombadice",
-            "categoria_trombadice": "mentira",
+            "category_id": _tipo(db, "Mentira"),
             "categoria_conquista": "ajudou",
         },
     )
 
     db.refresh(registrada)
     assert registrada.kind is Kind.CONQUISTA
-    assert registrada.category is Category.AJUDOU
+    assert registrada.conquista_category is ConquistaCategory.AJUDOU
+    # A lista de trombadice não entra num registro que é conquista.
+    assert registrada.category_id is None
 
 
 def test_painel_mostra_se_a_tarefa_ja_foi_feita_no_periodo(
@@ -1014,3 +1051,91 @@ def test_painel_mostra_inicio_editavel_e_botao_de_reabrir(
     assert castigo.starts_at.astimezone().strftime("%Y-%m-%dT%H:%M") in html
     assert f"/castigos/{castigo.id}/reabrir" in html
     assert f"/castigos/{castigo.id}/delete" in html
+
+
+# --------------------------------------------------------------------------
+# Tipos de trombadice no painel
+# --------------------------------------------------------------------------
+
+
+def test_pagina_de_tipos_e_so_do_pai(client: TestClient, admin: User, child: User) -> None:
+    resposta = client.get("/tipos", follow_redirects=False)
+
+    assert resposta.status_code == 303
+    assert resposta.headers["location"] == "/login"
+
+
+def test_pai_cadastra_tipo_pelo_painel(
+    client: TestClient, db: Session, admin: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    client.post("/tipos", data={"name": "Mexeu no celular escondido"})
+
+    tipos = db.scalars(select(TrombadiceCategory).order_by(TrombadiceCategory.position)).all()
+    assert tipos[-1].name == "Mexeu no celular escondido"
+    # Sem posição pedida, entra no fim da lista.
+    assert tipos[-1].position == len(tipos) - 1
+
+
+def test_nome_repetido_no_painel_nao_grava(
+    client: TestClient, db: Session, admin: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    resposta = client.post("/tipos", data={"name": "mentira"}, follow_redirects=False)
+
+    assert resposta.headers["location"] == "/tipos?erro=nome-repetido"
+    assert len(db.scalars(select(TrombadiceCategory)).all()) == len(TIPOS_INICIAIS)
+
+
+def test_renomear_tipo_no_painel_conserta_o_historico(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _cria_trombadice(client, db, child.id, tipo="Mentira")
+    registrada = db.scalars(select(Trombadice)).one()
+
+    client.post(f"/tipos/{_tipo(db, 'Mentira')}/editar", data={"name": "Mentiu pra mim"})
+
+    db.refresh(registrada)
+    # O registro aponta a linha, não uma cópia do nome.
+    assert registrada.display_title == "Mentiu pra mim"
+
+
+def test_desativar_tipo_tira_ele_do_formulario(
+    client: TestClient, db: Session, admin: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    client.post(f"/tipos/{_tipo(db, 'Escola')}/toggle")
+
+    # Some da hora de registrar, mas continua na página de tipos, com o botão
+    # de reativar.
+    assert "Escola" not in client.get("/trombadices").text
+    assert "Reativar" in client.get("/tipos").text
+
+
+def test_tipo_em_uso_nao_e_apagado_pelo_painel(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    _cria_trombadice(client, db, child.id, tipo="Mentira")
+
+    resposta = client.post(
+        f"/tipos/{_tipo(db, 'Mentira')}/delete", follow_redirects=False
+    )
+
+    # Apagar deixaria a anotação sem dizer o que aconteceu.
+    assert resposta.headers["location"] == "/tipos?erro=em-uso"
+    assert _tipo(db, "Mentira") is not None
+
+
+def test_tipo_sem_uso_e_apagado_pelo_painel(
+    client: TestClient, db: Session, admin: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    client.post(f"/tipos/{_tipo(db, 'Escola')}/delete")
+
+    assert _tipo(db, "Escola") is None
