@@ -15,7 +15,11 @@ sealed interface ApiResult<out T> {
     /** Could not talk to the server at all. Treated as "not at home". */
     data object Unreachable : ApiResult<Nothing>
 
-    data class Failure(val message: String?) : ApiResult<Nothing>
+    /** Qualquer outra recusa do servidor. O `code` vem junto porque algumas
+     *  telas precisam distinguir o motivo - 409 no cadastro de tipo é "esse
+     *  nome já existe", que é um recado diferente de "não deu pra salvar".
+     *  Zero quando a falha não veio de uma resposta HTTP. */
+    data class Failure(val message: String?, val code: Int = 0) : ApiResult<Nothing>
 }
 
 inline fun <T> ApiResult<T>.onSuccess(block: (T) -> Unit): ApiResult<T> {

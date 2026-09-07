@@ -43,6 +43,7 @@ import com.trombadario.ui.report.ReportScreen
 import com.trombadario.ui.tasks.TasksScreen
 import com.trombadario.ui.settings.SettingsScreen
 import com.trombadario.ui.splash.SplashMessagesScreen
+import com.trombadario.ui.tipos.TiposScreen
 import com.trombadario.ui.users.UsersScreen
 
 object Routes {
@@ -53,6 +54,7 @@ object Routes {
     const val ASSUNTOS = "assuntos"
     const val USERS = "users"
     const val SPLASH_MESSAGES = "splash_messages"
+    const val TIPOS = "tipos"
     const val REPORT = "report"
     const val SETTINGS = "settings"
     const val TROMBADICE_DETAIL = "trombadice/{trombadiceId}"
@@ -151,6 +153,13 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
                     onBack = navController::popBackStack,
                 )
             }
+            composable(Routes.TIPOS) {
+                TiposScreen(
+                    container = container,
+                    currentUser = currentUser,
+                    onBack = navController::popBackStack,
+                )
+            }
             composable(Routes.USERS) {
                 UsersScreen(
                     container = container,
@@ -164,6 +173,7 @@ fun MainNavHost(container: AppContainer, currentUser: UserDto) {
                     currentUser = currentUser,
                     onOpenUsers = { navController.navigate(Routes.USERS) },
                     onOpenSplashMessages = { navController.navigate(Routes.SPLASH_MESSAGES) },
+                    onOpenTipos = { navController.navigate(Routes.TIPOS) },
                     onOpenReport = { navController.navigate(Routes.REPORT) },
                     onOpenAssuntos = { navController.navigate(Routes.ASSUNTOS) },
                 )

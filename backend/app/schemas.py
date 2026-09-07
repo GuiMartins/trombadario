@@ -1,17 +1,24 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from app.models import (
-    Category,
+    CONQUISTA_PADRAO,
+    ConquistaCategory,
     Kind,
     Periodicity,
     RequestKind,
     RequestStatus,
     Role,
-    categoria_combina,
-    categoria_padrao,
 )
 
 
@@ -83,14 +90,53 @@ class SetupRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=120)
 
 
+class TrombadiceCategoryOut(BaseModel):
+    """Um tipo de trombadice da lista do pai."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    position: int
+    is_active: bool
+    created_at: datetime
+    # Quantas anotações apontam para este tipo. Vai junto porque é o que decide
+    # se dá para apagar: com uso, a rota devolve 409 e a tela precisa dizer isso
+    # **antes** do toque, não depois do erro.
+    em_uso: int = 0
+
+
+class TrombadiceCategoryCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    # Nulo = vai para o fim da lista. Quem cadastra o décimo tipo não quer ter
+    # que saber que ele é o décimo.
+    position: int | None = Field(default=None, ge=0, le=999)
+
+
+class TrombadiceCategoryUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=60)
+    position: int | None = Field(default=None, ge=0, le=999)
+    is_active: bool | None = None
+
+
 class TrombadiceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    title: str
+    # O título de tela, não a coluna: desde que o tipo virou lista do pai
+    # ninguém digita título, então ele vem do tipo escolhido (ou do nome da
+    # tarefa). Ver `Trombadice.display_title` - `title` continua na lista de
+    # nomes para quem monta o objeto por dicionário, e para o que foi escrito à
+    # mão antes desta mudança.
+    title: str = Field(validation_alias=AliasChoices("display_title", "title"))
     description: str
     kind: Kind
-    category: Category
+    # O tipo cadastrado pelo pai. Nulo em conquista, que usa o enum abaixo.
+    category_id: int | None = None
+    # O nome do tipo, junto do id: sem ele o app precisaria da lista inteira em
+    # mãos só para escrever uma etiqueta, e o filho veria "categoria 3".
+    category_name: str | None = None
+    conquista_category: ConquistaCategory | None = None
     occurred_at: datetime
     child_id: int
     author_id: int
@@ -101,14 +147,20 @@ class TrombadiceOut(BaseModel):
 
 
 class TrombadiceCreate(BaseModel):
-    # Vazio é aceito quando vem `task_id`: aí o título é o nome da tarefa que
-    # não foi cumprida, e obrigar a repetir isso na mão só produz divergência.
+    # Opcional, e na prática sempre vazio: nenhuma das duas telas pede título
+    # desde que o tipo virou lista do pai. Continua no corpo porque a coluna
+    # continua existindo e aceita texto livre - o que a API não faz mais é
+    # exigir.
     title: str = Field(default="", max_length=200)
     description: str = ""
     kind: Kind = Kind.TROMBADICE
-    # Nulo = usa a padrão do tipo. Sem isso, quem manda uma conquista sem
-    # categoria receberia "Outra" de trombadice, que é de outra lista.
-    category: Category | None = None
+    # O tipo, obrigatório em trombadice: é ele que diz o que aconteceu agora
+    # que ninguém escreve título. Quem confere se existe (e se está ativo) é a
+    # rota, que tem o banco na mão.
+    category_id: int | None = None
+    # Só de conquista, e nulo cai na padrão - senão quem manda uma conquista
+    # sem categoria não teria nenhuma.
+    conquista_category: ConquistaCategory | None = None
     # AwareDatetime, not datetime: a naive value would be ambiguous and the
     # storage layer rejects it anyway (see app/types.py). Better a 422 than a
     # 500, and better an explicit offset than a silent 3-hour shift.
@@ -118,26 +170,33 @@ class TrombadiceCreate(BaseModel):
 
     @model_validator(mode="after")
     def coerente(self) -> "TrombadiceCreate":
-        if not self.title.strip() and self.task_id is None:
-            raise ValueError("sem tarefa atrelada, o título é obrigatório")
-        if self.kind is Kind.CONQUISTA and self.task_id is not None:
-            # Tarefa existe para registrar o que **não** foi cumprido. Conquista
-            # atrelada a tarefa diria o contrário do que o vínculo significa.
-            raise ValueError("conquista não se atrela a tarefa")
-        if self.category is None:
-            self.category = categoria_padrao(self.kind)
-        elif not categoria_combina(self.category, self.kind):
-            raise ValueError("essa categoria não é desse tipo de registro")
+        if self.kind is Kind.CONQUISTA:
+            if self.task_id is not None:
+                # Tarefa existe para registrar o que **não** foi cumprido.
+                # Conquista atrelada a tarefa diria o contrário do que o vínculo
+                # significa.
+                raise ValueError("conquista não se atrela a tarefa")
+            if self.category_id is not None:
+                raise ValueError("conquista não usa a lista de tipos de trombadice")
+            self.conquista_category = self.conquista_category or CONQUISTA_PADRAO
+        else:
+            if self.category_id is None:
+                raise ValueError("escolha um tipo de trombadice")
+            # A do outro tipo, se veio, é ruído: cada registro guarda uma só.
+            self.conquista_category = None
         return self
 
 
 class TrombadiceUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
-    # O tipo não se edita: trombadice não vira conquista nem o contrário. Errou
-    # o tipo, apaga e cadastra de novo - é mais honesto que reescrever o
-    # significado de um registro que a criança já pode ter visto.
-    category: Category | None = None
+    # `kind` não está aqui e não vai estar: trombadice não vira conquista nem o
+    # contrário. Errou, apaga e cadastra de novo - é mais honesto que reescrever
+    # o significado de um registro que a criança já pode ter visto. Por isso
+    # também cada campo abaixo só vale para o tipo que já está gravado, o que
+    # quem confere é a rota.
+    category_id: int | None = None
+    conquista_category: ConquistaCategory | None = None
     occurred_at: AwareDatetime | None = None
     task_id: int | None = None
 
@@ -383,7 +442,7 @@ class PedidoOut(BaseModel):
     kind: RequestKind
     title: str
     justification: str
-    category: Category | None
+    category: ConquistaCategory | None
     status: RequestStatus
     decision_note: str
     decided_at: datetime | None
@@ -402,18 +461,10 @@ class PedidoCreate(BaseModel):
 class PropostaConquistaCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     justification: str = Field(default="", max_length=1000)
-    category: Category
-
-    @field_validator("category")
-    @classmethod
-    def categoria_de_conquista(cls, category: Category) -> Category:
-        # Mesma regra de TrombadiceCreate.coerente: uma proposta de conquista
-        # promove pra Kind.CONQUISTA na aprovação, então a categoria já
-        # precisa ser desse tipo - senão a Trombadice nasceria com uma
-        # combinação que o resto do sistema nunca deixa acontecer.
-        if not categoria_combina(category, Kind.CONQUISTA):
-            raise ValueError("essa categoria não é de conquista")
-        return category
+    # O enum já é só de conquista, então não há combinação errada a recusar: a
+    # proposta promove para `Kind.CONQUISTA` na aprovação e a categoria serve
+    # como está.
+    category: ConquistaCategory
 
 
 class PedidoDecision(BaseModel):

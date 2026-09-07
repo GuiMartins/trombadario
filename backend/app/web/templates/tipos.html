@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% set pagina = 'tipos' %}
+{% block titulo %}Tipos de trombadice — Trombadário{% endblock %}
+
+{% block conteudo %}
+<h1>Tipos de trombadice</h1>
+<p class="sub">
+  A lista que aparece na hora de registrar uma anotação. Cada casa repete as
+  mesmas coisas — cadastre as suas aqui e, no registro, sobra escolher o tipo e
+  contar os detalhes.
+</p>
+
+{# O mesmo formulário cadastra e corrige, como nas outras telas: com `editando`
+   ele vem preenchido e grava por cima. #}
+{% set e = editando %}
+<form id="editar" method="post" action="{{ '/tipos/' ~ e.id ~ '/editar' if e else '/tipos' }}" class="bloco">
+  {% if e %}<h2>Corrigindo um tipo</h2>{% endif %}
+  {% if erro == 'nome-repetido' %}
+  <div class="aviso">Já existe um tipo com esse nome. Dois iguais partiriam o relatório em dois.</div>
+  {% endif %}
+  {% if erro == 'em-uso' %}
+  <div class="aviso">Esse tipo está em uso por alguma anotação. Desative em vez de apagar — apagar deixaria o registro sem dizer o que aconteceu.</div>
+  {% endif %}
+
+  <label for="name">Nome</label>
+  <input type="text" id="name" name="name" maxlength="60" required
+         placeholder="Falta de respeito" value="{{ e.name if e else '' }}">
+
+  {# Número e não arrastar: é um campo só, funciona igual no painel e no app, e
+     a lista aqui tem o tamanho da paciência do pai. #}
+  <label for="position">Ordem na lista</label>
+  <input type="number" id="position" name="position" min="0" max="999"
+         value="{{ e.position if e else proxima_posicao }}">
+
+  <button type="submit">{{ 'Salvar' if e else 'Cadastrar tipo' }}</button>
+  {% if e %}<a href="/tipos" class="cancelar">Cancelar</a>{% endif %}
+</form>
+
+{% if tipos %}
+  {% for t in tipos %}
+  <div class="cartao">
+    <div class="linha">
+      <div class="cresce">
+        <p class="titulo">{{ t.name }}</p>
+        <span class="etiqueta">{{ em_uso.get(t.id, 0) }} anotaç{{ 'ão' if em_uso.get(t.id, 0) == 1 else 'ões' }}</span>
+        {% if not t.is_active %}<span class="etiqueta fim">desativado</span>{% endif %}
+      </div>
+      <div class="acoes">
+        <a class="mini secundario" href="/tipos?editar={{ t.id }}#editar">Editar</a>
+        <form method="post" action="/tipos/{{ t.id }}/toggle">
+          <button class="mini secundario">{{ 'Reativar' if not t.is_active else 'Desativar' }}</button>
+        </form>
+        {# Sem botão de excluir no que está em uso: a exclusão seria recusada de
+           qualquer jeito (a anotação ficaria sem dizer o que aconteceu), então
+           oferecer o botão só entregaria um erro. #}
+        {% if not em_uso.get(t.id) %}
+        <form method="post" action="/tipos/{{ t.id }}/delete"
+              hx-confirm="Excluir este tipo? Nenhuma anotação usa ele.">
+          <button class="mini perigo">Excluir</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="vazio">Nenhum tipo cadastrado ainda. Sem eles não dá pra registrar uma trombadice.</div>
+{% endif %}
+{% endblock %}

@@ -50,7 +50,6 @@
     <string name="trombadice_detail_title">Anotação</string>
     <string name="trombadice_form_new_title">Nova anotação</string>
     <string name="trombadice_form_edit_title">Editar anotação</string>
-    <string name="trombadice_form_title_label">Título</string>
     <string name="trombadice_form_description_label">Descrição</string>
     <string name="trombadice_form_child_label">De quem</string>
     <string name="trombadice_form_date_label">Data</string>
@@ -262,15 +261,9 @@
         <item>Dom</item>
     </string-array>
 
-    <!-- Categorias. Mesma ordem do enum do backend, que é a ordem da tela. -->
-    <string name="categoria_desrespeito">Falta de respeito</string>
-    <string name="categoria_educacao">Falta de educação</string>
-    <string name="categoria_nao_fez">Não fez o que devia</string>
-    <string name="categoria_mentira">Mentira</string>
-    <string name="categoria_birra">Birra / descontrole</string>
-    <string name="categoria_escola">Escola</string>
-    <string name="categoria_agressao">Agressão</string>
-    <string name="categoria_outra">Outra</string>
+    <!-- Categorias de conquista. Mesma ordem do enum do backend, que é a ordem
+         da tela. As de trombadice não estão aqui: quem cadastra é o pai, e o
+         nome vem do servidor junto do registro. -->
     <string name="categoria_ajudou">Ajudou sem pedir</string>
     <string name="categoria_responsabilidade">Foi responsável</string>
     <string name="categoria_estudou">Mandou bem na escola</string>
@@ -290,12 +283,31 @@
     <string name="trombadice_form_kind_label">O que foi</string>
     <string name="report_conquistas">conquistas</string>
     <string name="report_conquistas_por_tipo">Conquistas por tipo</string>
-    <string name="trombadice_form_category_label">Que tipo de coisa foi</string>
+    <string name="trombadice_form_category_label">Que tipo de trombadice foi</string>
+    <string name="trombadice_form_conquista_label">Que tipo de coisa boa foi</string>
+    <string name="trombadice_form_sem_tipos">Nenhum tipo cadastrado. Crie os tipos em Configurações › Tipos de trombadice antes de registrar.</string>
+    <string name="trombadice_form_error_no_category">Escolha o tipo da trombadice — é ele que diz o que aconteceu</string>
+
+    <!-- Tipos de trombadice (a lista que o pai cadastra) -->
+    <string name="tipos_title">Tipos de trombadice</string>
+    <string name="tipos_intro">A lista que aparece na hora de registrar uma anotação. Cada casa repete as mesmas coisas — cadastre as suas aqui e, no registro, sobra escolher o tipo e contar os detalhes.</string>
+    <string name="tipos_empty">Nenhum tipo cadastrado ainda. Sem eles não dá pra registrar uma trombadice.</string>
+    <string name="tipos_new">Novo tipo</string>
+    <string name="tipos_edit">Editar tipo</string>
+    <string name="tipos_name">Nome</string>
+    <string name="tipos_position">Ordem na lista</string>
+    <string name="tipos_position_dica">Menor aparece antes. Em branco, vai pro fim.</string>
+    <string name="tipos_desativado">desativado</string>
+    <string name="tipos_desativar">Desativar</string>
+    <string name="tipos_reativar">Reativar</string>
+    <string name="tipos_delete_confirm_title">Excluir este tipo?</string>
+    <string name="tipos_error_empty">O nome não pode ficar vazio</string>
+    <string name="tipos_error_repetido">Já existe um tipo com esse nome</string>
 
     <!-- Filtros e busca -->
     <string name="filtro_abrir">Filtrar</string>
     <string name="filtro_buscar">Buscar</string>
-    <string name="filtro_busca_dica">Buscar no título ou nos detalhes</string>
+    <string name="filtro_busca_dica">Buscar no tipo ou nos detalhes</string>
     <string name="filtro_limpar">Limpar filtros</string>
     <string name="filtro_por_dia">Filtrar por dia</string>
     <string name="filtro_dia_escolhido">Dia %1$s</string>
@@ -345,6 +357,11 @@
     <!-- Aniversário do filho. No dia, o app inteiro vira esta tela. -->
     <string name="birthday_title">Feliz aniversário,</string>
     <string name="birthday_no_trombadario">Hoje não tem Trombadário. O dia é todo seu!</string>
+
+    <plurals name="tipos_em_uso">
+        <item quantity="one">%d anotação</item>
+        <item quantity="other">%d anotações</item>
+    </plurals>
 
     <plurals name="birthday_age">
         <item quantity="one">Hoje você faz %d ano!</item>

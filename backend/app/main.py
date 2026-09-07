@@ -21,6 +21,7 @@ from app.routers import (
     setup,
     splash_messages,
     tasks,
+    trombadice_categories,
     trombadices,
     unseen,
     users,
@@ -83,6 +84,7 @@ app.include_router(health.router)
 app.include_router(setup.router)
 app.include_router(birthday.router)
 app.include_router(auth.router)
+app.include_router(trombadice_categories.router)
 app.include_router(trombadices.router)
 app.include_router(tasks.router)
 app.include_router(punishments.router)

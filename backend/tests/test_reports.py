@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Punishment, User
 from app.periodo import inicio_do_dia
-from tests.conftest import as_admin, as_child
+from tests.conftest import as_admin, as_child, corpo_de_trombadice, tipo_id
 
 
 def em(dia: str, hora: int = 12) -> str:
@@ -15,12 +15,11 @@ def em(dia: str, hora: int = 12) -> str:
 
 
 def criar(client: TestClient, child_id: int, dia: str, hora: int = 12, **extra) -> dict:
-    corpo = {
-        "title": extra.pop("title", "algo"),
-        "occurred_at": em(dia, hora),
-        "child_id": child_id,
-        **extra,
-    }
+    corpo = corpo_de_trombadice(
+        client,
+        child_id,
+        **{"title": extra.pop("title", "algo"), "occurred_at": em(dia, hora), **extra},
+    )
     response = client.post("/api/trombadices", headers=as_admin(client), json=corpo)
     assert response.status_code == 201, response.text
     return response.json()
@@ -88,13 +87,15 @@ def test_agrupa_por_semana_e_por_mes(client: TestClient, admin: User, child: Use
 def test_por_categoria_vem_do_mais_comum_pro_menos(
     client: TestClient, admin: User, child: User
 ) -> None:
-    criar(client, child.id, "2026-08-01", category="agressao")
-    criar(client, child.id, "2026-08-02", category="mentira")
-    criar(client, child.id, "2026-08-03", category="mentira")
+    criar(client, child.id, "2026-08-01", category_id=tipo_id(client, "Agressão"))
+    criar(client, child.id, "2026-08-02", category_id=tipo_id(client, "Mentira"))
+    criar(client, child.id, "2026-08-03", category_id=tipo_id(client, "Mentira"))
 
     dados = relatorio(client, de="2026-08-01", ate="2026-08-03")
 
-    assert dados["por_categoria"][0] == {"rotulo": "mentira", "total": 2}
+    # O rótulo é o nome que o pai deu ao tipo, não um código: é o que ele
+    # reconhece na tela.
+    assert dados["por_categoria"][0] == {"rotulo": "Mentira", "total": 2}
 
 
 def test_por_tarefa_so_conta_o_que_foi_atrelado(

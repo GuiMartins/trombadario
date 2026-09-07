@@ -59,7 +59,7 @@ import com.trombadario.ui.components.AppTopBar
 import com.trombadario.ui.components.FiltroBar
 import com.trombadario.ui.components.corDaConquista
 import com.trombadario.ui.components.ehConquista
-import com.trombadario.ui.components.rotuloDaCategoria
+import com.trombadario.ui.components.nomeDoTipo
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.components.MessageScreen
 import com.trombadario.ui.components.formatDateTime
@@ -190,8 +190,11 @@ fun FeedScreen(
                 onSelectChild = viewModel::selectChild,
                 kind = state.kind,
                 onSelectKind = viewModel::selectKind,
-                category = state.category,
-                onSelectCategory = viewModel::selectCategory,
+                tipos = state.tipos,
+                categoryId = state.categoryId,
+                onSelectCategoryId = viewModel::selectCategoryId,
+                conquistaCategory = state.conquistaCategory,
+                onSelectConquistaCategory = viewModel::selectConquistaCategory,
                 busca = state.busca,
                 onBuscaChange = viewModel::onBuscaChange,
                 onBuscar = viewModel::buscar,
@@ -267,11 +270,17 @@ private fun EventCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             ) {
-                Text(
-                    text = stringResource(rotuloDaCategoria(event.category)),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                // A etiqueta do tipo só quando ela acrescenta: o título já é o
+                // nome do tipo no que foi cadastrado sem texto escrito à mão, e
+                // repetir "Mentira" embaixo de "Mentira" é ruído.
+                val tipo = nomeDoTipo(event)
+                if (tipo != null && tipo != event.title) {
+                    Text(
+                        text = tipo,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (childName != null) {
                     Text(
                         text = childName,

@@ -39,7 +39,7 @@
     <label>
       <input type="checkbox" name="trombadice_ids" value="{{ t.id }}" {% if t.id in editando_trombadices %}checked{% endif %}>
       {{ t.occurred_at.astimezone().strftime('%d/%m') }} —
-      {{ t.title }}
+      {{ t.display_title }}
       <span class="sub">({{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else '' }})</span>
     </label>
     {% endfor %}
@@ -99,7 +99,7 @@
         </p>
         {% if p.reason %}<p class="sub">{{ p.reason }}</p>{% endif %}
         {% for t in p.trombadices %}
-          <span class="etiqueta">{{ t.title }}</span>
+          <span class="etiqueta">{{ t.display_title }}</span>
         {% endfor %}
         {# Só leitura: quem escreve é o filho, pelo app. #}
         {% if p.reaction_text %}

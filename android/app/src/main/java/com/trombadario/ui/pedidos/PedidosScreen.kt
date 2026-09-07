@@ -48,7 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trombadario.AppContainer
 import com.trombadario.R
-import com.trombadario.data.remote.Categoria
+import com.trombadario.data.remote.CategoriaDeConquista
 import com.trombadario.data.remote.PedidoDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
@@ -58,7 +58,7 @@ import com.trombadario.ui.components.MessageScreen
 import com.trombadario.ui.components.formatDateTime
 import com.trombadario.ui.components.parseInstant
 import com.trombadario.ui.components.corDaConquista
-import com.trombadario.ui.components.rotuloDaCategoria
+import com.trombadario.ui.components.rotuloDaConquista
 import com.trombadario.ui.viewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -219,7 +219,7 @@ private fun PedidoCard(
                 Text(
                     text = pedido.category?.let { categoria ->
                         stringResource(R.string.pedidos_proposta_badge) + " · " +
-                            stringResource(rotuloDaCategoria(categoria))
+                            stringResource(rotuloDaConquista(categoria))
                     } ?: stringResource(R.string.pedidos_proposta_badge),
                     style = MaterialTheme.typography.labelSmall,
                     color = corDaConquista(),
@@ -378,11 +378,11 @@ private fun PropostaEditorDialog(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Categoria.DE_CONQUISTA.forEach { valor ->
+                    CategoriaDeConquista.TODAS.forEach { valor ->
                         FilterChip(
                             selected = editor.category == valor,
                             onClick = { onChange { it.copy(category = valor) } },
-                            label = { Text(stringResource(rotuloDaCategoria(valor))) },
+                            label = { Text(stringResource(rotuloDaConquista(valor))) },
                         )
                     }
                 }

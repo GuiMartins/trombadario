@@ -124,9 +124,14 @@ data class TrombadiceDto(
     /** Trombadice ou conquista; ver [Tipo]. Default para o app instalado hoje
      *  não quebrar se o servidor for mais novo que ele. */
     val kind: String = Tipo.TROMBADICE,
-    /** Lista fechada; ver [Categoria]. Default para o app instalado hoje não
-     *  quebrar se um dia o servidor devolver um valor que ele não conhece. */
-    val category: String = Categoria.OUTRA,
+    /** O tipo cadastrado pelo pai (ver [TrombadiceCategoryDto]). Nulo em
+     *  conquista, que continua na lista fechada do campo abaixo. */
+    @SerialName("category_id") val categoryId: Int? = null,
+    /** O nome do tipo, junto do id: sem ele a tela precisaria da lista inteira
+     *  em mãos só pra escrever uma etiqueta, e o filho leria "categoria 3". */
+    @SerialName("category_name") val categoryName: String? = null,
+    /** Só de conquista; ver [CategoriaDeConquista]. */
+    @SerialName("conquista_category") val conquistaCategory: String? = null,
     /** Quando o filho viu. Nulo = ainda não viu. Marcado sozinho pelo servidor
      *  na leitura dele - não existe chamada para o app fazer. */
     @SerialName("seen_at") val seenAt: String? = null,
@@ -141,23 +146,14 @@ object Tipo {
 }
 
 /**
- * As mesmas categorias do backend, na mesma ordem - é a ordem da tela.
+ * As categorias de **conquista**, as mesmas do backend e na mesma ordem.
  *
- * **Cada uma pertence a um tipo.** "Falta de respeito" não descreve coisa boa e
- * "ajudou sem pedir" não descreve trombadice; oferecer as dezesseis nas duas
- * telas só produziria registro sem sentido. O servidor recusa a combinação
- * errada, então isto aqui é a mesma regra do lado de cá, não a única defesa.
+ * Continua fechada no código, ao contrário da lista de trombadice: aquela virou
+ * cadastro do pai (ver [TrombadiceCategoryDto]) porque cada casa repete as
+ * mesmas coisas e só quem convive sabe quais são. Conquista é o pai
+ * reconhecendo algo, não uma taxonomia que ele mantém.
  */
-object Categoria {
-    const val DESRESPEITO = "desrespeito"
-    const val EDUCACAO = "educacao"
-    const val NAO_FEZ = "nao_fez"
-    const val MENTIRA = "mentira"
-    const val BIRRA = "birra"
-    const val ESCOLA = "escola"
-    const val AGRESSAO = "agressao"
-    const val OUTRA = "outra"
-
+object CategoriaDeConquista {
     const val AJUDOU = "ajudou"
     const val RESPONSABILIDADE = "responsabilidade"
     const val ESTUDOU = "estudou"
@@ -167,38 +163,69 @@ object Categoria {
     const val CUIDOU = "cuidou"
     const val OUTRA_BOA = "outra_boa"
 
-    val DE_TROMBADICE = listOf(
-        DESRESPEITO, EDUCACAO, NAO_FEZ, MENTIRA, BIRRA, ESCOLA, AGRESSAO, OUTRA,
-    )
-    val DE_CONQUISTA = listOf(
+    val TODAS = listOf(
         AJUDOU, RESPONSABILIDADE, ESTUDOU, GENTILEZA, INICIATIVA, SUPEROU, CUIDOU, OUTRA_BOA,
     )
-    val TODAS = DE_TROMBADICE + DE_CONQUISTA
 
-    fun de(tipo: String): List<String> =
-        if (tipo == Tipo.CONQUISTA) DE_CONQUISTA else DE_TROMBADICE
-
-    fun padraoDe(tipo: String): String = if (tipo == Tipo.CONQUISTA) OUTRA_BOA else OUTRA
+    const val PADRAO = OUTRA_BOA
 }
 
+/**
+ * Um tipo de trombadice da lista do pai.
+ *
+ * `emUso` vem do servidor porque é o que decide se dá pra apagar: com anotação
+ * apontando pro tipo, apagar deixaria o registro sem dizer o que aconteceu.
+ * A tela precisa saber disso **antes** do toque, não depois do erro.
+ */
+@Serializable
+data class TrombadiceCategoryDto(
+    val id: Int,
+    val name: String,
+    val position: Int = 0,
+    @SerialName("is_active") val isActive: Boolean = true,
+    @SerialName("em_uso") val emUso: Int = 0,
+)
+
+@Serializable
+data class TrombadiceCategoryCreateDto(
+    val name: String,
+    /** Nulo = vai pro fim da lista. */
+    val position: Int? = null,
+)
+
+@Serializable
+data class TrombadiceCategoryUpdateDto(
+    val name: String? = null,
+    val position: Int? = null,
+    @SerialName("is_active") val isActive: Boolean? = null,
+)
+
+/**
+ * Sem título: a tela pede o tipo e, se quiser, os detalhes - o título de tela
+ * sai do tipo (ou do nome da tarefa) na leitura. O campo continua existindo na
+ * API para o que foi escrito à mão antes desta mudança, mas o app não escreve
+ * nele.
+ */
 @Serializable
 data class TrombadiceCreateDto(
-    val title: String,
     val description: String,
     @SerialName("occurred_at") val occurredAt: String,
     @SerialName("child_id") val childId: Int,
     @SerialName("task_id") val taskId: Int? = null,
     val kind: String = Tipo.TROMBADICE,
-    val category: String = Categoria.OUTRA,
+    /** Obrigatório em trombadice, e o servidor recusa sem ele: é o tipo que diz
+     *  o que aconteceu. Nulo só quando `kind` é conquista. */
+    @SerialName("category_id") val categoryId: Int? = null,
+    @SerialName("conquista_category") val conquistaCategory: String? = null,
 )
 
 @Serializable
 data class TrombadiceUpdateDto(
-    val title: String? = null,
     val description: String? = null,
     @SerialName("occurred_at") val occurredAt: String? = null,
     @SerialName("task_id") val taskId: Int? = null,
-    val category: String? = null,
+    @SerialName("category_id") val categoryId: Int? = null,
+    @SerialName("conquista_category") val conquistaCategory: String? = null,
 )
 
 @Serializable

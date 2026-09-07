@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Forum
@@ -56,6 +57,7 @@ fun SettingsScreen(
     currentUser: UserDto,
     onOpenUsers: () -> Unit,
     onOpenSplashMessages: () -> Unit,
+    onOpenTipos: () -> Unit,
     onOpenReport: () -> Unit,
     onOpenAssuntos: () -> Unit,
 ) {
@@ -114,6 +116,11 @@ fun SettingsScreen(
                         icon = Icons.Default.ChatBubbleOutline,
                         label = stringResource(R.string.splash_title),
                         onClick = onOpenSplashMessages,
+                    )
+                    ActionRow(
+                        icon = Icons.AutoMirrored.Filled.Label,
+                        label = stringResource(R.string.tipos_title),
+                        onClick = onOpenTipos,
                     )
                     ActionRow(
                         icon = Icons.Default.InsertChart,

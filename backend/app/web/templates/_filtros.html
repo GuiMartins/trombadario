@@ -28,11 +28,14 @@
 {% endif %}
 
 <div class="filtros">
-  <a href="{{ url(category=None) }}" hx-get="{{ url(category=None) }}"
-     class="{% if not categoria_escolhida %}ativo{% endif %}">Qualquer tipo</a>
-  {% for valor, rotulo in categorias.items() %}
-  <a href="{{ url(category=valor.value) }}" hx-get="{{ url(category=valor.value) }}"
-     class="{% if categoria_escolhida == valor %}ativo{% endif %}">{{ rotulo }}</a>
+  {# Cada chip já vem com o endereço montado: ele mexe em dois parâmetros (liga
+     o da lista dele, desliga o da outra) e Jinja não desempacota kwargs. Ver
+     `_chips_de_categoria` em routes.py. #}
+  <a href="{{ url(category_id=None, conquista_category=None) }}" hx-get="{{ url(category_id=None, conquista_category=None) }}"
+     class="{% if not filtrando_categoria %}ativo{% endif %}">Qualquer tipo</a>
+  {% for chip in chips_categoria %}
+  <a href="{{ chip.url }}" hx-get="{{ chip.url }}"
+     class="{% if chip.ativo %}ativo{% endif %}">{{ chip.rotulo }}</a>
   {% endfor %}
 </div>
 
@@ -40,7 +43,8 @@
    cadastrando, então recarregar a página aqui não custa nada. #}
 <form method="get" action="{{ pagina_url }}" class="busca">
   {% if selected_child %}<input type="hidden" name="child_id" value="{{ selected_child }}">{% endif %}
-  {% if categoria_escolhida %}<input type="hidden" name="category" value="{{ categoria_escolhida.value }}">{% endif %}
+  {% if category_id %}<input type="hidden" name="category_id" value="{{ category_id }}">{% endif %}
+  {% if conquista_category %}<input type="hidden" name="conquista_category" value="{{ conquista_category.value }}">{% endif %}
   <input type="text" name="q" value="{{ busca }}" placeholder="{{ placeholder_busca }}">
   <button class="mini secundario">Buscar</button>
   {% if busca %}<a class="mini secundario" href="{{ url(q=None) }}">Limpar</a>{% endif %}

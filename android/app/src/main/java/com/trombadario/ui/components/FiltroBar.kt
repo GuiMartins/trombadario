@@ -37,8 +37,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.trombadario.R
-import com.trombadario.data.remote.Categoria
+import com.trombadario.data.remote.CategoriaDeConquista
 import com.trombadario.data.remote.Tipo
+import com.trombadario.data.remote.TrombadiceCategoryDto
 import com.trombadario.data.remote.UserDto
 import java.time.Instant
 import java.time.LocalDate
@@ -64,8 +65,13 @@ fun FiltroBar(
     onSelectChild: (Int?) -> Unit,
     kind: String?,
     onSelectKind: (String?) -> Unit,
-    category: String?,
-    onSelectCategory: (String?) -> Unit,
+    /** Os tipos cadastrados pelo pai. Vem de fora porque quem busca é o
+     *  ViewModel da tela - a barra só desenha. */
+    tipos: List<TrombadiceCategoryDto>,
+    categoryId: Int?,
+    onSelectCategoryId: (Int?) -> Unit,
+    conquistaCategory: String?,
+    onSelectConquistaCategory: (String?) -> Unit,
     busca: String,
     onBuscaChange: (String) -> Unit,
     onBuscar: () -> Unit,
@@ -114,19 +120,30 @@ fun FiltroBar(
 
         LinhaDeChips {
             FilterChip(
-                selected = category == null,
-                onClick = { onSelectCategory(null) },
+                selected = categoryId == null && conquistaCategory == null,
+                onClick = { onSelectCategoryId(null) },
                 label = { Text(stringResource(R.string.categoria_qualquer)) },
             )
-            // Com um tipo escolhido, só as categorias dele: oferecer "falta de
+            // Com um tipo escolhido, só a lista dele: oferecer "falta de
             // respeito" numa lista de conquistas seria oferecer um filtro que
             // nunca acha nada.
-            (kind?.let { Categoria.de(it) } ?: Categoria.TODAS).forEach { valor ->
-                FilterChip(
-                    selected = category == valor,
-                    onClick = { onSelectCategory(valor) },
-                    label = { Text(stringResource(rotuloDaCategoria(valor))) },
-                )
+            if (kind != Tipo.CONQUISTA) {
+                tipos.forEach { tipo ->
+                    FilterChip(
+                        selected = categoryId == tipo.id,
+                        onClick = { onSelectCategoryId(tipo.id) },
+                        label = { Text(tipo.name) },
+                    )
+                }
+            }
+            if (kind != Tipo.TROMBADICE) {
+                CategoriaDeConquista.TODAS.forEach { valor ->
+                    FilterChip(
+                        selected = conquistaCategory == valor,
+                        onClick = { onSelectConquistaCategory(valor) },
+                        label = { Text(stringResource(rotuloDaConquista(valor))) },
+                    )
+                }
             }
         }
 

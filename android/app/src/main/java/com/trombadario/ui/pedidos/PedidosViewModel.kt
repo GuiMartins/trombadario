@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.ApiResult
-import com.trombadario.data.remote.Categoria
+import com.trombadario.data.remote.CategoriaDeConquista
 import com.trombadario.data.remote.PedidoCreateDto
 import com.trombadario.data.remote.PedidoDecisionDto
 import com.trombadario.data.remote.PedidoDto
@@ -26,7 +26,7 @@ data class PedidoEditor(val title: String = "", val justification: String = "")
 data class PropostaEditor(
     val title: String = "",
     val justification: String = "",
-    val category: String = Categoria.AJUDOU,
+    val category: String = CategoriaDeConquista.AJUDOU,
 )
 
 data class PedidosState(

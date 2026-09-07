@@ -37,30 +37,17 @@ class Kind(str, enum.Enum):
     CONQUISTA = "conquista"
 
 
-class Category(str, enum.Enum):
-    """Que tipo de coisa foi. Lista fechada de propósito: campo livre viraria
-    dez jeitos de escrever "falta de respeito" e nenhum relatório sairia.
+class ConquistaCategory(str, enum.Enum):
+    """Que tipo de coisa boa foi. Lista fechada, e só para conquista.
 
-    Ordem importa - é a ordem em que aparecem na tela, do mais comum ao menos.
-    Acrescentar valor é migration; tirar valor exige decidir o que fazer com o
-    que já está gravado, então na prática só se aposenta escondendo da tela.
+    A lista de **trombadice** deixou de ser um enum: quem cadastra os tipos é o
+    pai, na tabela `trombadice_categories`. Aqui continua fechada de propósito -
+    conquista é o pai reconhecendo algo, não uma taxonomia que ele mantém, e
+    ninguém pediu para cadastrar essas.
 
-    **Cada categoria pertence a um tipo** (ver `CATEGORIAS_POR_TIPO`): "falta de
-    respeito" não descreve coisa boa, e "ajudou sem pedir" não descreve
-    trombadice. Oferecer as dezesseis nas duas telas só produziria registro sem
-    sentido."""
+    Ordem importa: é a ordem em que aparecem na tela.
+    """
 
-    # Trombadices
-    DESRESPEITO = "desrespeito"
-    EDUCACAO = "educacao"
-    NAO_FEZ = "nao_fez"
-    MENTIRA = "mentira"
-    BIRRA = "birra"
-    ESCOLA = "escola"
-    AGRESSAO = "agressao"
-    OUTRA = "outra"
-
-    # Conquistas
     AJUDOU = "ajudou"
     RESPONSABILIDADE = "responsabilidade"
     ESTUDOU = "estudou"
@@ -71,36 +58,25 @@ class Category(str, enum.Enum):
     OUTRA_BOA = "outra_boa"
 
 
-CATEGORIAS_POR_TIPO: dict[Kind, tuple[Category, ...]] = {
-    Kind.TROMBADICE: (
-        Category.DESRESPEITO,
-        Category.EDUCACAO,
-        Category.NAO_FEZ,
-        Category.MENTIRA,
-        Category.BIRRA,
-        Category.ESCOLA,
-        Category.AGRESSAO,
-        Category.OUTRA,
-    ),
-    Kind.CONQUISTA: (
-        Category.AJUDOU,
-        Category.RESPONSABILIDADE,
-        Category.ESTUDOU,
-        Category.GENTILEZA,
-        Category.INICIATIVA,
-        Category.SUPEROU,
-        Category.CUIDOU,
-        Category.OUTRA_BOA,
-    ),
+# Quando ninguém escolhe, é "outra coisa boa" - a única que não afirma nada
+# específico sobre o que aconteceu.
+CONQUISTA_PADRAO = ConquistaCategory.OUTRA_BOA
+
+# Como cada uma se chama na tela. Ficaria melhor na camada de apresentação, e
+# ficava - até o título deixar de ser digitado: sem texto escrito à mão, o
+# nome do tipo **é** o título do registro (ver `Trombadice.display_title`), e
+# isso é resposta de API, não decoração de página. O painel web importa daqui
+# em vez de manter a segunda cópia que ele mantinha.
+ROTULO_DA_CONQUISTA: dict["ConquistaCategory", str] = {
+    ConquistaCategory.AJUDOU: "Ajudou sem pedir",
+    ConquistaCategory.RESPONSABILIDADE: "Foi responsável",
+    ConquistaCategory.ESTUDOU: "Mandou bem na escola",
+    ConquistaCategory.GENTILEZA: "Foi gentil",
+    ConquistaCategory.INICIATIVA: "Teve iniciativa",
+    ConquistaCategory.SUPEROU: "Superou uma dificuldade",
+    ConquistaCategory.CUIDOU: "Cuidou bem das coisas",
+    ConquistaCategory.OUTRA_BOA: "Outra coisa boa",
 }
-
-
-def categoria_padrao(kind: Kind) -> Category:
-    return Category.OUTRA if kind is Kind.TROMBADICE else Category.OUTRA_BOA
-
-
-def categoria_combina(category: Category, kind: Kind) -> bool:
-    return category in CATEGORIAS_POR_TIPO[kind]
 
 
 class Periodicity(str, enum.Enum):
@@ -192,6 +168,35 @@ class User(Base):
     )
 
 
+class TrombadiceCategory(Base):
+    """Um tipo de trombadice, cadastrado pelo pai.
+
+    Era um enum fechado de oito valores. Virou tabela porque cada casa repete as
+    mesmas coisas, e quem sabe quais são é quem convive: a lista útil aqui não é
+    a que o app imaginou, é a que o pai escreve. O que a instalação já tinha
+    continua valendo - a migration transforma os oito valores antigos nas oito
+    primeiras linhas desta tabela, com os mesmos nomes de tela.
+
+    **Ninguém apaga tipo em uso.** A FK de `Trombadice.category_id` é RESTRICT
+    e a rota devolve 409: apagar levaria junto o sentido de um registro que a
+    criança já leu. Para tirar da frente sem mexer no que passou existe
+    `is_active`, mesma ideia da tarefa pausada.
+
+    Conquista não usa esta tabela - ver `ConquistaCategory`.
+    """
+
+    __tablename__ = "trombadice_categories"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # Único: dois "Mentira" na lista só produziriam relatório partido ao meio.
+    name: Mapped[str] = mapped_column(String(60), unique=True)
+    # A ordem na tela, do mais comum ao menos - era a ordem do enum e agora é
+    # escolha do pai. Empate desempata pelo nome, para a lista não dançar.
+    position: Mapped[int] = mapped_column(default=0, index=True)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+
 class Trombadice(Base):
     """O que a criança fez - de errado **ou** de bom, conforme o `kind`.
 
@@ -213,8 +218,20 @@ class Trombadice(Base):
         Enum(Kind, native_enum=False), default=Kind.TROMBADICE, index=True
     )
 
-    category: Mapped[Category] = mapped_column(
-        Enum(Category, native_enum=False), default=Category.OUTRA, index=True
+    # Duas colunas para a mesma pergunta ("que tipo de coisa foi") porque as
+    # duas respostas vêm de lugares diferentes: trombadice aponta a lista que o
+    # pai cadastrou, conquista continua no enum fechado. Cada registro preenche
+    # exatamente uma - quem garante é a rota, e as duas são nuláveis porque
+    # nenhuma vale para o outro tipo. Mesmo padrão de campo-só-de-um-caso já
+    # usado em `Task.weekdays`/`day_of_month`.
+    #
+    # RESTRICT e não SET NULL: sem tipo, uma trombadice não diz mais o que
+    # aconteceu. Apagar um tipo em uso é 409, com `is_active` como saída.
+    category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("trombadice_categories.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    conquista_category: Mapped[ConquistaCategory | None] = mapped_column(
+        Enum(ConquistaCategory, native_enum=False), nullable=True, index=True
     )
 
     # Quando o filho abriu o detalhe desta trombadice. NULL = ainda não viu.
@@ -246,6 +263,34 @@ class Trombadice(Base):
     )
     author: Mapped[User] = relationship(foreign_keys=[author_id])
     task: Mapped["Task | None"] = relationship(back_populates="trombadices")
+    category: Mapped["TrombadiceCategory | None"] = relationship()
+
+    @property
+    def category_name(self) -> str | None:
+        """O nome do tipo, para a resposta da API não obrigar quem lê a ter a
+        lista inteira em mãos só para escrever uma etiqueta."""
+        return self.category.name if self.category is not None else None
+
+    @property
+    def display_title(self) -> str:
+        """O que a tela mostra como título.
+
+        Derivado na leitura, e não gravado na coluna, porque desde que o tipo
+        virou lista do pai ninguém digita título: a tela pede o tipo e, se
+        quiser, os detalhes. Gravado, o título continuaria dizendo "Mentira"
+        depois de o pai corrigir o tipo para "Birra".
+
+        `title` continua existindo e ainda vence quando tem texto: é o que está
+        gravado no que foi cadastrado antes desta mudança, escrito à mão."""
+        if self.title.strip():
+            return self.title
+        if self.task is not None:
+            return self.task.name
+        if self.category is not None:
+            return self.category.name
+        if self.conquista_category is not None:
+            return ROTULO_DA_CONQUISTA[self.conquista_category]
+        return ""
 
 
 class Task(Base):
@@ -411,8 +456,8 @@ class Pedido(Base):
     justification: Mapped[str] = mapped_column(Text, default="")
     # Só relevante pra CONQUISTA_PROPOSTA - mesmo padrão de campo-só-de-um-caso
     # já usado em Task.weekdays/day_of_month.
-    category: Mapped[Category | None] = mapped_column(
-        Enum(Category, native_enum=False), nullable=True
+    category: Mapped[ConquistaCategory | None] = mapped_column(
+        Enum(ConquistaCategory, native_enum=False), nullable=True
     )
     status: Mapped[RequestStatus] = mapped_column(
         Enum(RequestStatus, native_enum=False), default=RequestStatus.PENDENTE, index=True

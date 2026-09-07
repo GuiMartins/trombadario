@@ -61,7 +61,7 @@ def test_pai_aprova_proposta_cria_trombadice_de_verdade(
     assert conquista["kind"] == "conquista"
     assert conquista["title"] == "Ajudei a lavar a louça"
     assert conquista["description"] == "depois do jantar"
-    assert conquista["category"] == "ajudou"
+    assert conquista["conquista_category"] == "ajudou"
     assert conquista["child_id"] == child.id
     # Autor é quem confirmou de verdade, não quem teve a ideia.
     assert conquista["author_id"] == admin.id

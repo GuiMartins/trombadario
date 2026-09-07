@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from fastapi.testclient import TestClient
 
 from app.models import Punishment, User
-from tests.conftest import as_admin, as_child
+from tests.conftest import as_admin, as_child, corpo_de_trombadice
 
 OCCURRED_AT = "2026-08-01T14:30:00+00:00"
 
@@ -16,7 +16,7 @@ def create_trombadice(client: TestClient, child_id: int, title: str = "Bagunça"
     return client.post(
         "/api/trombadices",
         headers=as_admin(client),
-        json={"title": title, "occurred_at": OCCURRED_AT, "child_id": child_id},
+        json=corpo_de_trombadice(client, child_id, title=title, occurred_at=OCCURRED_AT),
     ).json()
 
 

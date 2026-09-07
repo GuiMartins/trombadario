@@ -7,39 +7,51 @@ import androidx.compose.ui.graphics.Color
 import com.trombadario.ui.theme.ConquistaTeal
 import com.trombadario.ui.theme.ConquistaTealDark
 import com.trombadario.R
-import com.trombadario.data.remote.Categoria
+import androidx.compose.ui.res.stringResource
+import com.trombadario.data.remote.CategoriaDeConquista
 import com.trombadario.data.remote.Tipo
+import com.trombadario.data.remote.TrombadiceDto
 
 /**
- * O nome de tela de cada categoria.
+ * O nome de tela de cada categoria **de conquista**.
  *
- * O backend manda o valor cru (`"nao_fez"`); traduzir aqui e não lá é o mesmo
+ * O backend manda o valor cru (`"ajudou"`); traduzir aqui e não lá é o mesmo
  * critério do painel web - o modelo guarda o valor, quem mostra escolhe como
- * chamar. Os dois lados usam a mesma lista e a mesma ordem, que é a ordem do
- * enum, do mais comum ao menos.
+ * chamar.
  *
- * Valor desconhecido cai em "Outra" em vez de estourar: se um dia o servidor
- * ganhar uma categoria nova, o app antigo mostra algo razoável em vez de
- * fechar.
+ * A lista de trombadice não passa por aqui: ela é cadastrada pelo pai, então o
+ * nome vem do servidor junto do registro (`TrombadiceDto.categoryName`) - não
+ * existe `strings.xml` que saiba o que ele vai escrever.
+ *
+ * Valor desconhecido cai em "Outra coisa boa" em vez de estourar: se um dia o
+ * servidor ganhar uma categoria nova, o app antigo mostra algo razoável em vez
+ * de fechar.
  */
 @StringRes
-fun rotuloDaCategoria(valor: String): Int = when (valor) {
-    Categoria.DESRESPEITO -> R.string.categoria_desrespeito
-    Categoria.EDUCACAO -> R.string.categoria_educacao
-    Categoria.NAO_FEZ -> R.string.categoria_nao_fez
-    Categoria.MENTIRA -> R.string.categoria_mentira
-    Categoria.BIRRA -> R.string.categoria_birra
-    Categoria.ESCOLA -> R.string.categoria_escola
-    Categoria.AGRESSAO -> R.string.categoria_agressao
-    Categoria.AJUDOU -> R.string.categoria_ajudou
-    Categoria.RESPONSABILIDADE -> R.string.categoria_responsabilidade
-    Categoria.ESTUDOU -> R.string.categoria_estudou
-    Categoria.GENTILEZA -> R.string.categoria_gentileza
-    Categoria.INICIATIVA -> R.string.categoria_iniciativa
-    Categoria.SUPEROU -> R.string.categoria_superou
-    Categoria.CUIDOU -> R.string.categoria_cuidou
-    Categoria.OUTRA_BOA -> R.string.categoria_outra_boa
-    else -> R.string.categoria_outra
+fun rotuloDaConquista(valor: String): Int = when (valor) {
+    CategoriaDeConquista.AJUDOU -> R.string.categoria_ajudou
+    CategoriaDeConquista.RESPONSABILIDADE -> R.string.categoria_responsabilidade
+    CategoriaDeConquista.ESTUDOU -> R.string.categoria_estudou
+    CategoriaDeConquista.GENTILEZA -> R.string.categoria_gentileza
+    CategoriaDeConquista.INICIATIVA -> R.string.categoria_iniciativa
+    CategoriaDeConquista.SUPEROU -> R.string.categoria_superou
+    CategoriaDeConquista.CUIDOU -> R.string.categoria_cuidou
+    else -> R.string.categoria_outra_boa
+}
+
+/**
+ * O nome do tipo de um registro, venha ele da lista que vier: a cadastrada pelo
+ * pai (trombadice, com o nome já no próprio registro) ou a fechada (conquista,
+ * traduzida aqui). Nulo no que foi cadastrado sem tipo nenhum.
+ */
+@Composable
+fun nomeDoTipo(trombadice: TrombadiceDto): String? {
+    val conquista = trombadice.conquistaCategory
+    return when {
+        trombadice.categoryName != null -> trombadice.categoryName
+        conquista != null -> stringResource(rotuloDaConquista(conquista))
+        else -> null
+    }
 }
 
 /** O nome de tela do tipo do registro. */

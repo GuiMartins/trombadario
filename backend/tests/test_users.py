@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models import User
-from tests.conftest import as_admin, auth_header
+from tests.conftest import as_admin, auth_header, corpo_de_trombadice
 
 OCCURRED_AT = "2026-08-01T14:30:00+00:00"
 
@@ -93,7 +93,7 @@ def test_nao_apaga_quem_ja_cadastrou_trombadice(
     client.post(
         "/api/trombadices",
         headers=mae_headers,
-        json={"title": "Nota baixa", "occurred_at": OCCURRED_AT, "child_id": child.id},
+        json=corpo_de_trombadice(client, child.id, title="Nota baixa", occurred_at=OCCURRED_AT),
     )
     mae_id = db.query(User).filter(User.username == "mae").one().id
 
@@ -110,7 +110,7 @@ def test_apagar_filho_leva_as_trombadices_dele_junto(
     client.post(
         "/api/trombadices",
         headers=headers,
-        json={"title": "Bagunça", "occurred_at": OCCURRED_AT, "child_id": child.id},
+        json=corpo_de_trombadice(client, child.id, title="Bagunça", occurred_at=OCCURRED_AT),
     )
 
     assert client.delete(f"/api/users/{child.id}", headers=headers).status_code == 204

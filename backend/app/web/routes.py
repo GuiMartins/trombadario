@@ -6,13 +6,14 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from app.deps import DbSession
 from app.models import (
-    CATEGORIAS_POR_TIPO,
+    CONQUISTA_PADRAO,
+    ROTULO_DA_CONQUISTA,
     Assunto,
-    Category,
+    ConquistaCategory,
     Kind,
     Pedido,
     Periodicity,
@@ -24,9 +25,8 @@ from app.models import (
     Task,
     TaskCompletion,
     Trombadice,
+    TrombadiceCategory,
     User,
-    categoria_combina,
-    categoria_padrao,
 )
 from app.periodo import (
     data_local,
@@ -69,32 +69,19 @@ MESES = [
 # esses dias", "como foi o mês" e "está melhorando?".
 JANELAS = {7: "7 dias", 30: "30 dias", 90: "3 meses"}
 
-# Rótulo de cada categoria. Fica aqui e não no enum porque é texto de tela: o
-# modelo guarda o valor, a apresentação escolhe como chamar.
-CATEGORIA_ROTULOS = {
-    Category.DESRESPEITO: "Falta de respeito",
-    Category.EDUCACAO: "Falta de educação",
-    Category.NAO_FEZ: "Não fez o que devia",
-    Category.MENTIRA: "Mentira",
-    Category.BIRRA: "Birra / descontrole",
-    Category.ESCOLA: "Escola",
-    Category.AGRESSAO: "Agressão",
-    Category.OUTRA: "Outra",
-    Category.AJUDOU: "Ajudou sem pedir",
-    Category.RESPONSABILIDADE: "Foi responsável",
-    Category.ESTUDOU: "Mandou bem na escola",
-    Category.GENTILEZA: "Foi gentil",
-    Category.INICIATIVA: "Teve iniciativa",
-    Category.SUPEROU: "Superou uma dificuldade",
-    Category.CUIDOU: "Cuidou bem das coisas",
-    Category.OUTRA_BOA: "Outra coisa boa",
-}
-
 TIPO_ROTULOS = {Kind.TROMBADICE: "Trombadice", Kind.CONQUISTA: "Conquista"}
 
 
-def _rotulos_do_tipo(kind: Kind) -> dict:
-    return {c: CATEGORIA_ROTULOS[c] for c in CATEGORIAS_POR_TIPO[kind]}
+def _tipos_de_trombadice(db: DbSession, incluir_inativos: bool = False) -> list[TrombadiceCategory]:
+    """A lista que o pai cadastrou, na ordem que ele escolheu.
+
+    Os inativos entram só onde precisam aparecer (a página de tipos e a
+    correção de uma anotação antiga): oferecer no cadastro o que ele aposentou
+    seria desfazer a aposentadoria."""
+    query = select(TrombadiceCategory).order_by(TrombadiceCategory.position, TrombadiceCategory.name)
+    if not incluir_inativos:
+        query = query.where(TrombadiceCategory.is_active)
+    return list(db.scalars(query))
 
 
 def _redirect(url: str) -> RedirectResponse:
@@ -114,23 +101,21 @@ def _tarefa_do_filho(db: DbSession, task_id: str, child_id: int) -> int | None:
 
 def _campos_da_trombadice(
     db: DbSession,
-    title: str,
     child_id: int,
     task_id: str,
-    categoria_trombadice: str,
+    category_id: str,
     categoria_conquista: str,
     kind: str,
-) -> tuple[str, int, int | None, Category, Kind]:
-    """Resolve título, filho, tarefa e categoria a partir do que o formulário
-    mandou.
+) -> tuple[int, int | None, int | None, ConquistaCategory | None, Kind]:
+    """Resolve filho, tarefa e tipo a partir do que o formulário mandou.
 
-    Com tarefa escolhida, a tarefa é que manda em duas coisas: **de quem é**
-    (ela pertence a um filho só) e, se ninguém escreveu título, **qual é o
-    título** - o que aconteceu foi não ter feito aquilo. Por isso esses dois
-    campos somem da tela quando há tarefa: já estão respondidos.
+    Com tarefa escolhida, ela é que diz **de quem é** o registro - a tarefa
+    pertence a um filho só. Por isso o campo de filho some da tela quando há
+    tarefa: já está respondido.
 
-    No caso de edição o título continua vindo preenchido no campo escondido,
-    então corrigir um "machou" com tarefa atrelada preserva a correção.
+    Título não está aqui e não volta: desde que o tipo virou lista cadastrada,
+    o título de tela sai do tipo escolhido (ou do nome da tarefa) na leitura -
+    ver `Trombadice.display_title`.
     """
     tipo = Kind(kind) if kind in {k.value for k in Kind} else Kind.TROMBADICE
 
@@ -140,19 +125,27 @@ def _campos_da_trombadice(
     if tarefa is not None:
         child_id = tarefa.child_id
 
-    # O formulário manda as duas listas de categoria, e só a do tipo escolhido
-    # é a que vale. Assim nenhuma delas precisa ser desabilitada no navegador -
-    # o CSS esconde a outra e o servidor ignora o que ela mandou.
-    bruto = categoria_conquista if tipo is Kind.CONQUISTA else categoria_trombadice
-    escolhida = Category(bruto) if bruto in {c.value for c in Category} else None
-    categoria = (
-        escolhida
-        if escolhida is not None and categoria_combina(escolhida, tipo)
-        else categoria_padrao(tipo)
-    )
+    if tipo is Kind.CONQUISTA:
+        # O formulário manda as duas listas e só a do tipo escolhido vale. Assim
+        # nenhuma precisa ser desabilitada no navegador: o CSS esconde a outra e
+        # o servidor ignora o que ela mandou.
+        conquista = (
+            ConquistaCategory(categoria_conquista)
+            if categoria_conquista in {c.value for c in ConquistaCategory}
+            else CONQUISTA_PADRAO
+        )
+        return child_id, None, None, conquista, tipo
 
-    titulo = title.strip() or (tarefa.name if tarefa is not None else "")
-    return titulo, child_id, (tarefa.id if tarefa is not None else None), categoria, tipo
+    # Trombadice: o tipo tem que existir de verdade. Vazio ou inventado devolve
+    # None, e quem chama recusa - sem tipo a anotação não diz o que aconteceu.
+    escolhido = db.get(TrombadiceCategory, int(category_id)) if category_id.isdigit() else None
+    return (
+        child_id,
+        tarefa.id if tarefa is not None else None,
+        escolhido.id if escolhido is not None else None,
+        None,
+        tipo,
+    )
 
 
 def _filho_valido(db: DbSession, child_id: str) -> int | None:
@@ -379,13 +372,19 @@ def trombadices_page(
     user: AdminWeb,
     child_id: int | None = None,
     kind: str | None = None,
-    category: str | None = None,
+    category_id: int | None = None,
+    conquista_category: str | None = None,
     dia: date | None = None,
     q: str | None = None,
     mes: str | None = None,
     editar: int | None = None,
+    erro: str | None = None,
 ):
-    categoria = Category(category) if category in {c.value for c in Category} else None
+    conquista = (
+        ConquistaCategory(conquista_category)
+        if conquista_category in {c.value for c in ConquistaCategory}
+        else None
+    )
     tipo = Kind(kind) if kind in {k.value for k in Kind} else None
 
     base = select(Trombadice)
@@ -393,11 +392,22 @@ def trombadices_page(
         base = base.where(Trombadice.child_id == child_id)
     if tipo is not None:
         base = base.where(Trombadice.kind == tipo)
-    if categoria is not None:
-        base = base.where(Trombadice.category == categoria)
+    # Dois filtros porque são duas listas: a do pai (trombadice) e o enum
+    # fechado (conquista). Ver o mesmo par em routers/trombadices.py.
+    if category_id:
+        base = base.where(Trombadice.category_id == category_id)
+    if conquista is not None:
+        base = base.where(Trombadice.conquista_category == conquista)
     if q and (termo := q.strip()):
         alvo = f"%{termo}%"
-        base = base.where(or_(Trombadice.title.ilike(alvo), Trombadice.description.ilike(alvo)))
+        nomes = select(TrombadiceCategory.id).where(TrombadiceCategory.name.ilike(alvo))
+        base = base.where(
+            or_(
+                Trombadice.title.ilike(alvo),
+                Trombadice.description.ilike(alvo),
+                Trombadice.category_id.in_(nomes),
+            )
+        )
 
     # O calendário mostra os dias que existem **com os outros filtros já
     # aplicados**: filtrar por "agressão" e ver dias clicáveis sem nenhuma
@@ -411,6 +421,25 @@ def trombadices_page(
 
     children = _children(db)
     mes_aberto = _mes_pedido(mes, dia)
+    editando = db.get(Trombadice, editar) if editar else None
+    ativos = _tipos_de_trombadice(db)
+    # Corrigir uma anotação de tipo aposentado não pode trocar o que aconteceu:
+    # o tipo dela entra na lista do formulário mesmo desativado.
+    do_formulario = ativos
+    if editando is not None and editando.category is not None and editando.category not in ativos:
+        do_formulario = [*ativos, editando.category]
+    url = _construtor_de_url(
+        "/trombadices",
+        {
+            "child_id": child_id,
+            "kind": tipo.value if tipo else None,
+            "category_id": category_id,
+            "conquista_category": conquista.value if conquista else None,
+            "q": q,
+            "dia": dia,
+            "mes": mes,
+        },
+    )
     return _render(
         request,
         "trombadices.html",
@@ -420,36 +449,63 @@ def trombadices_page(
         children_by_id={c.id: c for c in children},
         tasks=list(db.scalars(select(Task).where(Task.is_active).order_by(Task.name))),
         selected_child=child_id,
-        # Os chips de categoria seguem o tipo filtrado: com "Conquistas" ligado,
-        # oferecer "falta de respeito" seria oferecer um filtro que nunca acha
-        # nada. Sem tipo escolhido, valem as dezesseis.
-        categorias=_rotulos_do_tipo(tipo) if tipo else CATEGORIA_ROTULOS,
-        categoria_escolhida=categoria,
-        # Cada tipo com a sua lista: "falta de respeito" não descreve coisa boa,
-        # e "ajudou sem pedir" não descreve trombadice.
-        categorias_trombadice=_rotulos_do_tipo(Kind.TROMBADICE),
-        categorias_conquista=_rotulos_do_tipo(Kind.CONQUISTA),
+        tipos_de_trombadice=do_formulario,
+        categorias_conquista=ROTULO_DA_CONQUISTA,
+        chips_categoria=_chips_de_categoria(url, ativos, tipo, category_id, conquista),
+        filtrando_categoria=bool(category_id) or conquista is not None,
+        category_id=category_id,
+        conquista_category=conquista,
         tipos=TIPO_ROTULOS,
         tipo_escolhido=tipo,
         busca=q or "",
         dia_escolhido=dia,
         agora=_local_input(datetime.now(UTC)),
+        erro=erro,
         # Editar reaproveita o formulário de cima em vez de abrir uma página
         # nova: é o mesmo formulário, com os campos preenchidos.
-        editando=db.get(Trombadice, editar) if editar else None,
-        url=_construtor_de_url(
-            "/trombadices",
-            {
-                "child_id": child_id,
-                "kind": tipo.value if tipo else None,
-                "category": categoria.value if categoria else None,
-                "q": q,
-                "dia": dia,
-                "mes": mes,
-            },
-        ),
+        editando=editando,
+        url=url,
         **_calendario(mes_aberto, dias_com_registro),
     )
+
+
+def _chips_de_categoria(
+    url,
+    tipos: list[TrombadiceCategory],
+    tipo_escolhido: Kind | None,
+    category_id: int | None,
+    conquista: ConquistaCategory | None,
+) -> list[dict]:
+    """Os chips de filtro por tipo, das duas listas.
+
+    O endereço de cada um sai daqui, e não do template, porque cada chip mexe em
+    **dois** parâmetros: liga o dele e desliga o da outra lista, senão marcar
+    "Mentira" depois de "Foi gentil" pediria as duas coisas ao mesmo tempo e não
+    acharia nada. Jinja não desempacota `**kwargs` numa chamada, então montar
+    isso lá viraria uma sopa de `if`.
+
+    Com um tipo escolhido, só a lista dele: oferecer "falta de respeito" numa
+    lista de conquistas seria oferecer um filtro que nunca acha nada."""
+    chips = []
+    if tipo_escolhido is not Kind.CONQUISTA:
+        chips += [
+            {
+                "url": url(category_id=c.id, conquista_category=None),
+                "rotulo": c.name,
+                "ativo": category_id == c.id,
+            }
+            for c in tipos
+        ]
+    if tipo_escolhido is not Kind.TROMBADICE:
+        chips += [
+            {
+                "url": url(category_id=None, conquista_category=c.value),
+                "rotulo": rotulo,
+                "ativo": conquista is c,
+            }
+            for c, rotulo in ROTULO_DA_CONQUISTA.items()
+        ]
+    return chips
 
 
 def _construtor_de_url(base: str, atual: dict):
@@ -487,26 +543,29 @@ def trombadice_create(
     user: AdminWeb,
     child_id: Annotated[int, Form()],
     occurred_at: Annotated[str, Form()],
-    title: Annotated[str, Form()] = "",
     description: Annotated[str, Form()] = "",
     task_id: Annotated[str, Form()] = "",
     kind: Annotated[str, Form()] = "trombadice",
-    categoria_trombadice: Annotated[str, Form()] = "outra",
+    category_id: Annotated[str, Form()] = "",
     categoria_conquista: Annotated[str, Form()] = "outra_boa",
 ):
-    titulo, filho, tarefa, categoria, tipo = _campos_da_trombadice(
-        db, title, child_id, task_id, categoria_trombadice, categoria_conquista, kind
+    filho, tarefa, tipo_id, conquista, tipo = _campos_da_trombadice(
+        db, child_id, task_id, category_id, categoria_conquista, kind
     )
-    if not titulo:
-        # Sem tarefa e sem título não sobra registro nenhum: volta sem gravar.
-        return _redirect("/trombadices")
+    if tipo is Kind.TROMBADICE and tipo_id is None:
+        # Sem tipo não sobra registro nenhum: a anotação não diria o que
+        # aconteceu. Volta sem gravar, com a página explicando.
+        return _redirect("/trombadices?erro=sem-tipo")
 
     db.add(
         Trombadice(
-            title=titulo,
+            # Sem título: ele sai do tipo (ou da tarefa) na leitura - ver
+            # `Trombadice.display_title`.
+            title="",
             description=description.strip(),
             kind=tipo,
-            category=categoria,
+            category_id=tipo_id,
+            conquista_category=conquista,
             occurred_at=_parse_local(occurred_at),
             child_id=filho,
             task_id=tarefa,
@@ -524,13 +583,13 @@ def trombadice_edit(
     user: AdminWeb,
     child_id: Annotated[int, Form()],
     occurred_at: Annotated[str, Form()],
-    title: Annotated[str, Form()] = "",
     description: Annotated[str, Form()] = "",
     task_id: Annotated[str, Form()] = "",
-    categoria_trombadice: Annotated[str, Form()] = "outra",
+    category_id: Annotated[str, Form()] = "",
     categoria_conquista: Annotated[str, Form()] = "outra_boa",
 ):
-    """Corrigir o que já foi cadastrado - um "machou" que era "machucou".
+    """Corrigir o que já foi cadastrado - a data errada, o tipo errado, o filho
+    errado.
 
     Só o pai chega aqui: `AdminWeb` é a mesma dependência de todo o painel, e o
     painel inteiro é admin-only por decisão de segurança (ver CLAUDE.md)."""
@@ -538,18 +597,21 @@ def trombadice_edit(
     if trombadice is None:
         return _redirect("/trombadices")
 
-    # O tipo não se edita - trombadice não vira conquista. Vale o que já está
-    # gravado, e a categoria tem que ser da lista dele.
-    titulo, filho, tarefa, categoria, _ = _campos_da_trombadice(
-        db, title, child_id, task_id, categoria_trombadice, categoria_conquista,
-        trombadice.kind.value,
+    # O tipo do registro não se edita - trombadice não vira conquista. Vale o
+    # que já está gravado, e a lista de categoria é a dele.
+    filho, tarefa, tipo_id, conquista, _ = _campos_da_trombadice(
+        db, child_id, task_id, category_id, categoria_conquista, trombadice.kind.value
     )
-    if not titulo:
-        return _redirect("/trombadices")
+    if trombadice.kind is Kind.TROMBADICE and tipo_id is None:
+        return _redirect(f"/trombadices?editar={trombadice_id}&erro=sem-tipo")
 
-    trombadice.title = titulo
+    # `title` fica como está: em registro antigo é texto escrito à mão, e
+    # reescrevê-lo com o nome do tipo apagaria o que o pai contou naquele dia.
     trombadice.description = description.strip()
-    trombadice.category = categoria
+    if trombadice.kind is Kind.TROMBADICE:
+        trombadice.category_id = tipo_id
+    else:
+        trombadice.conquista_category = conquista
     trombadice.occurred_at = _parse_local(occurred_at)
     trombadice.child_id = filho
     trombadice.task_id = tarefa
@@ -564,6 +626,127 @@ def trombadice_delete(trombadice_id: int, db: DbSession, user: AdminWeb):
         db.delete(trombadice)
         db.commit()
     return _redirect("/trombadices")
+
+
+# --------------------------------------------------------------------------
+# Tipos de trombadice
+# --------------------------------------------------------------------------
+
+
+def _em_uso(db: DbSession) -> dict[int, int]:
+    """Quantas anotações apontam para cada tipo - uma consulta agrupada, não uma
+    por linha. É o que decide se o botão de apagar aparece."""
+    linhas = db.execute(
+        select(Trombadice.category_id, func.count(Trombadice.id))
+        .where(Trombadice.category_id.is_not(None))
+        .group_by(Trombadice.category_id)
+    )
+    return dict(linhas.all())
+
+
+@router.get("/tipos", response_class=HTMLResponse)
+def tipos_page(
+    request: Request,
+    db: DbSession,
+    user: AdminWeb,
+    editar: int | None = None,
+    erro: str | None = None,
+):
+    tipos = _tipos_de_trombadice(db, incluir_inativos=True)
+    return _render(
+        request,
+        "tipos.html",
+        user=user,
+        tipos=tipos,
+        em_uso=_em_uso(db),
+        editando=db.get(TrombadiceCategory, editar) if editar else None,
+        erro=erro,
+        proxima_posicao=max((t.position for t in tipos), default=-1) + 1,
+    )
+
+
+def _nome_em_uso(db: DbSession, nome: str, ignorando: int | None = None) -> bool:
+    query = select(TrombadiceCategory).where(func.lower(TrombadiceCategory.name) == nome.lower())
+    if ignorando is not None:
+        query = query.where(TrombadiceCategory.id != ignorando)
+    return db.scalar(query) is not None
+
+
+@router.post("/tipos")
+def tipo_create(
+    db: DbSession,
+    user: AdminWeb,
+    name: Annotated[str, Form()],
+    position: Annotated[str, Form()] = "",
+):
+    nome = name.strip()
+    if not nome:
+        return _redirect("/tipos")
+    if _nome_em_uso(db, nome):
+        # Dois "Mentira" na lista partiriam o relatório ao meio sem ninguém
+        # perceber - as anotações ficariam divididas entre os dois.
+        return _redirect("/tipos?erro=nome-repetido")
+    ultima = db.scalar(select(func.max(TrombadiceCategory.position)))
+    db.add(
+        TrombadiceCategory(
+            name=nome,
+            position=int(position) if position.isdigit() else (0 if ultima is None else ultima + 1),
+        )
+    )
+    db.commit()
+    return _redirect("/tipos")
+
+
+@router.post("/tipos/{category_id}/editar")
+def tipo_edit(
+    category_id: int,
+    db: DbSession,
+    user: AdminWeb,
+    name: Annotated[str, Form()],
+    position: Annotated[str, Form()] = "",
+):
+    tipo = db.get(TrombadiceCategory, category_id)
+    if tipo is None:
+        return _redirect("/tipos")
+    nome = name.strip()
+    if not nome:
+        return _redirect("/tipos")
+    if _nome_em_uso(db, nome, ignorando=category_id):
+        return _redirect(f"/tipos?editar={category_id}&erro=nome-repetido")
+    # Renomear vale para o que já está gravado junto: o registro aponta a linha,
+    # não uma cópia do nome, então corrigir "Mentria" conserta o histórico
+    # inteiro de uma vez.
+    tipo.name = nome
+    if position.isdigit():
+        tipo.position = int(position)
+    db.commit()
+    return _redirect("/tipos")
+
+
+@router.post("/tipos/{category_id}/toggle")
+def tipo_toggle(category_id: int, db: DbSession, user: AdminWeb):
+    """Aposentar um tipo sem mexer no que passou - mesma ideia da tarefa
+    pausada. Desativado some da hora de registrar e continua nomeando o que já
+    foi registrado com ele."""
+    if (tipo := db.get(TrombadiceCategory, category_id)) is not None:
+        tipo.is_active = not tipo.is_active
+        db.commit()
+    return _redirect("/tipos")
+
+
+@router.post("/tipos/{category_id}/delete")
+def tipo_delete(category_id: int, db: DbSession, user: AdminWeb):
+    """Só apaga o que nunca foi usado - com anotação apontando para ele, apagar
+    deixaria registro sem dizer o que aconteceu. Para tirar da frente sem mexer
+    no passado existe o desativar."""
+    tipo = db.get(TrombadiceCategory, category_id)
+    if tipo is None:
+        return _redirect("/tipos")
+    if _em_uso(db).get(category_id):
+        return _redirect("/tipos?erro=em-uso")
+    db.delete(tipo)
+    db.commit()
+    return _redirect("/tipos")
 
 
 # --------------------------------------------------------------------------
@@ -712,7 +895,7 @@ def punishments_page(
     db: DbSession,
     user: AdminWeb,
     child_id: int | None = None,
-    category: str | None = None,
+    category_id: int | None = None,
     dia: date | None = None,
     q: str | None = None,
     mes: str | None = None,
@@ -720,16 +903,15 @@ def punishments_page(
     erro: str | None = None,
 ):
     now = datetime.now(UTC)
-    categoria = Category(category) if category in {c.value for c in Category} else None
 
     base = select(Punishment)
     if child_id:
         base = base.where(Punishment.child_id == child_id)
-    if categoria is not None:
+    if category_id:
         # Castigo não tem categoria própria: herda a das trombadices que o
         # causaram. "Filtrar por agressão" quer dizer "castigos que vieram de
         # alguma agressão", que é a pergunta de verdade.
-        base = base.where(Punishment.trombadices.any(Trombadice.category == categoria))
+        base = base.where(Punishment.trombadices.any(Trombadice.category_id == category_id))
     if q and (termo := q.strip()):
         base = base.where(Punishment.reason.ilike(f"%{termo}%"))
 
@@ -751,6 +933,16 @@ def punishments_page(
 
     children = _children(db)
     editando = db.get(Punishment, editar) if editar else None
+    url_castigos = _construtor_de_url(
+        "/castigos",
+        {
+            "child_id": child_id,
+            "category_id": category_id,
+            "q": q,
+            "dia": dia,
+            "mes": mes,
+        },
+    )
     return _render(
         request,
         "castigos.html",
@@ -766,23 +958,19 @@ def punishments_page(
         editando_trombadices=[t.id for t in editando.trombadices] if editando else [],
         erro=erro,
         selected_child=child_id,
-        # Castigo só vem de trombadice, então só a lista dela faz sentido aqui.
-        categorias=_rotulos_do_tipo(Kind.TROMBADICE),
-        categoria_escolhida=categoria,
+        # Castigo só vem de trombadice, então só a lista dela faz sentido aqui -
+        # não existe castigo por conquista para filtrar.
+        chips_categoria=_chips_de_categoria(
+            url_castigos, _tipos_de_trombadice(db), Kind.TROMBADICE, category_id, None
+        ),
+        filtrando_categoria=bool(category_id),
+        category_id=category_id,
+        conquista_category=None,
         tipos=None,
         tipo_escolhido=None,
         busca=q or "",
         dia_escolhido=dia,
-        url=_construtor_de_url(
-            "/castigos",
-            {
-                "child_id": child_id,
-                "category": categoria.value if categoria else None,
-                "q": q,
-                "dia": dia,
-                "mes": mes,
-            },
-        ),
+        url=url_castigos,
         **_calendario(_mes_pedido(mes, dia), dias_com_registro),
     )
 
@@ -902,7 +1090,6 @@ def report_page(
         selected_child=child_id,
         dias=dias,
         janelas=JANELAS,
-        categorias={c.value: r for c, r in CATEGORIA_ROTULOS.items()},
         # O maior valor da série é o que define a altura das barras. Sem ele o
         # template teria que fazer a conta, e Jinja é ruim nisso.
         pico=max([d.total for d in dados.por_dia] or [0]),
@@ -1288,7 +1475,7 @@ def pedidos_page(
         status_escolhido=filtro,
         kind_escolhido=filtro_kind,
         selected_child=child_id,
-        categorias={c.value: r for c, r in CATEGORIA_ROTULOS.items()},
+        categorias={c.value: r for c, r in ROTULO_DA_CONQUISTA.items()},
         url=_construtor_de_url(
             "/pedidos",
             {
@@ -1312,7 +1499,7 @@ def _promover_se_conquista(pedido: Pedido, db: DbSession, autor_id: int) -> None
             kind=Kind.CONQUISTA,
             title=pedido.title,
             description=pedido.justification,
-            category=pedido.category,
+            conquista_category=pedido.category,
             occurred_at=pedido.decided_at,
             child_id=pedido.child_id,
             author_id=autor_id,
