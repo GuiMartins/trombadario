@@ -327,3 +327,155 @@ def test_conquista_nao_causa_castigo(client: TestClient, admin: User, child: Use
     )
 
     assert response.status_code == 400
+
+
+# --------------------------------------------------------------------------
+# Corrigir e cancelar
+#
+# Antes disto, castigo cadastrado com a data errada não tinha conserto: quando
+# começou era imutável, e a única saída era Encerrar - que deixa no histórico um
+# castigo "encerrado antes" que na verdade nunca existiu.
+# --------------------------------------------------------------------------
+
+
+def test_pai_corrige_quando_o_castigo_comecou(client: TestClient, admin: User, child: User) -> None:
+    punishment = punish(client, child.id)
+    novo_inicio = iso(timedelta(days=-3))
+
+    response = client.patch(
+        f"/api/punishments/{punishment['id']}",
+        headers=as_admin(client),
+        json={"starts_at": novo_inicio},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["starts_at"] != punishment["starts_at"]
+    # Só o começo mudou: corrigir a data não é reaplicar o castigo.
+    assert response.json()["ends_at"] == punishment["ends_at"]
+
+
+def test_corrigir_o_comeco_nao_pode_inverter_o_intervalo(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Mover só um dos lados basta pra virar o castigo do avesso, e nenhum dos
+    dois campos sozinho parece errado - por isso os dois são conferidos juntos."""
+    punishment = punish(client, child.id, ends_at=iso(timedelta(days=1)))
+
+    response = client.patch(
+        f"/api/punishments/{punishment['id']}",
+        headers=as_admin(client),
+        json={"starts_at": iso(timedelta(days=5))},
+    )
+
+    assert response.status_code == 400
+
+
+def test_pai_desfaz_o_encerramento(client: TestClient, admin: User, child: User) -> None:
+    """Um toque errado em Encerrar marcava o castigo como "encerrado antes" pra
+    sempre. O prazo original nunca foi apagado, então voltar atrás é só limpar o
+    carimbo."""
+    punishment = punish(client, child.id)
+    client.patch(
+        f"/api/punishments/{punishment['id']}", headers=as_admin(client), json={"end_now": True}
+    )
+
+    response = client.patch(
+        f"/api/punishments/{punishment['id']}", headers=as_admin(client), json={"end_now": False}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ended_early_at"] is None
+    assert response.json()["is_active"] is True
+
+
+def test_editar_sem_falar_de_encerramento_nao_reabre_castigo(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Omitir `end_now` é "não mexe", não "desfaz" - senão corrigir o motivo de
+    um castigo encerrado soltaria o filho de volta pra dentro dele."""
+    punishment = punish(client, child.id)
+    client.patch(
+        f"/api/punishments/{punishment['id']}", headers=as_admin(client), json={"end_now": True}
+    )
+
+    response = client.patch(
+        f"/api/punishments/{punishment['id']}",
+        headers=as_admin(client),
+        json={"reason": "corrigindo o texto"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ended_early_at"] is not None
+
+
+def test_trocar_de_filho_exige_trombadice_do_novo(
+    client: TestClient, admin: User, child: User, other_child: User
+) -> None:
+    """Sem reconferir, o castigo ficaria apontando a trombadice de outra criança
+    - o vínculo afirmaria algo falso."""
+    punishment = punish(client, child.id)
+
+    response = client.patch(
+        f"/api/punishments/{punishment['id']}",
+        headers=as_admin(client),
+        json={"child_id": other_child.id},
+    )
+
+    assert response.status_code == 400
+    # Recusou inteiro: o filho não pode ter trocado sem as causas trocarem junto.
+    atual = client.get(f"/api/punishments/{punishment['id']}", headers=as_admin(client)).json()
+    assert atual["child_id"] == child.id
+
+
+def test_pai_troca_o_filho_do_castigo_junto_com_as_causas(
+    client: TestClient, admin: User, child: User, other_child: User
+) -> None:
+    punishment = punish(client, child.id)
+    do_outro = create_trombadice(client, other_child.id, title="Do irmão")
+
+    response = client.patch(
+        f"/api/punishments/{punishment['id']}",
+        headers=as_admin(client),
+        json={"child_id": other_child.id, "trombadice_ids": [do_outro["id"]]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["child_id"] == other_child.id
+    assert response.json()["trombadice_ids"] == [do_outro["id"]]
+
+
+def test_pai_cancela_o_castigo_apagando_de_vez(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Cancelar é apagar: castigo cadastrado por engano não tem o que contar ao
+    histórico. Encerrar é outra coisa - aquilo aconteceu e foi perdoado."""
+    punishment = punish(client, child.id)
+
+    response = client.delete(f"/api/punishments/{punishment['id']}", headers=as_admin(client))
+
+    assert response.status_code == 204
+    assert client.get("/api/punishments/current", headers=as_child(client)).json() == []
+    assert (
+        client.get(f"/api/punishments/{punishment['id']}", headers=as_admin(client)).status_code
+        == 404
+    )
+
+
+def test_filho_nao_cancela_nem_corrige_castigo(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """O filho tem o APK na mão: esconder o botão é UX, quem barra é o backend."""
+    punishment = punish(client, child.id)
+
+    assert (
+        client.patch(
+            f"/api/punishments/{punishment['id']}",
+            headers=as_child(client),
+            json={"starts_at": iso(timedelta(days=-1))},
+        ).status_code
+        == 403
+    )
+    assert (
+        client.delete(f"/api/punishments/{punishment['id']}", headers=as_child(client)).status_code
+        == 403
+    )

@@ -257,10 +257,20 @@ class PunishmentCreate(BaseModel):
 
 class PunishmentUpdate(BaseModel):
     reason: str | None = None
+    # Corrigir quando o castigo começou é corrigir um erro de digitação, não
+    # reescrever a história: cadastrado com a data errada, o registro já estava
+    # errado - e a única saída antes disto era encerrar, o que deixava no
+    # histórico um castigo "cumprido em parte" que nunca existiu.
+    starts_at: AwareDatetime | None = None
     ends_at: AwareDatetime | None = None
+    # Castigo aplicado no filho errado também é engano de digitação. Trocar o
+    # filho obriga a reconferir as trombadices: as do irmão não valem aqui.
+    child_id: int | None = None
     trombadice_ids: list[int] | None = None
-    # True ends it now; the original ends_at is kept so the history shows what
-    # was handed down as well as what was actually served.
+    # True encerra agora, preservando o `ends_at` original para o histórico
+    # mostrar o que foi dado e o que foi cumprido. False **desfaz** o
+    # encerramento: um toque errado em Encerrar não pode marcar o castigo como
+    # "encerrado antes" para sempre.
     end_now: bool | None = None
 
 

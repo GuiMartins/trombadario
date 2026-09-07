@@ -400,6 +400,36 @@ pra virá-lo e ficaria errado no intervalo entre execuções. Encerrar antes da
 hora grava `ended_early_at` e **preserva o `ends_at` original**, então o
 histórico mostra o que foi dado e o que foi cumprido.
 
+### Encerrar, corrigir e cancelar são três coisas diferentes
+
+As três existem no app **e** no painel, e a diferença entre elas é o que cada
+uma afirma sobre o que aconteceu:
+
+- **Encerrar** — o castigo valeu e foi perdoado antes da hora. Grava
+  `ended_early_at`, guarda o prazo original, e o histórico mostra os dois.
+  **Dá pra reabrir** (`end_now: false` na API, botão Reabrir no painel e no
+  app): o prazo original nunca foi apagado, então desfazer é só limpar o
+  carimbo. Sem isso, um toque errado marcava o castigo como "encerrado antes"
+  pra sempre — o mesmo engano que desmarcar tarefa e reabrir assunto já deixam
+  corrigir.
+- **Corrigir** — o castigo é esse mesmo, o que foi digitado é que estava errado.
+  Motivo, início, fim, filho e as trombadices que o causaram, todos editáveis
+  (ver a ressalva do `starts_at` em "Editar o que já foi cadastrado").
+- **Cancelar** — o castigo não devia ter sido cadastrado. É o `DELETE`, e apaga
+  de vez: **não existe coluna de "cancelado"**. A decisão foi do usuário, e o
+  motivo é que um castigo cadastrado por engano não tem o que contar ao
+  histórico — deixá-lo lá etiquetado seria manter na tela do pai um castigo que
+  nunca houve, exatamente o que ele reclamou de Encerrar.
+
+Duas invariantes que a edição não pode furar, as duas com teste:
+
+- **Nada é escrito antes de tudo ser conferido.** O `PATCH` valida filho, causas
+  e datas e só então atribui: uma recusa no meio deixaria o castigo meio
+  corrigido — com o filho já trocado e as causas ainda do irmão.
+- **Trocar o filho reconfere as causas** mesmo quando `trombadice_ids` não vem
+  no corpo, porque as antigas passariam a apontar a trombadice de outra criança.
+  Sem lista nova, o `PATCH` responde 400 em vez de gravar um vínculo falso.
+
 ### Conquista é o mesmo registro com outro sinal
 
 `Trombadice.kind` (`trombadice` | `conquista`). Mesma tabela, mesmas colunas,
@@ -457,13 +487,20 @@ o painel inteiro é `AdminWeb`. No painel, editar **reaproveita o formulário de
 cima** (`?editar={id}`) em vez de abrir página nova — formulário separado seria
 um segundo lugar para lembrar de mexer.
 
-Três coisas que não se editam, de propósito:
+Duas coisas que não se editam, de propósito:
 - **`author_id`** — quem cadastrou continua sendo quem cadastrou. Corrigir um
   "machou" que era "machucou" não é assumir o registro do outro.
-- **`Punishment.starts_at`** — quando o castigo começou é fato. Para soltar
-  antes da hora existe Encerrar, que preserva o `ends_at` original.
 - **`User.username`** — é o login. Trocar trancaria a criança para fora sem
   aviso nenhum. O nome de exibição, esse sim.
+
+> **`Punishment.starts_at` estava nessa lista e saiu** (06/09/2026), a pedido do
+> usuário e com o caso concreto na mão: ele cadastrou um castigo com a data
+> errada e não teve como consertar. "Quando começou é fato" só vale quando o
+> registro descreve o fato — cadastrado errado, ele já nasceu não descrevendo, e
+> a única saída era Encerrar, que deixava no histórico um castigo "encerrado
+> antes" que nunca existiu. Corrigir a data é justamente o contrário de
+> reescrever a história. Encerrar continua sendo outra coisa e continua
+> preservando o `ends_at` original: aquele castigo aconteceu e foi perdoado.
 
 Ao trocar a periodicidade de uma tarefa, o campo que a nova não usa é **zerado**
 — senão sobra "segunda e quarta" numa tarefa que virou de todo dia.

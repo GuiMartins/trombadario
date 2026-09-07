@@ -14,6 +14,10 @@
   Todo castigo vem de alguma coisa que aconteceu: marque pelo menos uma
   trombadice do filho escolhido.
 </div>
+{% elif erro == 'fim-antes-do-inicio' %}
+<div class="aviso">
+  O castigo precisa terminar depois de começar.
+</div>
 {% endif %}
 <form id="editar" method="post" action="{{ '/castigos/' ~ e.id ~ '/editar' if e else '/castigos' }}" class="bloco">
   {% if e %}<h2>Corrigindo o castigo</h2>{% endif %}
@@ -24,6 +28,10 @@
     <option value="{{ c.id }}" {% if e and e.child_id == c.id %}selected{% endif %}>{{ c.display_name }}</option>
     {% endfor %}
   </select>
+
+  <label for="starts_at">Começou em</label>
+  <input type="datetime-local" id="starts_at" name="starts_at"
+         value="{{ e.starts_at | hora_local if e else inicio_sugerido }}" required>
 
   <label for="ends_at">Até quando</label>
   <input type="datetime-local" id="ends_at" name="ends_at"
@@ -56,8 +64,8 @@
 
   {% if e %}
   <p class="sub" style="margin-top:0.75rem">
-    Quando começou não se edita — isso é fato. Para soltar antes da hora, use
-    Encerrar, que guarda o prazo original.
+    Para soltar antes da hora, use Encerrar — ele guarda o prazo original. Se o
+    castigo foi cadastrado por engano, Excluir apaga de vez.
   </p>
   {% endif %}
 
@@ -117,9 +125,16 @@
         <form method="post" action="/castigos/{{ p.id }}/encerrar">
           <button class="mini secundario">Encerrar</button>
         </form>
+        {% elif p.ended_early_at %}
+        {# Encerrar por engano travava o castigo como "encerrado antes" pra
+           sempre; o prazo original continua guardado, então voltar atrás é só
+           limpar o carimbo. #}
+        <form method="post" action="/castigos/{{ p.id }}/reabrir">
+          <button class="mini secundario">Reabrir</button>
+        </form>
         {% endif %}
         <form method="post" action="/castigos/{{ p.id }}/delete"
-              hx-confirm="Excluir este castigo do histórico?">
+              hx-confirm="Excluir este castigo? Some do histórico e da tela do filho, sem volta.">
           <button class="mini perigo">Excluir</button>
         </form>
       </div>

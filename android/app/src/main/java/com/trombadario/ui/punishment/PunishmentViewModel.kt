@@ -13,7 +13,9 @@ import com.trombadario.data.remote.PunishmentUpdateDto
 import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.localToInstant
+import com.trombadario.ui.components.parseInstant
 import com.trombadario.ui.components.toIsoUtc
+import com.trombadario.ui.components.toLocalDateTime
 import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,13 +24,25 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * O mesmo editor serve pra aplicar e pra corrigir - `id` nulo é castigo novo.
+ * Formulário separado seria um segundo lugar pra lembrar de mexer.
+ */
 data class PunishmentEditor(
+    val id: Int? = null,
     val childId: Int? = null,
     val reason: String = "",
-    val date: LocalDate = LocalDate.now().plusDays(1),
-    val time: LocalTime = LocalTime.of(20, 0),
+    // Quando começou passou a ser editável: cadastrado com a data errada, o
+    // registro já nasce errado, e a única saída antes disto era encerrar - o
+    // que deixava no histórico um castigo "cumprido em parte" que nunca houve.
+    val startDate: LocalDate = LocalDate.now(),
+    val startTime: LocalTime = LocalTime.now().withSecond(0).withNano(0),
+    val endDate: LocalDate = LocalDate.now().plusDays(1),
+    val endTime: LocalTime = LocalTime.of(20, 0),
     val trombadiceIds: Set<Int> = emptySet(),
-)
+) {
+    val isEditing: Boolean get() = id != null
+}
 
 data class PunishmentState(
     val loading: Boolean = true,
@@ -41,6 +55,9 @@ data class PunishmentState(
     val children: List<UserDto> = emptyList(),
     val trombadices: List<TrombadiceDto> = emptyList(),
     val editor: PunishmentEditor? = null,
+    /** Excluir não tem volta, então passa por confirmação - mesmo padrão de
+     *  tarefa, anotação e conta. */
+    val confirmingDeleteOf: PunishmentDto? = null,
     val submitting: Boolean = false,
     @StringRes val error: Int? = null,
 )
@@ -108,6 +125,26 @@ class PunishmentViewModel(
         it.copy(editor = PunishmentEditor(childId = it.children.singleOrNull()?.id), error = null)
     }
 
+    fun startEdit(punishment: PunishmentDto) {
+        val inicio = parseInstant(punishment.startsAt).toLocalDateTime()
+        val fim = parseInstant(punishment.endsAt).toLocalDateTime()
+        _state.update {
+            it.copy(
+                editor = PunishmentEditor(
+                    id = punishment.id,
+                    childId = punishment.childId,
+                    reason = punishment.reason,
+                    startDate = inicio.toLocalDate(),
+                    startTime = inicio.toLocalTime(),
+                    endDate = fim.toLocalDate(),
+                    endTime = fim.toLocalTime(),
+                    trombadiceIds = punishment.trombadiceIds.toSet(),
+                ),
+                error = null,
+            )
+        }
+    }
+
     fun dismissEditor() = _state.update { it.copy(editor = null) }
 
     fun updateEditor(transform: (PunishmentEditor) -> PunishmentEditor) = _state.update { current ->
@@ -119,8 +156,12 @@ class PunishmentViewModel(
         val childId = editor.childId
         if (childId == null || _state.value.submitting) return
 
-        val endsAt = localToInstant(editor.date, editor.time.hour, editor.time.minute)
-        if (!endsAt.isAfter(java.time.Instant.now())) {
+        val startsAt =
+            localToInstant(editor.startDate, editor.startTime.hour, editor.startTime.minute)
+        val endsAt = localToInstant(editor.endDate, editor.endTime.hour, editor.endTime.minute)
+        // Contra o início escolhido, não contra o relógio: um castigo pode ser
+        // registrado depois do fato, e nesse caso os dois já estão no passado.
+        if (!endsAt.isAfter(startsAt)) {
             _state.update { it.copy(error = R.string.punishment_error_end_before_start) }
             return
         }
@@ -139,14 +180,28 @@ class PunishmentViewModel(
 
         _state.update { it.copy(submitting = true, error = null) }
         viewModelScope.launch {
-            val result = container.repository.createPunishment(
-                PunishmentCreateDto(
-                    childId = childId,
-                    endsAt = endsAt.toIsoUtc(),
-                    reason = editor.reason.trim(),
-                    trombadiceIds = causas,
+            val result = if (editor.id == null) {
+                container.repository.createPunishment(
+                    PunishmentCreateDto(
+                        childId = childId,
+                        startsAt = startsAt.toIsoUtc(),
+                        endsAt = endsAt.toIsoUtc(),
+                        reason = editor.reason.trim(),
+                        trombadiceIds = causas,
+                    )
                 )
-            )
+            } else {
+                container.repository.updatePunishment(
+                    editor.id,
+                    PunishmentUpdateDto(
+                        childId = childId,
+                        startsAt = startsAt.toIsoUtc(),
+                        endsAt = endsAt.toIsoUtc(),
+                        reason = editor.reason.trim(),
+                        trombadiceIds = causas,
+                    ),
+                )
+            }
             if (result is ApiResult.Success) {
                 _state.update { it.copy(submitting = false, editor = null) }
                 load()
@@ -159,6 +214,29 @@ class PunishmentViewModel(
     fun endNow(punishment: PunishmentDto) {
         viewModelScope.launch {
             container.repository.updatePunishment(punishment.id, PunishmentUpdateDto(endNow = true))
+            load()
+        }
+    }
+
+    /** Desfaz o Encerrar. O prazo original nunca foi apagado, então voltar
+     *  atrás é só limpar o carimbo - mesmo espírito de desmarcar tarefa. */
+    fun reopen(punishment: PunishmentDto) {
+        viewModelScope.launch {
+            container.repository.updatePunishment(punishment.id, PunishmentUpdateDto(endNow = false))
+            load()
+        }
+    }
+
+    fun askDelete(punishment: PunishmentDto) =
+        _state.update { it.copy(confirmingDeleteOf = punishment) }
+
+    fun cancelDelete() = _state.update { it.copy(confirmingDeleteOf = null) }
+
+    fun confirmDelete() {
+        val alvo = _state.value.confirmingDeleteOf ?: return
+        _state.update { it.copy(confirmingDeleteOf = null) }
+        viewModelScope.launch {
+            container.repository.deletePunishment(alvo.id)
             load()
         }
     }

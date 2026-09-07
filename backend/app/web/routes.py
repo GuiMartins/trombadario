@@ -761,6 +761,7 @@ def punishments_page(
         trombadices=list(
             db.scalars(select(Trombadice).order_by(Trombadice.occurred_at.desc()).limit(50))
         ),
+        inicio_sugerido=_local_input(datetime.now(UTC)),
         fim_sugerido=_local_input(datetime.now(UTC) + timedelta(days=1)),
         editando=editando,
         editando_trombadices=[t.id for t in editando.trombadices] if editando else [],
@@ -805,6 +806,7 @@ def punishment_create(
     user: AdminWeb,
     child_id: Annotated[int, Form()],
     ends_at: Annotated[str, Form()],
+    starts_at: Annotated[str, Form()] = "",
     reason: Annotated[str, Form()] = "",
     trombadice_ids: Annotated[list[int] | None, Form()] = None,
 ):
@@ -814,10 +816,17 @@ def punishment_create(
         # quem recusa é o servidor - o mesmo que já recusa na API.
         raise RedirectTo("/castigos?erro=sem-trombadice")
 
+    # Campo vazio = começa agora, que é o caso comum. Preenchido, o pai está
+    # registrando um castigo que já tinha começado.
+    inicio = _parse_local(starts_at) if starts_at.strip() else datetime.now(UTC)
+    fim = _parse_local(ends_at)
+    if fim <= inicio:
+        raise RedirectTo("/castigos?erro=fim-antes-do-inicio")
+
     punishment = Punishment(
         reason=reason.strip(),
-        starts_at=datetime.now(UTC),
-        ends_at=_parse_local(ends_at),
+        starts_at=inicio,
+        ends_at=fim,
         child_id=child_id,
         author_id=user.id,
     )
@@ -834,6 +843,7 @@ def punishment_edit(
     user: AdminWeb,
     child_id: Annotated[int, Form()],
     ends_at: Annotated[str, Form()],
+    starts_at: Annotated[str, Form()] = "",
     reason: Annotated[str, Form()] = "",
     trombadice_ids: Annotated[list[int] | None, Form()] = None,
 ):
@@ -845,13 +855,19 @@ def punishment_edit(
     if not causas:
         raise RedirectTo(f"/castigos?editar={punishment_id}&erro=sem-trombadice#editar")
 
+    # Quando começou passou a ser editável: cadastrado com a data errada, o
+    # registro já nasceu errado, e a única saída antes disto era Encerrar - o
+    # que deixava no histórico um castigo "cumprido em parte" que nunca houve.
+    inicio = _parse_local(starts_at) if starts_at.strip() else punishment.starts_at
+    fim = _parse_local(ends_at)
+    if fim <= inicio:
+        raise RedirectTo(f"/castigos?editar={punishment_id}&erro=fim-antes-do-inicio#editar")
+
     punishment.reason = reason.strip()
-    punishment.ends_at = _parse_local(ends_at)
+    punishment.starts_at = inicio
+    punishment.ends_at = fim
     punishment.child_id = child_id
     punishment.trombadices = causas
-    # `starts_at` não se edita: quando o castigo começou é fato, não opinião.
-    # Para soltar antes da hora existe o botão Encerrar, que preserva o
-    # `ends_at` original.
     db.commit()
     return _redirect("/castigos")
 
@@ -860,6 +876,18 @@ def punishment_edit(
 def punishment_end(punishment_id: int, db: DbSession, user: AdminWeb):
     if (punishment := db.get(Punishment, punishment_id)) is not None:
         punishment.ended_early_at = datetime.now(UTC)
+        db.commit()
+    return _redirect("/castigos")
+
+
+@router.post("/castigos/{punishment_id}/reabrir")
+def punishment_reopen(punishment_id: int, db: DbSession, user: AdminWeb):
+    """Desfaz o Encerrar. Um toque errado marcava o castigo como "encerrado
+    antes" para sempre, e o prazo original já ficava guardado - então voltar
+    atrás é só limpar o carimbo, mesmo espírito de desmarcar tarefa e reabrir
+    assunto."""
+    if (punishment := db.get(Punishment, punishment_id)) is not None:
+        punishment.ended_early_at = None
         db.commit()
     return _redirect("/castigos")
 
