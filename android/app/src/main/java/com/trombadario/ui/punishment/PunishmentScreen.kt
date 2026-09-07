@@ -106,7 +106,14 @@ fun PunishmentScreen(container: AppContainer, currentUser: UserDto) {
                     onRefresh = { viewModel.load(isRefresh = true) },
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    if (currentUser.isAdmin) AdminList(state, viewModel) else ChildAnswer(state, viewModel)
+                    if (currentUser.isAdmin) {
+                        AdminList(state, viewModel)
+                    } else {
+                        ChildAnswer(
+                            ativos = state.active,
+                            onReact = viewModel::react,
+                        )
+                    }
                 }
             }
         }
@@ -150,10 +157,14 @@ fun PunishmentScreen(container: AppContainer, currentUser: UserDto) {
 /**
  * Para o filho a tela existe pra responder uma coisa só, e a resposta tem que
  * ser legível de longe.
+ *
+ * Recebe os castigos e um jeito de reagir, não o ViewModel: a regra do prazo
+ * mais distante é fácil de quebrar sem perceber, e assim dá pra medir
+ * (`PunishmentChildAnswerTest`).
  */
 @Composable
-private fun ChildAnswer(state: PunishmentState, viewModel: PunishmentViewModel) {
-    val atual = state.active.firstOrNull()
+internal fun ChildAnswer(ativos: List<PunishmentDto>, onReact: (Int, String) -> Unit) {
+    val livre = ativos.isEmpty()
 
     Column(
         modifier = Modifier
@@ -164,10 +175,10 @@ private fun ChildAnswer(state: PunishmentState, viewModel: PunishmentViewModel) 
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(
-            imageVector = if (atual == null) Icons.Default.SentimentSatisfiedAlt else Icons.Default.Gavel,
+            imageVector = if (livre) Icons.Default.SentimentSatisfiedAlt else Icons.Default.Gavel,
             contentDescription = null,
             modifier = Modifier.size(88.dp),
-            tint = if (atual == null) {
+            tint = if (livre) {
                 MaterialTheme.colorScheme.primary
             } else {
                 MaterialTheme.colorScheme.error
@@ -176,62 +187,99 @@ private fun ChildAnswer(state: PunishmentState, viewModel: PunishmentViewModel) 
         Spacer(Modifier.height(24.dp))
         Text(
             text = stringResource(
-                if (atual == null) R.string.punishment_free else R.string.punishment_grounded
+                if (livre) R.string.punishment_free else R.string.punishment_grounded
             ),
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
 
-        if (atual == null) {
+        if (livre) {
             Text(
                 text = stringResource(R.string.punishment_free_sub),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
+            // O prazo que a tela anuncia é o **mais distante** dos castigos
+            // valendo, não o do primeiro da lista: com dois ao mesmo tempo, o
+            // que acaba antes dizia à criança que ela ficaria livre num dia em
+            // que ainda estaria de castigo.
             Text(
                 text = stringResource(
                     R.string.punishment_until,
-                    parseInstant(atual.endsAt).formatDateTime(),
+                    ativos.maxOf { parseInstant(it.endsAt) }.formatDateTime(),
                 ),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.error,
                 textAlign = TextAlign.Center,
             )
-            if (atual.reason.isNotBlank()) {
-                Spacer(Modifier.height(24.dp))
+            // Todos, não só o primeiro. Além de esconder metade do motivo, a
+            // tela antiga fazia o servidor mentir: `/current` carimba
+            // `seen_at` em todo castigo ativo, então o pai lia "visto" de um
+            // castigo que nunca chegou a aparecer pra criança.
+            ativos.forEach { castigo ->
+                CastigoAtivo(
+                    castigo = castigo,
+                    mostrarPrazo = ativos.size > 1,
+                    onReact = { texto -> onReact(castigo.id, texto) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Um castigo valendo agora, na tela do filho. Com um só, é o que a tela sempre
+ * mostrou; com mais de um, cada bloco repete o próprio prazo, senão não dá pra
+ * saber qual motivo pertence a qual data.
+ */
+@Composable
+private fun CastigoAtivo(
+    castigo: PunishmentDto,
+    mostrarPrazo: Boolean,
+    onReact: (String) -> Unit,
+) {
+    if (mostrarPrazo) {
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = stringResource(
+                R.string.punishment_until,
+                parseInstant(castigo.endsAt).formatDateTime(),
+            ),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.error,
+            textAlign = TextAlign.Center,
+        )
+    }
+    if (castigo.reason.isNotBlank()) {
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = castigo.reason,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+    // O servidor já manda as anotações completas, não só o id - o filho não
+    // precisa de uma segunda busca só pra saber o título de cada uma. Mesmo bug
+    // do painel web (PR #21 tratou outro; este é um bug de tela, não de dado: a
+    // API sempre mandou isso).
+    if (castigo.trombadices.isNotEmpty()) {
+        Spacer(Modifier.height(24.dp))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            castigo.trombadices.forEach { t ->
                 Text(
-                    text = atual.reason,
-                    style = MaterialTheme.typography.bodyLarge,
+                    text = "• ${t.title}",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
             }
-            // O servidor já manda as anotações completas, não só o id - o
-            // filho não precisa de uma segunda busca só pra saber o título de
-            // cada uma. Mesmo bug do painel web (PR #21 tratou outro; este é
-            // um bug de tela, não de dado: a API sempre mandou isso).
-            if (atual.trombadices.isNotEmpty()) {
-                Spacer(Modifier.height(24.dp))
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    atual.trombadices.forEach { t ->
-                        Text(
-                            text = "• ${t.title}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(32.dp))
-            ReactionSection(
-                reactionText = atual.reactionText,
-                onSend = { texto -> viewModel.react(atual.id, texto) },
-            )
         }
     }
+    Spacer(Modifier.height(32.dp))
+    ReactionSection(reactionText = castigo.reactionText, onSend = onReact)
 }
 
 /**
@@ -362,9 +410,12 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            p.trombadiceIds.mapNotNull(viewModel::trombadiceTitle).forEach { titulo ->
+            // Do próprio castigo, não de uma busca à parte: procurar o título
+            // na lista de anotações fazia a causa sumir em silêncio quando ela
+            // não estava lá (`mapNotNull`) - e a tela do filho já fazia certo.
+            p.trombadices.forEach { t ->
                 Text(
-                    text = "• $titulo",
+                    text = "• ${t.title}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

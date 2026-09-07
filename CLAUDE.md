@@ -421,6 +421,11 @@ uma afirma sobre o que aconteceu:
   histórico — deixá-lo lá etiquetado seria manter na tela do pai um castigo que
   nunca houve, exatamente o que ele reclamou de Encerrar.
 
+**Mais de um castigo pode valer ao mesmo tempo**, e a tela do filho anuncia o
+prazo **mais distante** — o que acaba antes diria a ela que ficaria livre num dia
+em que ainda está de castigo. Cada castigo aparece com o próprio motivo, as
+próprias causas e a própria reação; com um só, a tela é a de sempre.
+
 Duas invariantes que a edição não pode furar, as duas com teste:
 
 - **Nada é escrito antes de tudo ser conferido.** O `PATCH` valida filho, causas
@@ -518,7 +523,12 @@ fazer — quem carimba é `app/visto.py`, chamado pelas próprias leituras do fi
   carimbo — senão "visto às 20h" viraria a hora da última olhada.
 - **Só conta de filho marca, e só o que é dele.** O pai conferindo a lista não
   marca nada; se marcasse, o campo deixaria de responder o que ele pergunta.
-- **`/current` marca só o castigo ativo**, porque é só ele que aparece na tela.
+- **`/current` marca só castigo ativo**, porque é só ele que aparece na tela — e
+  marca **todos** os que estão valendo, o que obriga a tela do filho a mostrar
+  todos. Ela lia `active.first()`, então com dois castigos ao mesmo tempo o pai
+  via "visto" num castigo que nunca chegou a aparecer pra criança. O carimbo e a
+  tela têm que concordar sobre o que foi mostrado, senão o campo passa a
+  responder outra coisa.
 
 > **É escrita dentro de um GET**, o que normalmente é errado. Vale aqui porque
 > não há cache nem prefetch entre app e servidor (a leitura só acontece com a
