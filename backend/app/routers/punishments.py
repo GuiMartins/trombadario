@@ -221,17 +221,47 @@ def update_punishment(
     punishment = _get_or_404(db, punishment_id)
     data = payload.model_dump(exclude_unset=True)
 
-    if data.pop("end_now", False):
-        punishment.ended_early_at = datetime.now(UTC)
+    # Nada é escrito antes de tudo ser conferido: uma recusa no meio deixaria o
+    # castigo meio corrigido - com o filho já trocado e as causas ainda do
+    # irmão, por exemplo.
+    end_now = data.pop("end_now", None)
+    child_id = data.pop("child_id", None)
+    if child_id is not None:
+        child = db.get(User, child_id)
+        if child is None or child.role is not Role.CHILD:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filho inválido")
+    alvo = child_id if child_id is not None else punishment.child_id
 
+    causas = None
     if (ids := data.pop("trombadice_ids", None)) is not None:
-        punishment.trombadices = _resolve_trombadices(db, ids, punishment.child_id)
+        causas = _resolve_trombadices(db, ids, alvo)
+    elif child_id is not None:
+        # Trocar de filho sem redizer as causas deixaria o castigo apontando a
+        # trombadice de outra criança - o vínculo afirmaria algo falso.
+        causas = _resolve_trombadices(db, [t.id for t in punishment.trombadices], alvo)
 
-    if (ends_at := data.get("ends_at")) is not None and ends_at <= punishment.starts_at:
+    # Os dois lados conferidos juntos: mover só o início de um castigo que já
+    # tinha fim (ou o contrário) pode inverter o intervalo sem que nenhum dos
+    # dois campos, sozinho, pareça errado.
+    starts_at = data.get("starts_at") or punishment.starts_at
+    ends_at = data.get("ends_at") or punishment.ends_at
+    if ends_at <= starts_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="O castigo precisa terminar depois de começar",
         )
+
+    # True encerra agora; False desfaz o encerramento. Sem o segundo caso, um
+    # toque errado em Encerrar deixava o castigo marcado como "encerrado antes"
+    # para sempre - o mesmo engano que desmarcar tarefa e reabrir assunto já
+    # deixam corrigir. Nulo é "não mexe": corrigir o motivo de um castigo
+    # encerrado não pode soltar o filho de volta pra dentro dele.
+    if end_now is not None:
+        punishment.ended_early_at = datetime.now(UTC) if end_now else None
+    if child_id is not None:
+        punishment.child_id = child_id
+    if causas is not None:
+        punishment.trombadices = causas
 
     for field, value in data.items():
         setattr(punishment, field, value)

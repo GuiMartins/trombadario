@@ -356,9 +356,12 @@ def test_editar_tarefa_limpa_o_campo_que_a_nova_periodicidade_nao_usa(
     assert tarefa.weekdays == ""
 
 
-def test_editar_castigo_nao_mexe_em_quando_comecou(
+def test_editar_castigo_corrige_quando_comecou(
     client: TestClient, db: Session, admin: User, child: User
 ) -> None:
+    """Cadastrado com a data errada, o registro já nasce errado - e a única
+    saída antes disto era Encerrar, que deixava no histórico um castigo
+    "encerrado antes" que nunca houve. Campo vazio continua sendo "não mexe"."""
     comeco = datetime.now(UTC) - timedelta(days=1)
     trombadice = Trombadice(
         title="Bagunça",
@@ -391,8 +394,80 @@ def test_editar_castigo_nao_mexe_em_quando_comecou(
 
     db.refresh(castigo)
     assert castigo.reason == "bagunça grande"
-    # Quando começou é fato, não opinião.
+    # Campo não enviado é "não mexe", não "apaga".
     assert castigo.starts_at == comeco
+
+    client.post(
+        f"/castigos/{castigo.id}/editar",
+        data={
+            "child_id": child.id,
+            "starts_at": "2026-12-20T09:00",
+            "ends_at": "2026-12-25T18:00",
+            "reason": "bagunça grande",
+            "trombadice_ids": [trombadice.id],
+        },
+    )
+
+    db.refresh(castigo)
+    assert castigo.starts_at.astimezone().strftime("%Y-%m-%dT%H:%M") == "2026-12-20T09:00"
+
+
+def test_painel_recusa_castigo_que_termina_antes_de_comecar(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    trombadice = Trombadice(
+        title="Bagunça",
+        occurred_at=datetime.now(UTC),
+        child_id=child.id,
+        author_id=admin.id,
+    )
+    db.add(trombadice)
+    db.commit()
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    resposta = client.post(
+        "/castigos",
+        data={
+            "child_id": child.id,
+            "starts_at": "2026-12-25T18:00",
+            "ends_at": "2026-12-20T09:00",
+            "trombadice_ids": [trombadice.id],
+        },
+        follow_redirects=False,
+    )
+
+    assert "erro=fim-antes-do-inicio" in resposta.headers["location"]
+    assert db.scalars(select(Punishment)).all() == []
+
+
+def test_painel_reabre_castigo_encerrado_por_engano(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """O prazo original nunca foi apagado, então desfazer é só limpar o carimbo
+    - mesmo espírito de desmarcar tarefa e reabrir assunto."""
+    trombadice = Trombadice(
+        title="Bagunça",
+        occurred_at=datetime.now(UTC),
+        child_id=child.id,
+        author_id=admin.id,
+    )
+    castigo = Punishment(
+        starts_at=datetime.now(UTC) - timedelta(days=1),
+        ends_at=datetime.now(UTC) + timedelta(days=1),
+        child_id=child.id,
+        author_id=admin.id,
+        ended_early_at=datetime.now(UTC),
+    )
+    castigo.trombadices = [trombadice]
+    db.add(castigo)
+    db.commit()
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    client.post(f"/castigos/{castigo.id}/reabrir")
+
+    db.refresh(castigo)
+    assert castigo.ended_early_at is None
+    assert castigo.is_active_at(datetime.now(UTC)) is True
 
 
 def test_editar_conta_muda_o_nome_e_nao_o_login(
@@ -907,3 +982,35 @@ def test_painel_recusa_castigo_sem_trombadice(
     assert response.status_code == 303
     assert "erro=sem-trombadice" in response.headers["location"]
     assert db.query(Punishment).count() == 0
+
+
+def test_painel_mostra_inicio_editavel_e_botao_de_reabrir(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """Confere o HTML entregue, não só a rota: um `action` errado no botão
+    passaria batido pelos testes que fazem o POST na mão."""
+    trombadice = Trombadice(
+        title="Bagunça",
+        occurred_at=datetime.now(UTC),
+        child_id=child.id,
+        author_id=admin.id,
+    )
+    castigo = Punishment(
+        starts_at=datetime.now(UTC) - timedelta(days=2),
+        ends_at=datetime.now(UTC) + timedelta(days=1),
+        child_id=child.id,
+        author_id=admin.id,
+        ended_early_at=datetime.now(UTC),
+    )
+    castigo.trombadices = [trombadice]
+    db.add(castigo)
+    db.commit()
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    html = client.get(f"/castigos?editar={castigo.id}").text
+
+    assert 'name="starts_at"' in html
+    # Vem preenchido com o que está gravado, senão salvar apagaria a data.
+    assert castigo.starts_at.astimezone().strftime("%Y-%m-%dT%H:%M") in html
+    assert f"/castigos/{castigo.id}/reabrir" in html
+    assert f"/castigos/{castigo.id}/delete" in html

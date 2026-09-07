@@ -157,11 +157,16 @@
     <string name="punishment_because">Por causa de:</string>
     <string name="punishment_admin_empty">Ninguém de castigo agora.</string>
     <string name="punishment_new">Aplicar castigo</string>
+    <string name="punishment_edit">Corrigindo o castigo</string>
     <string name="punishment_who">Quem</string>
+    <string name="punishment_starts_label">Começou em</string>
     <string name="punishment_until_label">Até quando</string>
     <string name="punishment_reason">Motivo</string>
     <string name="punishment_pick_trombadices">Por causa de quais trombadices</string>
     <string name="punishment_end_now">Encerrar agora</string>
+    <string name="punishment_reopen">Reabrir</string>
+    <string name="punishment_delete_confirm_title">Excluir castigo?</string>
+    <string name="punishment_delete_confirm_message">Some do histórico e da tela do filho, sem volta.</string>
     <string name="punishment_ended_early">encerrado antes</string>
     <string name="punishment_served">cumprido</string>
     <string name="punishment_active">de castigo</string>

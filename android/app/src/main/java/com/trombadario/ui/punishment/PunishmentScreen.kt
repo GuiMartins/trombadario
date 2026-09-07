@@ -61,6 +61,7 @@ import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
 import com.trombadario.ui.components.AppTopBar
 import com.trombadario.ui.components.LoadingScreen
+import com.trombadario.ui.components.ehConquista
 import com.trombadario.ui.components.formatDateTime
 import com.trombadario.ui.components.parseInstant
 import com.trombadario.ui.viewModelFactory
@@ -116,6 +117,32 @@ fun PunishmentScreen(container: AppContainer, currentUser: UserDto) {
             editor = editor,
             state = state,
             viewModel = viewModel,
+        )
+    }
+
+    // Excluir apaga de vez, do histórico e da tela do filho - por isso passa
+    // por confirmação, como tarefa, anotação e conta.
+    state.confirmingDeleteOf?.let { alvo ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelDelete,
+            title = { Text(stringResource(R.string.punishment_delete_confirm_title)) },
+            text = {
+                val quem = viewModel.childName(alvo.childId)
+                Text(
+                    listOfNotNull(quem, stringResource(R.string.punishment_delete_confirm_message))
+                        .joinToString(" — ")
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmDelete) {
+                    Text(stringResource(R.string.action_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelDelete) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
         )
     }
 }
@@ -364,9 +391,32 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
             )
-            if (ativo) {
-                TextButton(onClick = { viewModel.endNow(p) }) {
-                    Text(stringResource(R.string.punishment_end_now))
+            // Rola de lado: três botões de texto não cabem lado a lado num
+            // celular estreito, e "Encerrar agora" é o mais largo deles.
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                TextButton(onClick = { viewModel.startEdit(p) }) {
+                    Text(stringResource(R.string.action_edit))
+                }
+                if (ativo) {
+                    TextButton(onClick = { viewModel.endNow(p) }) {
+                        Text(stringResource(R.string.punishment_end_now))
+                    }
+                } else if (p.endedEarlyAt != null) {
+                    // Encerrar por engano marcava o castigo como "encerrado
+                    // antes" pra sempre; o prazo original nunca foi apagado,
+                    // então voltar atrás é só limpar o carimbo.
+                    TextButton(onClick = { viewModel.reopen(p) }) {
+                        Text(stringResource(R.string.punishment_reopen))
+                    }
+                }
+                TextButton(onClick = { viewModel.askDelete(p) }) {
+                    Text(
+                        text = stringResource(R.string.action_delete),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
         }
@@ -380,15 +430,28 @@ private fun PunishmentEditorDialog(
     state: PunishmentState,
     viewModel: PunishmentViewModel,
 ) {
-    var showDate by remember { mutableStateOf(false) }
-    var showTime by remember { mutableStateOf(false) }
+    var escolhendo by remember { mutableStateOf<Campo?>(null) }
     // Só as trombadices do filho escolhido aparecem: marcar a de um irmão
-    // colocaria o nome dele no castigo deste.
-    val doFilho = state.trombadices.filter { it.childId == editor.childId }
+    // colocaria o nome dele no castigo deste. Conquista fica de fora: o
+    // servidor recusa ("conquista não causa castigo") e oferecer o que ele vai
+    // recusar só produz erro.
+    val doFilho = state.trombadices.filter {
+        it.childId == editor.childId && !ehConquista(it.kind)
+    }
+    // As já marcadas entram sempre, mesmo fora das 20 mais recentes: corrigir
+    // um castigo antigo não pode perder em silêncio a causa dele.
+    val candidatas = (doFilho.take(20) + doFilho.filter { it.id in editor.trombadiceIds })
+        .distinctBy { it.id }
 
     AlertDialog(
         onDismissRequest = viewModel::dismissEditor,
-        title = { Text(stringResource(R.string.punishment_new)) },
+        title = {
+            Text(
+                stringResource(
+                    if (editor.isEditing) R.string.punishment_edit else R.string.punishment_new
+                )
+            )
+        },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 if (state.children.size > 1) {
@@ -417,16 +480,34 @@ private fun PunishmentEditorDialog(
                     Spacer(Modifier.height(16.dp))
                 }
 
+                // Quando começou é editável: cadastrado com a data errada, o
+                // registro já nasce errado, e antes disto a única saída era
+                // encerrar - o que deixava no histórico um castigo "cumprido em
+                // parte" que nunca houve.
+                Text(
+                    stringResource(R.string.punishment_starts_label),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TextButton(onClick = { escolhendo = Campo.INICIO_DATA }) {
+                        Text(editor.startDate.format(DATA))
+                    }
+                    TextButton(onClick = { escolhendo = Campo.INICIO_HORA }) {
+                        Text(editor.startTime.format(HORA))
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
                 Text(
                     stringResource(R.string.punishment_until_label),
                     style = MaterialTheme.typography.labelLarge,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TextButton(onClick = { showDate = true }) {
-                        Text(editor.date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+                    TextButton(onClick = { escolhendo = Campo.FIM_DATA }) {
+                        Text(editor.endDate.format(DATA))
                     }
-                    TextButton(onClick = { showTime = true }) {
-                        Text(editor.time.format(DateTimeFormatter.ofPattern("HH:mm")))
+                    TextButton(onClick = { escolhendo = Campo.FIM_HORA }) {
+                        Text(editor.endTime.format(HORA))
                     }
                 }
 
@@ -454,7 +535,7 @@ private fun PunishmentEditorDialog(
                         stringResource(R.string.punishment_pick_trombadices),
                         style = MaterialTheme.typography.labelLarge,
                     )
-                    doFilho.take(20).forEach { t ->
+                    candidatas.forEach { t ->
                         FilterChip(
                             selected = t.id in editor.trombadiceIds,
                             onClick = {
@@ -496,53 +577,57 @@ private fun PunishmentEditorDialog(
         },
     )
 
-    if (showDate) {
+    val alvo = escolhendo
+    if (alvo == Campo.INICIO_DATA || alvo == Campo.FIM_DATA) {
+        val inicio = alvo == Campo.INICIO_DATA
         // DatePicker fala em millis de meia-noite UTC, não LocalDate; passar
         // pelo fuso do sistema aqui deslocaria a data em um dia.
         val pickerState = rememberDatePickerState(
-            initialSelectedDateMillis = editor.date.atStartOfDay(ZoneOffset.UTC)
-                .toInstant().toEpochMilli()
+            initialSelectedDateMillis = (if (inicio) editor.startDate else editor.endDate)
+                .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         )
         DatePickerDialog(
-            onDismissRequest = { showDate = false },
+            onDismissRequest = { escolhendo = null },
             confirmButton = {
                 TextButton(onClick = {
                     pickerState.selectedDateMillis?.let { millis ->
+                        val dia = LocalDate.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC)
                         viewModel.updateEditor {
-                            it.copy(
-                                date = LocalDate.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC)
-                            )
+                            if (inicio) it.copy(startDate = dia) else it.copy(endDate = dia)
                         }
                     }
-                    showDate = false
+                    escolhendo = null
                 }) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDate = false }) {
+                TextButton(onClick = { escolhendo = null }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
         ) { DatePicker(state = pickerState) }
     }
 
-    if (showTime) {
+    if (alvo == Campo.INICIO_HORA || alvo == Campo.FIM_HORA) {
+        val inicio = alvo == Campo.INICIO_HORA
+        val atual = if (inicio) editor.startTime else editor.endTime
         val pickerState = rememberTimePickerState(
-            initialHour = editor.time.hour,
-            initialMinute = editor.time.minute,
+            initialHour = atual.hour,
+            initialMinute = atual.minute,
             is24Hour = true,
         )
         DatePickerDialog(
-            onDismissRequest = { showTime = false },
+            onDismissRequest = { escolhendo = null },
             confirmButton = {
                 TextButton(onClick = {
+                    val hora = LocalTime.of(pickerState.hour, pickerState.minute)
                     viewModel.updateEditor {
-                        it.copy(time = LocalTime.of(pickerState.hour, pickerState.minute))
+                        if (inicio) it.copy(startTime = hora) else it.copy(endTime = hora)
                     }
-                    showTime = false
+                    escolhendo = null
                 }) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showTime = false }) {
+                TextButton(onClick = { escolhendo = null }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
@@ -554,3 +639,9 @@ private fun PunishmentEditorDialog(
         }
     }
 }
+
+/** Qual dos quatro botões de data/hora abriu o seletor. */
+private enum class Campo { INICIO_DATA, INICIO_HORA, FIM_DATA, FIM_HORA }
+
+private val DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+private val HORA = DateTimeFormatter.ofPattern("HH:mm")
