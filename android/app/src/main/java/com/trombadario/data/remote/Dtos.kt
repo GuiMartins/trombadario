@@ -337,6 +337,9 @@ data class PunishmentReactionDto(
 data class PunishmentCreateDto(
     @SerialName("child_id") val childId: Int,
     @SerialName("ends_at") val endsAt: String,
+    /** Nulo = começa agora, que é o caso comum. Preenchido, o pai está
+     *  registrando um castigo que já tinha começado. */
+    @SerialName("starts_at") val startsAt: String? = null,
     val reason: String = "",
     // Sem default: castigo é consequência de alguma coisa que aconteceu, e o
     // servidor recusa a lista vazia. Sem o default, esquecer de preencher vira
@@ -347,8 +350,14 @@ data class PunishmentCreateDto(
 @Serializable
 data class PunishmentUpdateDto(
     val reason: String? = null,
+    /** Corrigir quando começou é corrigir engano de digitação: antes disto, um
+     *  castigo cadastrado com a data errada só saía da frente sendo encerrado,
+     *  e o histórico ficava com um "cumprido em parte" que nunca houve. */
+    @SerialName("starts_at") val startsAt: String? = null,
     @SerialName("ends_at") val endsAt: String? = null,
+    @SerialName("child_id") val childId: Int? = null,
     @SerialName("trombadice_ids") val trombadiceIds: List<Int>? = null,
+    /** True encerra agora; **false desfaz** o encerramento. Nulo não mexe. */
     @SerialName("end_now") val endNow: Boolean? = null,
 )
 

@@ -11,6 +11,8 @@ import com.trombadario.data.remote.TrombadiceCategoryDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.theme.TrombadarioTheme
 import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -28,8 +30,22 @@ class FiltroBarTest {
     @get:Rule
     val rule = createComposeRule()
 
-    private val comRegistro = LocalDate.of(2026, 8, 5)
-    private val semRegistro = LocalDate.of(2026, 8, 6)
+    // Sem dia escolhido, o DatePicker abre no **mês de hoje**. Com as datas
+    // fixas em agosto de 2026, este teste passava só enquanto era agosto de
+    // 2026 e virou vermelho sozinho quando o calendário virou - não por
+    // mudança nenhuma no código. Acompanhando o mês corrente, ele volta a
+    // medir o que existe pra medir: que o dia sem registro fica apagado.
+    //
+    // Dia 5 e 6 não são escolha à toa: todo mês tem os dois, e a busca é por
+    // substring - "September 1" casaria também com o dia 11 e o 19.
+    private val comRegistro: LocalDate = LocalDate.now().withDayOfMonth(5)
+    private val semRegistro: LocalDate = LocalDate.now().withDayOfMonth(6)
+
+    /** Como o DatePicker do Material rotula o dia ("August 6"). Inglês porque é
+     *  o idioma do emulador, não o do app. */
+    private val rotuloDoDiaSemRegistro: String =
+        semRegistro.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH) +
+            " " + semRegistro.dayOfMonth
 
     private fun montar(dias: Set<LocalDate> = setOf(comRegistro)) {
         rule.setContent {
@@ -86,9 +102,9 @@ class FiltroBarTest {
 
         // O DatePicker do Material rotula cada dia por extenso e desabilita os
         // que o SelectableDates recusa.
-        val dia6 = rule.onAllNodesWithText("August 6", substring = true)
+        val dia6 = rule.onAllNodesWithText(rotuloDoDiaSemRegistro, substring = true)
         assertTrue(
-            "o dia 6 devia estar na tela para poder estar apagado",
+            "$rotuloDoDiaSemRegistro devia estar na tela para poder estar apagado",
             dia6.fetchSemanticsNodes().isNotEmpty(),
         )
         dia6.onFirst().assertIsNotEnabled()
