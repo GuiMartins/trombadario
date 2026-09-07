@@ -99,9 +99,6 @@ class PunishmentViewModel(
     fun childName(childId: Int): String? =
         _state.value.children.firstOrNull { it.id == childId }?.displayName
 
-    fun trombadiceTitle(id: Int): String? =
-        _state.value.trombadices.firstOrNull { it.id == id }?.title
-
     /** Só o filho chama isto - o backend também barra, mas a tela nem oferece
      *  o campo pro pai (ver ChildAnswer). */
     fun react(punishmentId: Int, text: String) {
