@@ -107,7 +107,14 @@ fun PunishmentScreen(container: AppContainer, currentUser: UserDto) {
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     if (currentUser.isAdmin) {
-                        AdminList(state, viewModel)
+                        AdminList(
+                            state = state,
+                            childName = viewModel::childName,
+                            onEdit = viewModel::startEdit,
+                            onEndNow = viewModel::endNow,
+                            onReopen = viewModel::reopen,
+                            onDelete = viewModel::askDelete,
+                        )
                     } else {
                         ChildAnswer(
                             ativos = state.active,
@@ -326,8 +333,22 @@ private fun ReactionSection(reactionText: String?, onSend: (String) -> Unit) {
 private const val REACTION_MAX_LENGTH = 256
 private val REACTION_EMOJIS = listOf("😢", "😠", "😐", "😔", "😳")
 
+/**
+ * A lista do pai, em três blocos: o que vale agora, a fila e o histórico.
+ *
+ * Recebe o que usa em vez do ViewModel, como `ChildAnswer` e pelo mesmo motivo:
+ * "castigo da fila não cobra visto" e "a fila mostra onde emenda" são fáceis de
+ * quebrar sem perceber, e assim dá pra medir (`PunishmentAdminListTest`).
+ */
 @Composable
-private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
+internal fun AdminList(
+    state: PunishmentState,
+    childName: (Int) -> String?,
+    onEdit: (PunishmentDto) -> Unit,
+    onEndNow: (PunishmentDto) -> Unit,
+    onReopen: (PunishmentDto) -> Unit,
+    onDelete: (PunishmentDto) -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
@@ -351,7 +372,7 @@ private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
             }
         } else {
             items(state.active, key = { it.id }) { p ->
-                PunishmentCard(p, viewModel, ativo = true)
+                PunishmentCard(p, childName, onEdit, onEndNow, onReopen, onDelete, ativo = true)
             }
         }
 
@@ -365,7 +386,7 @@ private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
                 )
             }
             items(state.scheduled, key = { it.id }) { p ->
-                PunishmentCard(p, viewModel, ativo = false)
+                PunishmentCard(p, childName, onEdit, onEndNow, onReopen, onDelete, ativo = false)
             }
         }
 
@@ -379,14 +400,22 @@ private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
                 )
             }
             items(state.history, key = { it.id }) { p ->
-                PunishmentCard(p, viewModel, ativo = false)
+                PunishmentCard(p, childName, onEdit, onEndNow, onReopen, onDelete, ativo = false)
             }
         }
     }
 }
 
 @Composable
-private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ativo: Boolean) {
+private fun PunishmentCard(
+    p: PunishmentDto,
+    childName: (Int) -> String?,
+    onEdit: (PunishmentDto) -> Unit,
+    onEndNow: (PunishmentDto) -> Unit,
+    onReopen: (PunishmentDto) -> Unit,
+    onDelete: (PunishmentDto) -> Unit,
+    ativo: Boolean,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -407,7 +436,7 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = viewModel.childName(p.childId) ?: "",
+                text = childName(p.childId) ?: "",
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
@@ -477,22 +506,22 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                TextButton(onClick = { viewModel.startEdit(p) }) {
+                TextButton(onClick = { onEdit(p) }) {
                     Text(stringResource(R.string.action_edit))
                 }
                 if (ativo) {
-                    TextButton(onClick = { viewModel.endNow(p) }) {
+                    TextButton(onClick = { onEndNow(p) }) {
                         Text(stringResource(R.string.punishment_end_now))
                     }
                 } else if (p.endedEarlyAt != null) {
                     // Encerrar por engano marcava o castigo como "encerrado
                     // antes" pra sempre; o prazo original nunca foi apagado,
                     // então voltar atrás é só limpar o carimbo.
-                    TextButton(onClick = { viewModel.reopen(p) }) {
+                    TextButton(onClick = { onReopen(p) }) {
                         Text(stringResource(R.string.punishment_reopen))
                     }
                 }
-                TextButton(onClick = { viewModel.askDelete(p) }) {
+                TextButton(onClick = { onDelete(p) }) {
                     Text(
                         text = stringResource(R.string.action_delete),
                         color = MaterialTheme.colorScheme.error,
