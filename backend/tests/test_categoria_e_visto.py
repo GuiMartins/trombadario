@@ -5,16 +5,11 @@ from sqlalchemy.orm import Session
 
 from app.models import Punishment, User
 from app.periodo import inicio_do_dia
-from tests.conftest import as_admin, as_child
+from tests.conftest import as_admin, as_child, corpo_de_trombadice, tipo_id
 
 
 def criar(client: TestClient, child_id: int, **extra) -> dict:
-    corpo = {
-        "title": "Bagunça na sala",
-        "occurred_at": "2026-08-01T14:30:00+00:00",
-        "child_id": child_id,
-        **extra,
-    }
+    corpo = corpo_de_trombadice(client, child_id, **{"title": "Bagunça na sala", **extra})
     response = client.post("/api/trombadices", headers=as_admin(client), json=corpo)
     assert response.status_code == 201, response.text
     return response.json()
@@ -35,35 +30,66 @@ def criar_tarefa(client: TestClient, child_id: int, nome: str) -> dict:
 # --------------------------------------------------------------------------
 
 
-def test_sem_categoria_cai_em_outra(client: TestClient, admin: User, child: User) -> None:
-    assert criar(client, child.id)["category"] == "outra"
+def test_sem_tipo_e_recusado(client: TestClient, admin: User, child: User) -> None:
+    resposta = client.post(
+        "/api/trombadices",
+        headers=as_admin(client),
+        json={"occurred_at": "2026-08-01T14:30:00+00:00", "child_id": child.id},
+    )
+
+    # O tipo é o que diz o que aconteceu, agora que ninguém digita título.
+    assert resposta.status_code == 422
 
 
-def test_categoria_desconhecida_e_recusada(client: TestClient, admin: User, child: User) -> None:
-    response = client.post(
+def test_tipo_inexistente_e_recusado(client: TestClient, admin: User, child: User) -> None:
+    resposta = client.post(
         "/api/trombadices",
         headers=as_admin(client),
         json={
-            "title": "x",
             "occurred_at": "2026-08-01T14:30:00+00:00",
             "child_id": child.id,
-            "category": "coisa-que-nao-existe",
+            "category_id": 9999,
         },
     )
 
-    # Lista fechada: campo livre viraria dez jeitos de escrever a mesma coisa.
-    assert response.status_code == 422
+    assert resposta.status_code == 400
 
 
-def test_filtra_por_categoria(client: TestClient, admin: User, child: User) -> None:
-    criar(client, child.id, title="Empurrou", category="agressao")
-    criar(client, child.id, title="Mentiu", category="mentira")
+def test_tipo_desativado_nao_serve_pra_cadastrar(
+    client: TestClient, admin: User, child: User
+) -> None:
+    escola = tipo_id(client, "Escola")
+    client.patch(
+        f"/api/trombadice-categories/{escola}",
+        headers=as_admin(client),
+        json={"is_active": False},
+    )
+
+    resposta = client.post(
+        "/api/trombadices",
+        headers=as_admin(client),
+        json={
+            "occurred_at": "2026-08-01T14:30:00+00:00",
+            "child_id": child.id,
+            "category_id": escola,
+        },
+    )
+
+    # Aposentado não volta pela porta dos fundos: o pai tirou da lista.
+    assert resposta.status_code == 400
+
+
+def test_filtra_por_tipo_cadastrado(client: TestClient, admin: User, child: User) -> None:
+    criar(client, child.id, title="", category_id=tipo_id(client, "Agressão"))
+    criar(client, child.id, title="", category_id=tipo_id(client, "Mentira"))
 
     achadas = client.get(
-        "/api/trombadices", headers=as_admin(client), params={"category": "agressao"}
+        "/api/trombadices",
+        headers=as_admin(client),
+        params={"category_id": tipo_id(client, "Agressão")},
     ).json()
 
-    assert [t["title"] for t in achadas] == ["Empurrou"]
+    assert [t["title"] for t in achadas] == ["Agressão"]
 
 
 # --------------------------------------------------------------------------
@@ -81,18 +107,34 @@ def test_titulo_vazio_com_tarefa_vira_o_nome_da_tarefa(
     assert trombadice["title"] == "Arrumar a cama"
 
 
-def test_titulo_vazio_sem_tarefa_e_recusado(client: TestClient, admin: User, child: User) -> None:
-    response = client.post(
-        "/api/trombadices",
+def test_titulo_vazio_sem_tarefa_vira_o_nome_do_tipo(
+    client: TestClient, admin: User, child: User
+) -> None:
+    trombadice = criar(client, child.id, title="", category_id=tipo_id(client, "Mentira"))
+
+    # Ninguém digita título desde que o tipo virou lista: o que aconteceu é o
+    # tipo, e os detalhes vão na descrição.
+    assert trombadice["title"] == "Mentira"
+
+
+def test_renomear_o_tipo_renomeia_o_que_ja_estava_gravado(
+    client: TestClient, admin: User, child: User
+) -> None:
+    mentira = tipo_id(client, "Mentira")
+    trombadice = criar(client, child.id, title="", category_id=mentira)
+
+    client.patch(
+        f"/api/trombadice-categories/{mentira}",
         headers=as_admin(client),
-        json={
-            "title": "   ",
-            "occurred_at": "2026-08-01T14:30:00+00:00",
-            "child_id": child.id,
-        },
+        json={"name": "Mentiu pra mim"},
     )
 
-    assert response.status_code == 422
+    depois = client.get(
+        f"/api/trombadices/{trombadice['id']}", headers=as_admin(client)
+    ).json()
+    # O registro aponta a linha, não uma cópia do nome - corrigir o nome do tipo
+    # conserta o histórico inteiro de uma vez.
+    assert depois["title"] == "Mentiu pra mim"
 
 
 def test_titulo_escrito_ganha_da_tarefa(client: TestClient, admin: User, child: User) -> None:
@@ -248,6 +290,19 @@ def test_o_ultimo_dia_do_intervalo_entra_inteiro(
     ).json()
 
     assert [t["title"] for t in achadas] == ["Tarde da noite"]
+
+
+def test_busca_acha_pelo_nome_do_tipo(client: TestClient, admin: User, child: User) -> None:
+    criar(client, child.id, title="", category_id=tipo_id(client, "Mentira"))
+    criar(client, child.id, title="", category_id=tipo_id(client, "Escola"))
+
+    achadas = client.get(
+        "/api/trombadices", headers=as_admin(client), params={"q": "mentira"}
+    ).json()
+
+    # O nome do tipo é o título de tela: procurar por ele e não achar nada
+    # seria a busca mentindo.
+    assert [t["title"] for t in achadas] == ["Mentira"]
 
 
 def test_busca_por_palavra_no_titulo_e_na_descricao(

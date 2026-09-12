@@ -8,10 +8,14 @@ import com.trombadario.data.remote.AssuntoUpdateDto
 import com.trombadario.data.remote.BirthdayDto
 import com.trombadario.data.remote.DatasComRegistroDto
 import com.trombadario.data.remote.ReportDto
+import com.trombadario.data.remote.TrombadiceCategoryCreateDto
+import com.trombadario.data.remote.TrombadiceCategoryDto
+import com.trombadario.data.remote.TrombadiceCategoryUpdateDto
 import com.trombadario.data.remote.TrombadiceCreateDto
 import com.trombadario.data.remote.TrombadiceDto
 import com.trombadario.data.remote.TrombadiceUpdateDto
 import com.trombadario.data.remote.PunishmentCreateDto
+import com.trombadario.data.remote.ProximoInicioDto
 import com.trombadario.data.remote.PedidoCreateDto
 import com.trombadario.data.remote.PedidoDecisionDto
 import com.trombadario.data.remote.PedidoDto
@@ -75,7 +79,7 @@ class TrombadarioRepository(
                 }
                 response.code() == 403 -> ApiResult.Forbidden
                 response.code() == 404 -> ApiResult.NotFound
-                else -> ApiResult.Failure(response.errorDetail())
+                else -> ApiResult.Failure(response.errorDetail(), response.code())
             }
         } catch (_: IOException) {
             // No connection, DNS failure, timeout: from the app's point of view
@@ -115,19 +119,39 @@ class TrombadarioRepository(
     suspend fun listTrombadices(
         childId: Int? = null,
         kind: String? = null,
-        category: String? = null,
+        categoryId: Int? = null,
+        conquistaCategory: String? = null,
         de: String? = null,
         ate: String? = null,
         q: String? = null,
     ): ApiResult<List<TrombadiceDto>> =
-        call { it.listTrombadices(childId, kind, category, de, ate, q) }
+        call { it.listTrombadices(childId, kind, categoryId, conquistaCategory, de, ate, q) }
 
     suspend fun trombadiceDates(
         childId: Int? = null,
         kind: String? = null,
-        category: String? = null,
+        categoryId: Int? = null,
+        conquistaCategory: String? = null,
         q: String? = null,
-    ): ApiResult<DatasComRegistroDto> = call { it.trombadiceDates(childId, kind, category, q) }
+    ): ApiResult<DatasComRegistroDto> =
+        call { it.trombadiceDates(childId, kind, categoryId, conquistaCategory, q) }
+
+    /** Os tipos de trombadice cadastrados pelo pai. O filho recebe só os ativos:
+     *  quem decide isso é o servidor, pelo papel de quem pergunta. */
+    suspend fun listTrombadiceCategories(): ApiResult<List<TrombadiceCategoryDto>> =
+        call { it.listTrombadiceCategories() }
+
+    suspend fun createTrombadiceCategory(
+        category: TrombadiceCategoryCreateDto,
+    ): ApiResult<TrombadiceCategoryDto> = call { it.createTrombadiceCategory(category) }
+
+    suspend fun updateTrombadiceCategory(
+        id: Int,
+        category: TrombadiceCategoryUpdateDto,
+    ): ApiResult<TrombadiceCategoryDto> = call { it.updateTrombadiceCategory(id, category) }
+
+    suspend fun deleteTrombadiceCategory(id: Int): ApiResult<Unit> =
+        callNoContent { it.deleteTrombadiceCategory(id) }
 
     suspend fun report(
         childId: Int? = null,
@@ -205,6 +229,9 @@ class TrombadarioRepository(
 
     suspend fun currentPunishments(): ApiResult<List<PunishmentDto>> =
         call { it.currentPunishments() }
+
+    suspend fun nextPunishmentStart(childId: Int): ApiResult<ProximoInicioDto> =
+        call { it.nextPunishmentStart(childId) }
 
     suspend fun createPunishment(punishment: PunishmentCreateDto): ApiResult<PunishmentDto> =
         call { it.createPunishment(punishment) }

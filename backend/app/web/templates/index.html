@@ -33,7 +33,7 @@
   {% for t in recentes %}
   <div class="cartao">
     <span class="quando">{{ t.occurred_at.astimezone().strftime('%d/%m/%Y às %H:%M') }}</span>
-    <p class="titulo">{{ t.title }}</p>
+    <p class="titulo">{{ t.display_title }}</p>
     <p class="sub">
       {{ children[t.child_id].display_name if t.child_id in children else 'Filho' }}
       {% if t.description %}— {{ t.description }}{% endif %}

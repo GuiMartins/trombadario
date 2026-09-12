@@ -20,7 +20,7 @@ from sqlalchemy.orm import sessionmaker
 
 from alembic import command
 from alembic.config import Config
-from app.models import Category, Kind, Trombadice
+from app.models import ConquistaCategory, Kind, Trombadice, TrombadiceCategory
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
@@ -72,7 +72,10 @@ def test_linha_antiga_continua_legivel_pelo_orm(banco_antigo: str) -> None:
 
         assert trombadice.title == "Machou a irma"
         # O que a migration escreveu tem que ser exatamente o que o ORM entende.
-        assert trombadice.category is Category.OUTRA
+        # O tipo virou linha da tabela nova, e a coluna do enum ficou vazia -
+        # ela é só de conquista agora.
+        assert trombadice.category.name == "Outra"
+        assert trombadice.conquista_category is None
         assert trombadice.seen_at is None
         # O que já existia é trombadice: conquista não existia quando aquilo
         # foi cadastrado.
@@ -182,11 +185,13 @@ def test_conquista_proposta_legivel_pelo_orm(banco_antigo: str) -> None:
     conexao.close()
 
     with sessionmaker(bind=create_engine(banco_antigo))() as sessao:
-        from app.models import Category, Pedido, RequestKind
+        from app.models import Pedido, RequestKind
 
         pedido = sessao.scalars(select(Pedido)).one()
         assert pedido.kind is RequestKind.CONQUISTA_PROPOSTA
-        assert pedido.category is Category.AJUDOU
+        # `pedidos.category` não foi tocada: proposta de conquista continua no
+        # enum fechado, que é o que a lista de conquista sempre foi.
+        assert pedido.category is ConquistaCategory.AJUDOU
 
 
 def test_ida_e_volta_da_migration(banco_antigo: str) -> None:
@@ -375,3 +380,58 @@ def test_aniversario_cadastrado_volta_como_date(banco_antigo: str) -> None:
         pai, filho = sessao.scalars(select(User).order_by(User.id)).all()
         assert filho.birth_date == date(2014, 3, 25)
         assert pai.birth_date is None
+
+
+def test_tipo_antigo_vira_linha_e_o_enum_e_zerado(banco_antigo: str) -> None:
+    """A pegadinha do `native_enum=False` pelo avesso.
+
+    Os oito valores de trombadice saíram do enum em Python. Uma linha que
+    continuasse com "AGRESSAO" na coluna do enum estouraria `LookupError` na
+    primeira leitura pelo ORM - e passaria em toda a suíte, que monta o schema
+    com `create_all` e nunca vê esta migration. Por isso a cópia para
+    `category_id` **e** a limpeza da coluna antiga são a mesma migration."""
+    # O banco tem que passar primeiro pela revisão em que `category` ainda
+    # existia: é a linha gravada por ela que esta migration precisa converter.
+    command.upgrade(_alembic(banco_antigo), "d0e1f2a3b4c5")
+    agora = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
+    conexao = sqlite3.connect(banco_antigo.removeprefix("sqlite:///"))
+    conexao.execute(
+        "insert into trombadices (title,description,occurred_at,child_id,author_id,"
+        "created_at,updated_at,category,kind) values ('Empurrou','no recreio',?,2,1,?,?,?,?)",
+        (agora, agora, agora, "AGRESSAO", "TROMBADICE"),
+    )
+    conexao.execute(
+        "insert into trombadices (title,description,occurred_at,child_id,author_id,"
+        "created_at,updated_at,category,kind) values ('Ajudou','na cozinha',?,2,1,?,?,?,?)",
+        (agora, agora, agora, "AJUDOU", "CONQUISTA"),
+    )
+    conexao.commit()
+    conexao.close()
+
+    command.upgrade(_alembic(banco_antigo), "head")
+
+    with sessionmaker(bind=create_engine(banco_antigo))() as sessao:
+        empurrou = sessao.scalars(
+            select(Trombadice).where(Trombadice.title == "Empurrou")
+        ).one()
+        assert empurrou.category.name == "Agressão"
+        assert empurrou.conquista_category is None
+        # E o título de tela sai do tipo sem ninguém ter digitado nada.
+        assert empurrou.display_title == "Empurrou"
+
+        ajudou = sessao.scalars(select(Trombadice).where(Trombadice.title == "Ajudou")).one()
+        # Conquista não migra: a lista dela continua sendo o enum.
+        assert ajudou.conquista_category is ConquistaCategory.AJUDOU
+        assert ajudou.category_id is None
+
+        # A lista inicial é a antiga, com os mesmos nomes de tela e na mesma
+        # ordem: quem já usava o app não recadastra nada.
+        tipos = sessao.scalars(
+            select(TrombadiceCategory).order_by(TrombadiceCategory.position)
+        ).all()
+        assert [t.name for t in tipos][:3] == [
+            "Falta de respeito",
+            "Falta de educação",
+            "Não fez o que devia",
+        ]
+        assert all(t.is_active for t in tipos)

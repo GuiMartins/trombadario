@@ -374,6 +374,10 @@ a.mini:hover { background: var(--note); }
 @supports selector(:has(*)) {
   .sem-tarefa { display: none; }
   form:has(#task_id option[value=""]:checked) .sem-tarefa { display: block; }
+  /* Editando uma conquista o campo de tarefa nem é renderizado (conquista não
+     se atrela a tarefa), e sem ele a regra de cima nunca casaria - o campo de
+     filho sumiria da tela. */
+  form:not(:has(#task_id)) .sem-tarefa { display: block; }
 
   /* Cada tipo mostra só o que é dele: a lista de categorias certa, e o campo
      de tarefa só na trombadice - conquista não se atrela a tarefa. */

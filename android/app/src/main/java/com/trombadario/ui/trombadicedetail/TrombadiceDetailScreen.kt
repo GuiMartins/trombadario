@@ -32,6 +32,7 @@ import com.trombadario.R
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
 import com.trombadario.ui.components.AppTopBar
+import com.trombadario.ui.components.nomeDoTipo
 import com.trombadario.ui.components.LoadingScreen
 import com.trombadario.ui.components.MessageScreen
 import com.trombadario.ui.components.formatDateTime
@@ -112,6 +113,17 @@ fun TrombadiceDetailScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(text = event.title, style = MaterialTheme.typography.headlineSmall)
+                    // O tipo só quando ele acrescenta: no que foi cadastrado
+                    // sem texto escrito à mão o título já é o nome do tipo.
+                    val tipo = nomeDoTipo(event)
+                    if (tipo != null && tipo != event.title) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = tipo,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     if (event.description.isNotBlank()) {
                         Spacer(Modifier.height(16.dp))
                         Text(

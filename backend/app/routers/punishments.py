@@ -4,10 +4,11 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.deps import AdminUser, ChildUser, CurrentUser, DbSession
-from app.models import Category, Kind, Punishment, Role, Trombadice, User
+from app.models import Kind, Punishment, Role, Trombadice, User
 from app.periodo import data_local, intervalo
 from app.schemas import (
     DatasComRegistro,
+    ProximoInicio,
     PunishmentCreate,
     PunishmentOut,
     PunishmentReaction,
@@ -37,6 +38,7 @@ def _serialize(punishment: Punishment, now: datetime) -> PunishmentOut:
         trombadice_ids=[t.id for t in punishment.trombadices],
         trombadices=[TrombadiceOut.model_validate(t) for t in punishment.trombadices],
         is_active=punishment.is_active_at(now),
+        is_scheduled=punishment.is_scheduled_at(now),
     )
 
 
@@ -45,6 +47,43 @@ def _get_or_404(db: DbSession, punishment_id: int) -> Punishment:
     if punishment is None:
         raise NOT_FOUND
     return punishment
+
+
+def proximo_inicio(db: DbSession, child_id: int, agora: datetime) -> datetime:
+    """Quando o próximo castigo deste filho começa: emendado no fim do último da
+    fila, ou agora, quando não há fila.
+
+    É o que faz castigo virar **sequência** sem o pai ter que fazer conta de
+    calendário. Aplicar um castigo hoje e outro em seguida quer dizer "e mais um
+    dia depois desse", não dois castigos sobrepostos - dois valendo ao mesmo
+    tempo não significam nada pra criança, que só pode estar de castigo ou não.
+
+    Quem manda é o **fim de verdade** (`effective_end`), não o `ends_at`: um
+    castigo que o pai encerrou antes já acabou e não segura mais a fila.
+
+    Fica aqui, e não em cada tela, porque app e painel precisam da mesma
+    resposta - e porque quando o castigo começa é conta de servidor, como todo
+    resto de data neste projeto.
+    """
+    fins = [p.effective_end for p in db.scalars(
+        select(Punishment).where(Punishment.child_id == child_id)
+    )]
+    return max([agora, *fins])
+
+
+def _so_o_de_agora(punishments: list[Punishment], user: User, now: datetime) -> list[Punishment]:
+    """O filho vê o castigo que está valendo agora, e só ele.
+
+    Não é esconder botão: **o histórico de castigo não é do filho**. Ele já sabe
+    o que fez (as anotações continuam todas lá) e reler a lista do que já
+    cumpriu só serve pra ficar remoendo. O que vem depois também não é dele -
+    castigo agendado é a fila do pai, e a criança fica sabendo quando começa.
+
+    Como o filho tem o APK na mão, filtrar na tela não bastava: quem corta é o
+    servidor, em toda leitura que ele alcança."""
+    if user.role is Role.ADMIN:
+        return punishments
+    return [p for p in punishments if p.is_active_at(now)]
 
 
 def _resolve_trombadices(db: DbSession, ids: list[int], child_id: int) -> list[Trombadice]:
@@ -82,13 +121,16 @@ def _escopo(query, current_user: User, child_id: int | None):
     return query.where(Punishment.child_id == current_user.id)
 
 
-def _filtros(query, category: Category | None, de: date | None, ate: date | None, q: str | None):
-    if category is not None:
+def _filtros(query, category_id: int | None, de: date | None, ate: date | None, q: str | None):
+    if category_id is not None:
         # Castigo não tem categoria própria - ele herda a das trombadices que o
         # causaram. Filtrar por "agressão" aqui quer dizer "castigos que vieram
         # de alguma agressão", que é a pergunta que o pai faz de verdade.
+        #
+        # Só a lista de trombadice: castigo nunca vem de conquista, então não
+        # existe filtro por categoria de conquista para oferecer aqui.
         query = query.where(
-            Punishment.trombadices.any(Trombadice.category == category)
+            Punishment.trombadices.any(Trombadice.category_id == category_id)
         )
 
     inicio, fim = intervalo(de, ate)
@@ -110,15 +152,15 @@ def list_punishments(
     current_user: CurrentUser,
     db: DbSession,
     child_id: int | None = None,
-    category: Category | None = None,
+    category_id: int | None = None,
     de: date | None = None,
     ate: date | None = None,
     q: str | None = None,
 ) -> list[PunishmentOut]:
     now = datetime.now(UTC)
     query = select(Punishment).order_by(Punishment.starts_at.desc(), Punishment.id.desc())
-    query = _filtros(_escopo(query, current_user, child_id), category, de, ate, q)
-    achados = list(db.scalars(query))
+    query = _filtros(_escopo(query, current_user, child_id), category_id, de, ate, q)
+    achados = _so_o_de_agora(list(db.scalars(query)), current_user, now)
     marcar_visto(db, achados, current_user)
     return [_serialize(p, now) for p in achados]
 
@@ -131,12 +173,15 @@ def dates_with_punishments(
 ) -> DatasComRegistro:
     """Todo dia em que houve castigo, não só o dia em que começou - é o que o
     calendário precisa para deixar clicar em qualquer dia de uma semana de
-    castigo."""
+    castigo.
+
+    Pro filho são só os dias do castigo que está valendo: o calendário é uma
+    leitura do histórico como outra qualquer (ver `_so_o_de_agora`)."""
+    achados = list(db.scalars(_escopo(select(Punishment), current_user, child_id)))
     dias: set[date] = set()
-    for p in db.scalars(_escopo(select(Punishment), current_user, child_id)):
-        fim = min(p.ended_early_at, p.ends_at) if p.ended_early_at else p.ends_at
+    for p in _so_o_de_agora(achados, current_user, datetime.now(UTC)):
         dia = data_local(p.starts_at)
-        ultimo = data_local(fim)
+        ultimo = data_local(p.effective_end)
         while dia <= ultimo:
             dias.add(dia)
             dia = dia.fromordinal(dia.toordinal() + 1)
@@ -158,13 +203,33 @@ def current_punishments(current_user: CurrentUser, db: DbSession) -> list[Punish
     return [_serialize(p, now) for p in ativos]
 
 
+@router.get("/proximo-inicio", response_model=ProximoInicio)
+def next_start(child_id: int, admin: AdminUser, db: DbSession) -> ProximoInicio:
+    """Quando começaria um castigo aplicado agora a este filho.
+
+    Existe pra tela poder dizer "começa quando o de agora terminar" **antes** de
+    salvar, e pra validar o prazo contra o começo de verdade em vez de contra o
+    relógio do aparelho. Só o pai pergunta: é a fila dele.
+
+    Declarada antes de `/{punishment_id}` de propósito - depois, o FastAPI leria
+    "proximo-inicio" como id e responderia 422."""
+    agora = datetime.now(UTC)
+    inicio = proximo_inicio(db, child_id, agora)
+    return ProximoInicio(starts_at=inicio, em_fila=inicio > agora)
+
+
 @router.get("/{punishment_id}", response_model=PunishmentOut)
 def get_punishment(punishment_id: int, current_user: CurrentUser, db: DbSession) -> PunishmentOut:
+    now = datetime.now(UTC)
     punishment = _get_or_404(db, punishment_id)
     if current_user.role is not Role.ADMIN and punishment.child_id != current_user.id:
         raise NOT_FOUND
+    # 404 também pro castigo do próprio filho que não está valendo agora: pedir
+    # por id não pode ser a porta dos fundos do histórico que a lista já fechou.
+    if not _so_o_de_agora([punishment], current_user, now):
+        raise NOT_FOUND
     marcar_visto(db, [punishment], current_user)
-    return _serialize(punishment, datetime.now(UTC))
+    return _serialize(punishment, now)
 
 
 @router.patch("/{punishment_id}/reaction", response_model=PunishmentOut)
@@ -177,6 +242,9 @@ def react_to_punishment(
     if punishment.child_id != child.id:
         # 404, não 403: mesmo padrão de toda leitura de item único - sondar id
         # não pode confirmar que o castigo de um irmão existe.
+        raise NOT_FOUND
+    if not punishment.is_active_at(datetime.now(UTC)):
+        # Reagir é responder ao castigo de agora, que é o único que ele vê.
         raise NOT_FOUND
 
     texto = (payload.reaction_text or "").strip()
@@ -193,7 +261,11 @@ def create_punishment(payload: PunishmentCreate, admin: AdminUser, db: DbSession
     if child is None or child.role is not Role.CHILD:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filho inválido")
 
-    starts_at = payload.starts_at or datetime.now(UTC)
+    # Sem `starts_at` explícito o castigo **entra na fila**: começa quando o
+    # último do filho terminar, ou agora, se ele não está de castigo. É o que o
+    # pai quer dizer ao aplicar um castigo em cima do outro - "mais um dia" -, e
+    # emendar na mão exigiria dele uma conta de calendário a cada vez.
+    starts_at = payload.starts_at or proximo_inicio(db, payload.child_id, datetime.now(UTC))
     if payload.ends_at <= starts_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -221,17 +293,47 @@ def update_punishment(
     punishment = _get_or_404(db, punishment_id)
     data = payload.model_dump(exclude_unset=True)
 
-    if data.pop("end_now", False):
-        punishment.ended_early_at = datetime.now(UTC)
+    # Nada é escrito antes de tudo ser conferido: uma recusa no meio deixaria o
+    # castigo meio corrigido - com o filho já trocado e as causas ainda do
+    # irmão, por exemplo.
+    end_now = data.pop("end_now", None)
+    child_id = data.pop("child_id", None)
+    if child_id is not None:
+        child = db.get(User, child_id)
+        if child is None or child.role is not Role.CHILD:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filho inválido")
+    alvo = child_id if child_id is not None else punishment.child_id
 
+    causas = None
     if (ids := data.pop("trombadice_ids", None)) is not None:
-        punishment.trombadices = _resolve_trombadices(db, ids, punishment.child_id)
+        causas = _resolve_trombadices(db, ids, alvo)
+    elif child_id is not None:
+        # Trocar de filho sem redizer as causas deixaria o castigo apontando a
+        # trombadice de outra criança - o vínculo afirmaria algo falso.
+        causas = _resolve_trombadices(db, [t.id for t in punishment.trombadices], alvo)
 
-    if (ends_at := data.get("ends_at")) is not None and ends_at <= punishment.starts_at:
+    # Os dois lados conferidos juntos: mover só o início de um castigo que já
+    # tinha fim (ou o contrário) pode inverter o intervalo sem que nenhum dos
+    # dois campos, sozinho, pareça errado.
+    starts_at = data.get("starts_at") or punishment.starts_at
+    ends_at = data.get("ends_at") or punishment.ends_at
+    if ends_at <= starts_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="O castigo precisa terminar depois de começar",
         )
+
+    # True encerra agora; False desfaz o encerramento. Sem o segundo caso, um
+    # toque errado em Encerrar deixava o castigo marcado como "encerrado antes"
+    # para sempre - o mesmo engano que desmarcar tarefa e reabrir assunto já
+    # deixam corrigir. Nulo é "não mexe": corrigir o motivo de um castigo
+    # encerrado não pode soltar o filho de volta pra dentro dele.
+    if end_now is not None:
+        punishment.ended_early_at = datetime.now(UTC) if end_now else None
+    if child_id is not None:
+        punishment.child_id = child_id
+    if causas is not None:
+        punishment.trombadices = causas
 
     for field, value in data.items():
         setattr(punishment, field, value)

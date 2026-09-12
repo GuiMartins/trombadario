@@ -4,14 +4,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.models import Trombadice, User
-from tests.conftest import as_admin
+from tests.conftest import as_admin, corpo_de_trombadice
 
 
 def test_data_volta_da_api_sempre_com_offset(client: TestClient, admin: User, child: User) -> None:
     created = client.post(
         "/api/trombadices",
         headers=as_admin(client),
-        json={"title": "x", "occurred_at": "2026-08-01T14:30:00+00:00", "child_id": child.id},
+        json=corpo_de_trombadice(client, child.id, title="x"),
     ).json()
 
     # Without the offset the Android client would parse this as local time and
@@ -27,7 +27,9 @@ def test_horario_com_outro_fuso_e_normalizado_pra_utc(
         "/api/trombadices",
         headers=as_admin(client),
         # 14:30 em Brasília = 17:30 UTC
-        json={"title": "x", "occurred_at": "2026-08-01T14:30:00-03:00", "child_id": child.id},
+        json=corpo_de_trombadice(
+            client, child.id, title="x", occurred_at="2026-08-01T14:30:00-03:00"
+        ),
     ).json()
 
     assert db.get(Trombadice, created["id"]).occurred_at == datetime(2026, 8, 1, 17, 30, tzinfo=UTC)
@@ -37,7 +39,7 @@ def test_data_sem_fuso_e_rejeitada_com_422(client: TestClient, admin: User, chil
     response = client.post(
         "/api/trombadices",
         headers=as_admin(client),
-        json={"title": "x", "occurred_at": "2026-08-01T14:30:00", "child_id": child.id},
+        json=corpo_de_trombadice(client, child.id, title="x", occurred_at="2026-08-01T14:30:00"),
     )
 
     assert response.status_code == 422
@@ -49,11 +51,9 @@ def test_castigo_tambem_devolve_data_com_offset(
     trombadice = client.post(
         "/api/trombadices",
         headers=as_admin(client),
-        json={
-            "title": "Bagunça",
-            "occurred_at": "2026-08-01T14:30:00-03:00",
-            "child_id": child.id,
-        },
+        json=corpo_de_trombadice(
+            client, child.id, title="Bagunça", occurred_at="2026-08-01T14:30:00-03:00"
+        ),
     ).json()
     created = client.post(
         "/api/punishments",

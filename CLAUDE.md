@@ -400,6 +400,105 @@ pra virá-lo e ficaria errado no intervalo entre execuções. Encerrar antes da
 hora grava `ended_early_at` e **preserva o `ends_at` original**, então o
 histórico mostra o que foi dado e o que foi cumprido.
 
+### Encerrar, corrigir e cancelar são três coisas diferentes
+
+As três existem no app **e** no painel, e a diferença entre elas é o que cada
+uma afirma sobre o que aconteceu:
+
+- **Encerrar** — o castigo valeu e foi perdoado antes da hora. Grava
+  `ended_early_at`, guarda o prazo original, e o histórico mostra os dois.
+  **Dá pra reabrir** (`end_now: false` na API, botão Reabrir no painel e no
+  app): o prazo original nunca foi apagado, então desfazer é só limpar o
+  carimbo. Sem isso, um toque errado marcava o castigo como "encerrado antes"
+  pra sempre — o mesmo engano que desmarcar tarefa e reabrir assunto já deixam
+  corrigir.
+- **Corrigir** — o castigo é esse mesmo, o que foi digitado é que estava errado.
+  Motivo, início, fim, filho e as trombadices que o causaram, todos editáveis
+  (ver a ressalva do `starts_at` em "Editar o que já foi cadastrado").
+- **Cancelar** — o castigo não devia ter sido cadastrado. É o `DELETE`, e apaga
+  de vez: **não existe coluna de "cancelado"**. A decisão foi do usuário, e o
+  motivo é que um castigo cadastrado por engano não tem o que contar ao
+  histórico — deixá-lo lá etiquetado seria manter na tela do pai um castigo que
+  nunca houve, exatamente o que ele reclamou de Encerrar.
+
+**Mais de um castigo pode valer ao mesmo tempo**, e a tela do filho anuncia o
+prazo **mais distante** — o que acaba antes diria a ela que ficaria livre num dia
+em que ainda está de castigo. Cada castigo aparece com o próprio motivo, as
+próprias causas e a própria reação; com um só, a tela é a de sempre.
+
+Duas invariantes que a edição não pode furar, as duas com teste:
+
+- **Nada é escrito antes de tudo ser conferido.** O `PATCH` valida filho, causas
+  e datas e só então atribui: uma recusa no meio deixaria o castigo meio
+  corrigido — com o filho já trocado e as causas ainda do irmão.
+- **Trocar o filho reconfere as causas** mesmo quando `trombadice_ids` não vem
+  no corpo, porque as antigas passariam a apontar a trombadice de outra criança.
+  Sem lista nova, o `PATCH` responde 400 em vez de gravar um vínculo falso.
+
+`Punishment.is_scheduled_at` é o irmão do `is_active_at`: **dado, mas ainda não
+começou**. Calculado pelo mesmo motivo, e vai no `PunishmentOut` como
+`is_scheduled` — com `is_active` e `ended_early_at`, os três distinguem os
+quatro estados que a tela precisa nomear (valendo, na fila, cumprido, encerrado
+antes). Um enum de status trocaria isso por um campo que todo cliente antigo
+deixaria de entender de uma vez.
+
+`effective_end` é o fim de verdade — `ends_at`, ou a hora em que o pai soltou
+antes. Quem precisa dele é o calendário (em que dias houve castigo) e a fila
+(onde emenda o próximo); `ends_at` sozinho não responde isso, e não é pra
+responder.
+
+### Castigo é uma fila, não um monte
+
+Aplicar um castigo em cima de outro quer dizer **"mais um dia"**, e é o que
+`proximo_inicio` responde: o começo de um castigo novo é o fim do último daquele
+filho, ou agora, se ele não está de castigo. Emendar na mão obrigaria o pai a
+fazer conta de calendário toda vez que quisesse esticar mais um dia — e é a
+conta que ele mais faz.
+
+- **É o padrão, não uma regra por cima do pai.** Sem `starts_at` no corpo, a API
+  emenda; o app e o painel **já abrem o formulário com esse instante no campo de
+  começo**, e o pai muda à vontade — inclusive pra registrar um castigo que já
+  tinha começado, que é o caso de "Corrigir" acima. Continua sendo possível ter
+  dois valendo ao mesmo tempo; o que muda é que isso deixa de acontecer por
+  descuido.
+- **A fila é por filho**, e quem manda nela é o `effective_end`: um castigo que
+  o pai encerrou já acabou e não segura o próximo.
+- **Encerrar o de agora não puxa o da fila pra frente.** Soltar hoje é sobre
+  hoje; o de amanhã foi dado com data e continua com ela. Puxar reescreveria um
+  castigo que o pai não tocou.
+- **Quem calcula é o servidor, num lugar só** (`proximo_inicio`, em
+  `app/routers/punishments.py`), usado pela API e pelo painel.
+  `GET /api/punishments/proximo-inicio` é a mesma conta pro app — quando o
+  castigo começa é conta de servidor, como toda data neste projeto.
+- **O prazo sugerido é um dia depois do começo**, não um dia depois de agora:
+  emendando num castigo que termina amanhã à noite, sugerir "amanhã" daria um
+  castigo que acaba antes de começar.
+- **Cancelar o da fila é o mesmo Excluir de sempre** — não existe estado
+  "cancelado", pelo mesmo motivo da seção acima.
+
+### O filho só vê o castigo que está valendo
+
+Requisito do usuário, direto: a criança vê **o castigo de agora e mais nada**.
+Nem o histórico do que já cumpriu — ela já sabe o que fez, as anotações
+continuam todas lá, e reler a lista só serve pra remoer —, nem o que está na
+fila, que é planejamento do pai.
+
+Como o filho tem o APK na mão, isso não podia ser filtro de tela: quem corta é
+o servidor, em **toda** leitura que ele alcança (`_so_o_de_agora`). A lista, o
+`/datas`, o `GET` por id e até reagir passam pelo mesmo corte — pedir por id não
+pode ser a porta dos fundos da lista.
+
+- **A lista continua respondendo pro filho, só que com o de agora**, em vez de
+  virar 403. Um APK antigo que ainda chama `/api/punishments` mostra o castigo
+  certo em vez de uma tela mentindo "você não está de castigo".
+- **`unseen` conta só castigo que está valendo.** Avisar de um castigo da fila
+  seria notificação sem tela pra abrir — e, de brinde, o aviso sai sozinho na
+  hora em que ele começa, que é quando a contagem sobe.
+- **Castigo da fila não carimba `seen_at`.** "O filho viu" tem que continuar
+  verdade; carimbar o que ele nem recebeu viraria mentira pro pai. Pelo mesmo
+  motivo, o cartão do pai não diz "ainda não viu" num castigo da fila: seria
+  cobrança de uma coisa impossível.
+
 ### Conquista é o mesmo registro com outro sinal
 
 `Trombadice.kind` (`trombadice` | `conquista`). Mesma tabela, mesmas colunas,
@@ -410,9 +509,9 @@ edição e relatório**, e a responder duas vezes "o que aconteceu no dia 5".
 > `events` → `trombadices`; renomear de novo custaria mais do que explica.
 
 Regras que caem daí, todas com teste:
-- **Cada categoria pertence a um tipo** (`CATEGORIAS_POR_TIPO`). "Falta de
-  respeito" não descreve coisa boa. Categoria do tipo errado é 422 na API e cai
-  na padrão do tipo no painel.
+- **Cada lista serve a um tipo de registro.** Trombadice usa a lista cadastrada
+  pelo pai; conquista, o enum `ConquistaCategory` — "falta de respeito" não
+  descreve coisa boa. Mandar a do outro tipo é 422 na API e ignorado no painel.
 - **Conquista não se atrela a tarefa.** Tarefa registra o que **não** foi
   cumprido; o vínculo diria o contrário do que significa.
 - **Castigo não pode vir de conquista.** Se pudesse, seria erro de digitação
@@ -429,26 +528,60 @@ o formulário manda **as duas listas de categoria** e o servidor lê só a do ti
 escolhido — assim nenhuma precisa ser desabilitada no navegador, e sem `:has()`
 as duas aparecem e continua funcionando.
 
-### Categoria é lista fechada
+### O tipo da trombadice é lista do pai; o da conquista não
 
-`models.Category`, oito valores. Campo livre viraria dez jeitos de escrever
-"falta de respeito" e nenhum relatório sairia. A **ordem do enum é a ordem na
-tela**, do mais comum ao menos. Acrescentar valor é migration; tirar valor exige
-decidir o que fazer com o que já está gravado, então na prática só se aposenta
-escondendo da tela.
+`models.TrombadiceCategory` (tabela `trombadice_categories`): o pai cadastra os
+tipos, e a tela de anotação vira **escolher um deles + detalhes opcionais**. Era
+um enum fechado de oito valores; virou tabela porque cada casa repete as mesmas
+coisas e quem sabe quais são é quem convive — a lista útil não é a que o app
+imaginou. Cadastro em **Tipos** no painel e em Configurações → Tipos de
+trombadice no app, como toda coisa do pai.
 
-**Sem título e com tarefa atrelada, o título vira o nome da tarefa** — o que
-aconteceu foi não ter feito aquilo, e obrigar a repetir na mão só produziria duas
-versões do mesmo nome. Sem tarefa, o título continua obrigatório (422).
+- **Ninguém apaga tipo em uso.** A FK é `RESTRICT` e a rota devolve 409; o
+  caminho é `is_active = false`, que tira da hora de registrar e continua
+  nomeando o que já foi registrado (mesma ideia da tarefa pausada). As duas
+  telas escondem o botão de excluir do que está em uso — `em_uso` vem na
+  resposta justamente para isso, senão o botão só entregaria erro.
+- **Nome único**, sem diferenciar maiúscula: dois "Mentira" partiriam o
+  relatório ao meio sem ninguém perceber.
+- **Renomear conserta o histórico inteiro**, porque o registro aponta a linha e
+  não uma cópia do nome.
+- **A ordem é do pai** (`position`, com o nome desempatando). Era a ordem do
+  enum, do mais comum ao menos.
+- **A lista inicial é a antiga**, com os mesmos oito nomes: a migration
+  transforma os valores gravados nas oito primeiras linhas, e uma instalação
+  nova recebe as mesmas na criação da conta do pai (`app/categorias.py`).
+  Semeada **uma vez**, no setup, e não a cada subida — senão reapareceria o que
+  ele apagou de propósito.
+
+**Conquista continua com enum fechado** (`ConquistaCategory`, oito valores): ela
+é o pai reconhecendo algo, não uma taxonomia que ele mantém, e ninguém pediu
+para cadastrar essas. Por isso `Trombadice` tem duas colunas para a mesma
+pergunta — `category_id` (a lista do pai) e `conquista_category` (o enum) —,
+cada registro preenche exatamente uma, e a rota recusa a do outro tipo. Mesmo
+padrão de campo-só-de-um-caso de `Task.weekdays`/`day_of_month`.
+
+**Ninguém digita título.** `Trombadice.display_title` é derivado **na leitura**:
+o texto livre quando existe (é o que está gravado no que foi cadastrado antes
+desta mudança), senão o nome da tarefa atrelada, senão o nome do tipo. Gravado,
+ele continuaria dizendo "Mentira" depois de o pai corrigir o tipo para "Birra".
+Daí caem duas coisas: a busca por palavra também procura no **nome do tipo**
+(senão procurar "mentira" não acharia as anotações de tipo "Mentira"), e a
+etiqueta do tipo no cartão só aparece **quando difere do título** — repetir
+"Mentira" embaixo de "Mentira" é ruído.
 
 > **`Enum(..., native_enum=False)` guarda o NOME do membro, não o valor.**
-> `Role` grava `"ADMIN"`, `Periodicity` grava `"DAILY"`, `Category` grava
-> `"OUTRA"`. Um `server_default` de migration escrito como `"outra"` passa em
-> toda a suíte e estoura `LookupError` na primeira leitura em produção — porque
-> os testes montam o schema com `create_all` e nunca passam pelas migrations.
-> É o que `tests/test_migrations.py` existe para pegar: ele roda a migration de
-> verdade contra um banco com linha dentro e lê de volta pelo ORM. **Migration
-> nova que mexa em coluna de enum precisa de um caso lá.**
+> `Role` grava `"ADMIN"`, `Periodicity` grava `"DAILY"`,
+> `ConquistaCategory` grava `"AJUDOU"`. Um `server_default` de migration escrito
+> como `"ajudou"` passa em toda a suíte e estoura `LookupError` na primeira
+> leitura em produção — porque os testes montam o schema com `create_all` e
+> nunca passam pelas migrations. É o que `tests/test_migrations.py` existe para
+> pegar: ele roda a migration de verdade contra um banco com linha dentro e lê
+> de volta pelo ORM. **Migration nova que mexa em coluna de enum precisa de um
+> caso lá.** A pegadinha vale pelo avesso também: ao tirar os oito valores de
+> trombadice do enum, o perigo passou a ser o valor que **sobrou** na coluna, e
+> por isso a cópia para `category_id` e a limpeza da coluna antiga são a mesma
+> migration.
 
 ### Editar o que já foi cadastrado
 
@@ -457,13 +590,20 @@ o painel inteiro é `AdminWeb`. No painel, editar **reaproveita o formulário de
 cima** (`?editar={id}`) em vez de abrir página nova — formulário separado seria
 um segundo lugar para lembrar de mexer.
 
-Três coisas que não se editam, de propósito:
+Duas coisas que não se editam, de propósito:
 - **`author_id`** — quem cadastrou continua sendo quem cadastrou. Corrigir um
   "machou" que era "machucou" não é assumir o registro do outro.
-- **`Punishment.starts_at`** — quando o castigo começou é fato. Para soltar
-  antes da hora existe Encerrar, que preserva o `ends_at` original.
 - **`User.username`** — é o login. Trocar trancaria a criança para fora sem
   aviso nenhum. O nome de exibição, esse sim.
+
+> **`Punishment.starts_at` estava nessa lista e saiu** (06/09/2026), a pedido do
+> usuário e com o caso concreto na mão: ele cadastrou um castigo com a data
+> errada e não teve como consertar. "Quando começou é fato" só vale quando o
+> registro descreve o fato — cadastrado errado, ele já nasceu não descrevendo, e
+> a única saída era Encerrar, que deixava no histórico um castigo "encerrado
+> antes" que nunca existiu. Corrigir a data é justamente o contrário de
+> reescrever a história. Encerrar continua sendo outra coisa e continua
+> preservando o `ends_at` original: aquele castigo aconteceu e foi perdoado.
 
 Ao trocar a periodicidade de uma tarefa, o campo que a nova não usa é **zerado**
 — senão sobra "segunda e quarta" numa tarefa que virou de todo dia.
@@ -481,7 +621,13 @@ fazer — quem carimba é `app/visto.py`, chamado pelas próprias leituras do fi
   carimbo — senão "visto às 20h" viraria a hora da última olhada.
 - **Só conta de filho marca, e só o que é dele.** O pai conferindo a lista não
   marca nada; se marcasse, o campo deixaria de responder o que ele pergunta.
-- **`/current` marca só o castigo ativo**, porque é só ele que aparece na tela.
+- **`/current` marca só castigo ativo**, porque é só ele que aparece na tela — e
+  marca **todos** os que estão valendo, o que obriga a tela do filho a mostrar
+  todos. Ela lia `active.first()`, então com dois castigos ao mesmo tempo o pai
+  via "visto" num castigo que nunca chegou a aparecer pra criança. O carimbo e a
+  tela têm que concordar sobre o que foi mostrado, senão o campo passa a
+  responder outra coisa. Desde a fila, é também a **única** leitura de castigo
+  que o app do filho faz.
 
 > **É escrita dentro de um GET**, o que normalmente é errado. Vale aqui porque
 > não há cache nem prefetch entre app e servidor (a leitura só acontece com a
@@ -703,13 +849,16 @@ construção deixava o feed desatualizado depois de cadastrar, editar ou excluir
 Anotações · Tarefas · Castigo · Pedidos · Ajustes, iguais pros dois papéis — o
 que muda é o conteúdo, não a estrutura. **Cinco é o teto do `NavigationBar` do
 Material3**, e já é apertado num celular estreito, então tudo o que veio depois
-entra como item dentro de Configurações: Contas, Frases, Relatório (só pro pai) e
-**Assuntos pra conversar** (a única que os dois papéis alcançam).
+entra como item dentro de Configurações: Contas, Frases, **Tipos de trombadice**,
+Relatório (só pro pai) e **Assuntos pra conversar** (a única que os dois papéis
+alcançam).
 
 A tela de **Castigo do filho** existe pra responder uma coisa só, e responde
 grande: ícone, "Você está de castigo" e até quando — ou "Você não está de
 castigo". `is_active` vem calculado do servidor; o relógio do celular não decide
-isso.
+isso. Ela lê `/current` e só isso — sem histórico e sem fila, pelo motivo que
+está em "O filho só vê o castigo que está valendo". A lista do pai é que tem os
+três blocos: valendo agora, na fila e histórico.
 
 ### i18n: só português
 

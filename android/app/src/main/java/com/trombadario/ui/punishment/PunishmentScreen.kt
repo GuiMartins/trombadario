@@ -61,6 +61,7 @@ import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
 import com.trombadario.ui.components.AppTopBar
 import com.trombadario.ui.components.LoadingScreen
+import com.trombadario.ui.components.ehConquista
 import com.trombadario.ui.components.formatDateTime
 import com.trombadario.ui.components.parseInstant
 import com.trombadario.ui.viewModelFactory
@@ -105,7 +106,21 @@ fun PunishmentScreen(container: AppContainer, currentUser: UserDto) {
                     onRefresh = { viewModel.load(isRefresh = true) },
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    if (currentUser.isAdmin) AdminList(state, viewModel) else ChildAnswer(state, viewModel)
+                    if (currentUser.isAdmin) {
+                        AdminList(
+                            state = state,
+                            childName = viewModel::childName,
+                            onEdit = viewModel::startEdit,
+                            onEndNow = viewModel::endNow,
+                            onReopen = viewModel::reopen,
+                            onDelete = viewModel::askDelete,
+                        )
+                    } else {
+                        ChildAnswer(
+                            ativos = state.active,
+                            onReact = viewModel::react,
+                        )
+                    }
                 }
             }
         }
@@ -118,15 +133,45 @@ fun PunishmentScreen(container: AppContainer, currentUser: UserDto) {
             viewModel = viewModel,
         )
     }
+
+    // Excluir apaga de vez, do histórico e da tela do filho - por isso passa
+    // por confirmação, como tarefa, anotação e conta.
+    state.confirmingDeleteOf?.let { alvo ->
+        AlertDialog(
+            onDismissRequest = viewModel::cancelDelete,
+            title = { Text(stringResource(R.string.punishment_delete_confirm_title)) },
+            text = {
+                val quem = viewModel.childName(alvo.childId)
+                Text(
+                    listOfNotNull(quem, stringResource(R.string.punishment_delete_confirm_message))
+                        .joinToString(" — ")
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmDelete) {
+                    Text(stringResource(R.string.action_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::cancelDelete) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
 }
 
 /**
  * Para o filho a tela existe pra responder uma coisa só, e a resposta tem que
  * ser legível de longe.
+ *
+ * Recebe os castigos e um jeito de reagir, não o ViewModel: a regra do prazo
+ * mais distante é fácil de quebrar sem perceber, e assim dá pra medir
+ * (`PunishmentChildAnswerTest`).
  */
 @Composable
-private fun ChildAnswer(state: PunishmentState, viewModel: PunishmentViewModel) {
-    val atual = state.active.firstOrNull()
+internal fun ChildAnswer(ativos: List<PunishmentDto>, onReact: (Int, String) -> Unit) {
+    val livre = ativos.isEmpty()
 
     Column(
         modifier = Modifier
@@ -137,10 +182,10 @@ private fun ChildAnswer(state: PunishmentState, viewModel: PunishmentViewModel) 
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(
-            imageVector = if (atual == null) Icons.Default.SentimentSatisfiedAlt else Icons.Default.Gavel,
+            imageVector = if (livre) Icons.Default.SentimentSatisfiedAlt else Icons.Default.Gavel,
             contentDescription = null,
             modifier = Modifier.size(88.dp),
-            tint = if (atual == null) {
+            tint = if (livre) {
                 MaterialTheme.colorScheme.primary
             } else {
                 MaterialTheme.colorScheme.error
@@ -149,62 +194,99 @@ private fun ChildAnswer(state: PunishmentState, viewModel: PunishmentViewModel) 
         Spacer(Modifier.height(24.dp))
         Text(
             text = stringResource(
-                if (atual == null) R.string.punishment_free else R.string.punishment_grounded
+                if (livre) R.string.punishment_free else R.string.punishment_grounded
             ),
             style = MaterialTheme.typography.headlineMedium,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
 
-        if (atual == null) {
+        if (livre) {
             Text(
                 text = stringResource(R.string.punishment_free_sub),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
+            // O prazo que a tela anuncia é o **mais distante** dos castigos
+            // valendo, não o do primeiro da lista: com dois ao mesmo tempo, o
+            // que acaba antes dizia à criança que ela ficaria livre num dia em
+            // que ainda estaria de castigo.
             Text(
                 text = stringResource(
                     R.string.punishment_until,
-                    parseInstant(atual.endsAt).formatDateTime(),
+                    ativos.maxOf { parseInstant(it.endsAt) }.formatDateTime(),
                 ),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.error,
                 textAlign = TextAlign.Center,
             )
-            if (atual.reason.isNotBlank()) {
-                Spacer(Modifier.height(24.dp))
+            // Todos, não só o primeiro. Além de esconder metade do motivo, a
+            // tela antiga fazia o servidor mentir: `/current` carimba
+            // `seen_at` em todo castigo ativo, então o pai lia "visto" de um
+            // castigo que nunca chegou a aparecer pra criança.
+            ativos.forEach { castigo ->
+                CastigoAtivo(
+                    castigo = castigo,
+                    mostrarPrazo = ativos.size > 1,
+                    onReact = { texto -> onReact(castigo.id, texto) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Um castigo valendo agora, na tela do filho. Com um só, é o que a tela sempre
+ * mostrou; com mais de um, cada bloco repete o próprio prazo, senão não dá pra
+ * saber qual motivo pertence a qual data.
+ */
+@Composable
+private fun CastigoAtivo(
+    castigo: PunishmentDto,
+    mostrarPrazo: Boolean,
+    onReact: (String) -> Unit,
+) {
+    if (mostrarPrazo) {
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = stringResource(
+                R.string.punishment_until,
+                parseInstant(castigo.endsAt).formatDateTime(),
+            ),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.error,
+            textAlign = TextAlign.Center,
+        )
+    }
+    if (castigo.reason.isNotBlank()) {
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = castigo.reason,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+    // O servidor já manda as anotações completas, não só o id - o filho não
+    // precisa de uma segunda busca só pra saber o título de cada uma. Mesmo bug
+    // do painel web (PR #21 tratou outro; este é um bug de tela, não de dado: a
+    // API sempre mandou isso).
+    if (castigo.trombadices.isNotEmpty()) {
+        Spacer(Modifier.height(24.dp))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            castigo.trombadices.forEach { t ->
                 Text(
-                    text = atual.reason,
-                    style = MaterialTheme.typography.bodyLarge,
+                    text = "• ${t.title}",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
             }
-            // O servidor já manda as anotações completas, não só o id - o
-            // filho não precisa de uma segunda busca só pra saber o título de
-            // cada uma. Mesmo bug do painel web (PR #21 tratou outro; este é
-            // um bug de tela, não de dado: a API sempre mandou isso).
-            if (atual.trombadices.isNotEmpty()) {
-                Spacer(Modifier.height(24.dp))
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    atual.trombadices.forEach { t ->
-                        Text(
-                            text = "• ${t.title}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(32.dp))
-            ReactionSection(
-                reactionText = atual.reactionText,
-                onSend = { texto -> viewModel.react(atual.id, texto) },
-            )
         }
     }
+    Spacer(Modifier.height(32.dp))
+    ReactionSection(reactionText = castigo.reactionText, onSend = onReact)
 }
 
 /**
@@ -251,8 +333,22 @@ private fun ReactionSection(reactionText: String?, onSend: (String) -> Unit) {
 private const val REACTION_MAX_LENGTH = 256
 private val REACTION_EMOJIS = listOf("😢", "😠", "😐", "😔", "😳")
 
+/**
+ * A lista do pai, em três blocos: o que vale agora, a fila e o histórico.
+ *
+ * Recebe o que usa em vez do ViewModel, como `ChildAnswer` e pelo mesmo motivo:
+ * "castigo da fila não cobra visto" e "a fila mostra onde emenda" são fáceis de
+ * quebrar sem perceber, e assim dá pra medir (`PunishmentAdminListTest`).
+ */
 @Composable
-private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
+internal fun AdminList(
+    state: PunishmentState,
+    childName: (Int) -> String?,
+    onEdit: (PunishmentDto) -> Unit,
+    onEndNow: (PunishmentDto) -> Unit,
+    onReopen: (PunishmentDto) -> Unit,
+    onDelete: (PunishmentDto) -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
@@ -276,7 +372,21 @@ private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
             }
         } else {
             items(state.active, key = { it.id }) { p ->
-                PunishmentCard(p, viewModel, ativo = true)
+                PunishmentCard(p, childName, onEdit, onEndNow, onReopen, onDelete, ativo = true)
+            }
+        }
+
+        if (state.scheduled.isNotEmpty()) {
+            item {
+                Text(
+                    text = stringResource(R.string.punishment_queue),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                )
+            }
+            items(state.scheduled, key = { it.id }) { p ->
+                PunishmentCard(p, childName, onEdit, onEndNow, onReopen, onDelete, ativo = false)
             }
         }
 
@@ -290,14 +400,22 @@ private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
                 )
             }
             items(state.history, key = { it.id }) { p ->
-                PunishmentCard(p, viewModel, ativo = false)
+                PunishmentCard(p, childName, onEdit, onEndNow, onReopen, onDelete, ativo = false)
             }
         }
     }
 }
 
 @Composable
-private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ativo: Boolean) {
+private fun PunishmentCard(
+    p: PunishmentDto,
+    childName: (Int) -> String?,
+    onEdit: (PunishmentDto) -> Unit,
+    onEndNow: (PunishmentDto) -> Unit,
+    onReopen: (PunishmentDto) -> Unit,
+    onDelete: (PunishmentDto) -> Unit,
+    ativo: Boolean,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -308,6 +426,7 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
                 text = stringResource(
                     when {
                         ativo -> R.string.punishment_active
+                        p.isScheduled -> R.string.punishment_scheduled
                         p.endedEarlyAt != null -> R.string.punishment_ended_early
                         else -> R.string.punishment_served
                     }
@@ -317,14 +436,24 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = viewModel.childName(p.childId) ?: "",
+                text = childName(p.childId) ?: "",
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = stringResource(
-                    R.string.punishment_until,
-                    parseInstant(p.endsAt).formatDateTime(),
-                ),
+                text = if (p.isScheduled) {
+                    // Na fila, "até quando" sozinho não diz nada: o que o pai
+                    // precisa ler é onde este castigo emenda.
+                    stringResource(
+                        R.string.punishment_from_until,
+                        parseInstant(p.startsAt).formatDateTime(),
+                        parseInstant(p.endsAt).formatDateTime(),
+                    )
+                } else {
+                    stringResource(
+                        R.string.punishment_until,
+                        parseInstant(p.endsAt).formatDateTime(),
+                    )
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -335,9 +464,12 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            p.trombadiceIds.mapNotNull(viewModel::trombadiceTitle).forEach { titulo ->
+            // Do próprio castigo, não de uma busca à parte: procurar o título
+            // na lista de anotações fazia a causa sumir em silêncio quando ela
+            // não estava lá (`mapNotNull`) - e a tela do filho já fazia certo.
+            p.trombadices.forEach { t ->
                 Text(
-                    text = "• $titulo",
+                    text = "• ${t.title}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -352,21 +484,48 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
                 )
             }
             // Só na lista do pai, que é onde este card aparece: "visto" é
-            // informação pra ele, não pro filho.
-            Text(
-                text = p.seenAt?.let {
-                    stringResource(R.string.visto_em, parseInstant(it).formatDateTime())
-                } ?: stringResource(R.string.visto_ainda_nao),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (p.seenAt == null) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
-            if (ativo) {
-                TextButton(onClick = { viewModel.endNow(p) }) {
-                    Text(stringResource(R.string.punishment_end_now))
+            // informação pra ele, não pro filho. No castigo da fila não existe:
+            // o filho ainda nem recebe esse castigo, então "ainda não viu" seria
+            // cobrança de uma coisa impossível.
+            if (!p.isScheduled) {
+                Text(
+                    text = p.seenAt?.let {
+                        stringResource(R.string.visto_em, parseInstant(it).formatDateTime())
+                    } ?: stringResource(R.string.visto_ainda_nao),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (p.seenAt == null) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+            // Rola de lado: três botões de texto não cabem lado a lado num
+            // celular estreito, e "Encerrar agora" é o mais largo deles.
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                TextButton(onClick = { onEdit(p) }) {
+                    Text(stringResource(R.string.action_edit))
+                }
+                if (ativo) {
+                    TextButton(onClick = { onEndNow(p) }) {
+                        Text(stringResource(R.string.punishment_end_now))
+                    }
+                } else if (p.endedEarlyAt != null) {
+                    // Encerrar por engano marcava o castigo como "encerrado
+                    // antes" pra sempre; o prazo original nunca foi apagado,
+                    // então voltar atrás é só limpar o carimbo.
+                    TextButton(onClick = { onReopen(p) }) {
+                        Text(stringResource(R.string.punishment_reopen))
+                    }
+                }
+                TextButton(onClick = { onDelete(p) }) {
+                    Text(
+                        text = stringResource(R.string.action_delete),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
         }
@@ -380,15 +539,28 @@ private fun PunishmentEditorDialog(
     state: PunishmentState,
     viewModel: PunishmentViewModel,
 ) {
-    var showDate by remember { mutableStateOf(false) }
-    var showTime by remember { mutableStateOf(false) }
+    var escolhendo by remember { mutableStateOf<Campo?>(null) }
     // Só as trombadices do filho escolhido aparecem: marcar a de um irmão
-    // colocaria o nome dele no castigo deste.
-    val doFilho = state.trombadices.filter { it.childId == editor.childId }
+    // colocaria o nome dele no castigo deste. Conquista fica de fora: o
+    // servidor recusa ("conquista não causa castigo") e oferecer o que ele vai
+    // recusar só produz erro.
+    val doFilho = state.trombadices.filter {
+        it.childId == editor.childId && !ehConquista(it.kind)
+    }
+    // As já marcadas entram sempre, mesmo fora das 20 mais recentes: corrigir
+    // um castigo antigo não pode perder em silêncio a causa dele.
+    val candidatas = (doFilho.take(20) + doFilho.filter { it.id in editor.trombadiceIds })
+        .distinctBy { it.id }
 
     AlertDialog(
         onDismissRequest = viewModel::dismissEditor,
-        title = { Text(stringResource(R.string.punishment_new)) },
+        title = {
+            Text(
+                stringResource(
+                    if (editor.isEditing) R.string.punishment_edit else R.string.punishment_new
+                )
+            )
+        },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 if (state.children.size > 1) {
@@ -403,13 +575,10 @@ private fun PunishmentEditorDialog(
                         state.children.forEach { child ->
                             FilterChip(
                                 selected = editor.childId == child.id,
-                                onClick = {
-                                    viewModel.updateEditor {
-                                        // Troca de filho limpa a seleção: as
-                                        // trombadices marcadas eram de outro.
-                                        it.copy(childId = child.id, trombadiceIds = emptySet())
-                                    }
-                                },
+                                // Troca de filho limpa a seleção (as trombadices
+                                // marcadas eram de outro) e pergunta a fila
+                                // dele, que é onde o castigo novo emenda.
+                                onClick = { viewModel.chooseChild(child.id) },
                                 label = { Text(child.displayName) },
                             )
                         }
@@ -417,16 +586,47 @@ private fun PunishmentEditorDialog(
                     Spacer(Modifier.height(16.dp))
                 }
 
+                // Quando começou é editável: cadastrado com a data errada, o
+                // registro já nasce errado, e antes disto a única saída era
+                // encerrar - o que deixava no histórico um castigo "cumprido em
+                // parte" que nunca houve.
+                Text(
+                    stringResource(R.string.punishment_starts_label),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TextButton(onClick = { escolhendo = Campo.INICIO_DATA }) {
+                        Text(editor.startDate.format(DATA))
+                    }
+                    TextButton(onClick = { escolhendo = Campo.INICIO_HORA }) {
+                        Text(editor.startTime.format(HORA))
+                    }
+                }
+                // O campo já vem preenchido com o fim do castigo de agora - é
+                // assim que se dá mais um dia. Dizer isso evita o pai achar que
+                // o castigo novo começa na hora e vale junto com o outro.
+                if (editor.emFila) {
+                    Text(
+                        text = stringResource(
+                            R.string.punishment_starts_after,
+                            editor.startDate.format(DATA) + " " + editor.startTime.format(HORA),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
                 Text(
                     stringResource(R.string.punishment_until_label),
                     style = MaterialTheme.typography.labelLarge,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TextButton(onClick = { showDate = true }) {
-                        Text(editor.date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+                    TextButton(onClick = { escolhendo = Campo.FIM_DATA }) {
+                        Text(editor.endDate.format(DATA))
                     }
-                    TextButton(onClick = { showTime = true }) {
-                        Text(editor.time.format(DateTimeFormatter.ofPattern("HH:mm")))
+                    TextButton(onClick = { escolhendo = Campo.FIM_HORA }) {
+                        Text(editor.endTime.format(HORA))
                     }
                 }
 
@@ -454,7 +654,7 @@ private fun PunishmentEditorDialog(
                         stringResource(R.string.punishment_pick_trombadices),
                         style = MaterialTheme.typography.labelLarge,
                     )
-                    doFilho.take(20).forEach { t ->
+                    candidatas.forEach { t ->
                         FilterChip(
                             selected = t.id in editor.trombadiceIds,
                             onClick = {
@@ -496,53 +696,67 @@ private fun PunishmentEditorDialog(
         },
     )
 
-    if (showDate) {
+    val alvo = escolhendo
+    if (alvo == Campo.INICIO_DATA || alvo == Campo.FIM_DATA) {
+        val inicio = alvo == Campo.INICIO_DATA
         // DatePicker fala em millis de meia-noite UTC, não LocalDate; passar
         // pelo fuso do sistema aqui deslocaria a data em um dia.
         val pickerState = rememberDatePickerState(
-            initialSelectedDateMillis = editor.date.atStartOfDay(ZoneOffset.UTC)
-                .toInstant().toEpochMilli()
+            initialSelectedDateMillis = (if (inicio) editor.startDate else editor.endDate)
+                .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         )
         DatePickerDialog(
-            onDismissRequest = { showDate = false },
+            onDismissRequest = { escolhendo = null },
             confirmButton = {
                 TextButton(onClick = {
                     pickerState.selectedDateMillis?.let { millis ->
+                        val dia = LocalDate.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC)
                         viewModel.updateEditor {
-                            it.copy(
-                                date = LocalDate.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC)
-                            )
+                            // A partir daqui o começo é escolha do pai: a
+                            // resposta da fila não sobrescreve mais.
+                            if (inicio) {
+                                it.copy(startDate = dia, startTouched = true)
+                            } else {
+                                it.copy(endDate = dia)
+                            }
                         }
                     }
-                    showDate = false
+                    escolhendo = null
                 }) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDate = false }) {
+                TextButton(onClick = { escolhendo = null }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
         ) { DatePicker(state = pickerState) }
     }
 
-    if (showTime) {
+    if (alvo == Campo.INICIO_HORA || alvo == Campo.FIM_HORA) {
+        val inicio = alvo == Campo.INICIO_HORA
+        val atual = if (inicio) editor.startTime else editor.endTime
         val pickerState = rememberTimePickerState(
-            initialHour = editor.time.hour,
-            initialMinute = editor.time.minute,
+            initialHour = atual.hour,
+            initialMinute = atual.minute,
             is24Hour = true,
         )
         DatePickerDialog(
-            onDismissRequest = { showTime = false },
+            onDismissRequest = { escolhendo = null },
             confirmButton = {
                 TextButton(onClick = {
+                    val hora = LocalTime.of(pickerState.hour, pickerState.minute)
                     viewModel.updateEditor {
-                        it.copy(time = LocalTime.of(pickerState.hour, pickerState.minute))
+                        if (inicio) {
+                            it.copy(startTime = hora, startTouched = true)
+                        } else {
+                            it.copy(endTime = hora)
+                        }
                     }
-                    showTime = false
+                    escolhendo = null
                 }) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showTime = false }) {
+                TextButton(onClick = { escolhendo = null }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
@@ -554,3 +768,9 @@ private fun PunishmentEditorDialog(
         }
     }
 }
+
+/** Qual dos quatro botões de data/hora abriu o seletor. */
+private enum class Campo { INICIO_DATA, INICIO_HORA, FIM_DATA, FIM_HORA }
+
+private val DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+private val HORA = DateTimeFormatter.ofPattern("HH:mm")

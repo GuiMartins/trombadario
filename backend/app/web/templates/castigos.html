@@ -14,6 +14,25 @@
   Todo castigo vem de alguma coisa que aconteceu: marque pelo menos uma
   trombadice do filho escolhido.
 </div>
+{% elif erro == 'fim-antes-do-inicio' %}
+<div class="aviso">
+  O castigo precisa terminar depois de começar.
+</div>
+{% endif %}
+{# A fila: castigo novo emenda no fim do que já existe, em vez de valer junto.
+   Uma linha por filho que já tem castigo, porque o campo "Quem" pode ser
+   trocado depois de a página carregar - dizer só do primeiro seria mentira
+   metade das vezes. #}
+{% if fila and not e %}
+<div class="aviso">
+  {% for c, inicio in fila %}
+  <p>
+    <strong>{{ c.display_name }}</strong> está de castigo até
+    {{ inicio.astimezone().strftime('%d/%m às %H:%M') }} — um castigo novo
+    começa aí, emendado.
+  </p>
+  {% endfor %}
+</div>
 {% endif %}
 <form id="editar" method="post" action="{{ '/castigos/' ~ e.id ~ '/editar' if e else '/castigos' }}" class="bloco">
   {% if e %}<h2>Corrigindo o castigo</h2>{% endif %}
@@ -24,6 +43,10 @@
     <option value="{{ c.id }}" {% if e and e.child_id == c.id %}selected{% endif %}>{{ c.display_name }}</option>
     {% endfor %}
   </select>
+
+  <label for="starts_at">{{ 'Começou em' if e else 'Começa em' }}</label>
+  <input type="datetime-local" id="starts_at" name="starts_at"
+         value="{{ e.starts_at | hora_local if e else inicio_sugerido }}" required>
 
   <label for="ends_at">Até quando</label>
   <input type="datetime-local" id="ends_at" name="ends_at"
@@ -39,7 +62,7 @@
     <label>
       <input type="checkbox" name="trombadice_ids" value="{{ t.id }}" {% if t.id in editando_trombadices %}checked{% endif %}>
       {{ t.occurred_at.astimezone().strftime('%d/%m') }} —
-      {{ t.title }}
+      {{ t.display_title }}
       <span class="sub">({{ children_by_id[t.child_id].display_name if t.child_id in children_by_id else '' }})</span>
     </label>
     {% endfor %}
@@ -54,10 +77,18 @@
   </div>
   {% endif %}
 
+  {% if not e %}
+  <p class="sub" style="margin-top:0.75rem">
+    Já vem preenchido com o começo da fila: se esse filho estiver de castigo, o
+    novo emenda no fim do de agora. É assim que se dá mais um dia — aplica outro
+    castigo com o prazo novo, sem fazer conta de calendário.
+  </p>
+  {% endif %}
+
   {% if e %}
   <p class="sub" style="margin-top:0.75rem">
-    Quando começou não se edita — isso é fato. Para soltar antes da hora, use
-    Encerrar, que guarda o prazo original.
+    Para soltar antes da hora, use Encerrar — ele guarda o prazo original. Se o
+    castigo foi cadastrado por engano, Excluir apaga de vez.
   </p>
   {% endif %}
 
@@ -78,12 +109,14 @@
 {% endif %}
 
 {% if punishments %}
-  {% for p, ativo in punishments %}
+  {% for p, ativo, agendado in punishments %}
   <div class="cartao">
     <div class="linha">
       <div class="cresce">
         {% if ativo %}
           <span class="etiqueta ativo">de castigo</span>
+        {% elif agendado %}
+          <span class="etiqueta">na fila</span>
         {% elif p.ended_early_at %}
           <span class="etiqueta fim">encerrado antes</span>
         {% else %}
@@ -99,15 +132,17 @@
         </p>
         {% if p.reason %}<p class="sub">{{ p.reason }}</p>{% endif %}
         {% for t in p.trombadices %}
-          <span class="etiqueta">{{ t.title }}</span>
+          <span class="etiqueta">{{ t.display_title }}</span>
         {% endfor %}
         {# Só leitura: quem escreve é o filho, pelo app. #}
         {% if p.reaction_text %}
           <p class="sub">💬 {{ p.reaction_text }}</p>
         {% endif %}
+        {# Castigo na fila o filho ainda nem recebe - ele só vê o que está
+           valendo. "Ainda não viu" ali seria cobrança de uma coisa impossível. #}
         {% if p.seen_at %}
           <span class="etiqueta visto">visto {{ p.seen_at.astimezone().strftime('%d/%m às %H:%M') }}</span>
-        {% else %}
+        {% elif not agendado %}
           <span class="etiqueta fim">ainda não viu</span>
         {% endif %}
       </div>
@@ -117,9 +152,16 @@
         <form method="post" action="/castigos/{{ p.id }}/encerrar">
           <button class="mini secundario">Encerrar</button>
         </form>
+        {% elif p.ended_early_at %}
+        {# Encerrar por engano travava o castigo como "encerrado antes" pra
+           sempre; o prazo original continua guardado, então voltar atrás é só
+           limpar o carimbo. #}
+        <form method="post" action="/castigos/{{ p.id }}/reabrir">
+          <button class="mini secundario">Reabrir</button>
+        </form>
         {% endif %}
         <form method="post" action="/castigos/{{ p.id }}/delete"
-              hx-confirm="Excluir este castigo do histórico?">
+              hx-confirm="Excluir este castigo? Some do histórico e da tela do filho, sem volta.">
           <button class="mini perigo">Excluir</button>
         </form>
       </div>

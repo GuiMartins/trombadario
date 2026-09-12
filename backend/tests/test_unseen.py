@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from fastapi.testclient import TestClient
 
 from app.models import User
-from tests.conftest import as_admin, as_child, auth_header
+from tests.conftest import as_admin, as_child, auth_header, corpo_de_trombadice
 
 OCCURRED_AT = "2026-08-01T14:30:00+00:00"
 
@@ -39,11 +39,9 @@ def test_filho_ve_trombadice_nova_sem_efeito_colateral(
     client.post(
         "/api/trombadices",
         headers=as_admin(client),
-        json={
-            "title": "Machou a irmã",
-            "occurred_at": datetime.now(UTC).isoformat(),
-            "child_id": child.id,
-        },
+        json=corpo_de_trombadice(
+            client, child.id, title="Machou a irmã", occurred_at=datetime.now(UTC).isoformat()
+        ),
     )
 
     assert client.get("/api/unseen", headers=as_child(client)).json()["trombadices_novas"] == 1
@@ -64,12 +62,13 @@ def test_trombadice_e_conquista_contam_separado(
         client.post(
             "/api/trombadices",
             headers=as_admin(client),
-            json={
-                "title": "algo",
-                "occurred_at": datetime.now(UTC).isoformat(),
-                "child_id": child.id,
-                "kind": kind,
-            },
+            json=corpo_de_trombadice(
+                client,
+                child.id,
+                title="algo",
+                occurred_at=datetime.now(UTC).isoformat(),
+                kind=kind,
+            ),
         )
 
     contagens = client.get("/api/unseen", headers=as_child(client)).json()
@@ -82,7 +81,7 @@ def test_filho_ve_castigo_novo(client: TestClient, admin: User, child: User) -> 
     trombadice = client.post(
         "/api/trombadices",
         headers=as_admin(client),
-        json={"title": "Bagunça", "occurred_at": OCCURRED_AT, "child_id": child.id},
+        json=corpo_de_trombadice(client, child.id, title="Bagunça", occurred_at=OCCURRED_AT),
     ).json()
     client.post(
         "/api/punishments",
@@ -132,11 +131,9 @@ def test_filho_nao_ve_novidade_do_irmao(
     client.post(
         "/api/trombadices",
         headers=as_admin(client),
-        json={
-            "title": "Bagunça",
-            "occurred_at": datetime.now(UTC).isoformat(),
-            "child_id": other_child.id,
-        },
+        json=corpo_de_trombadice(
+            client, other_child.id, title="Bagunça", occurred_at=datetime.now(UTC).isoformat()
+        ),
     )
 
     assert client.get("/api/unseen", headers=as_child(client)).json()["trombadices_novas"] == 0
@@ -146,3 +143,34 @@ def test_filho_nao_ve_novidade_do_irmao(
 
 def test_unseen_exige_autenticacao(client: TestClient) -> None:
     assert client.get("/api/unseen").status_code == 401
+
+
+def test_castigo_na_fila_nao_avisa_antes_de_comecar(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """O filho não vê o castigo da fila, então não pode ser avisado dele - seria
+    uma notificação sem tela pra abrir. O aviso sai sozinho quando ele começa,
+    que é quando a contagem sobe."""
+    trombadice = client.post(
+        "/api/trombadices",
+        headers=as_admin(client),
+        json=corpo_de_trombadice(client, child.id, title="Bagunça", occurred_at=OCCURRED_AT),
+    ).json()
+
+    def castiga(dias: int) -> None:
+        client.post(
+            "/api/punishments",
+            headers=as_admin(client),
+            json={
+                "child_id": child.id,
+                "ends_at": (datetime.now(UTC) + timedelta(days=dias)).isoformat(),
+                "trombadice_ids": [trombadice["id"]],
+            },
+        )
+
+    castiga(1)
+    castiga(2)  # emenda no anterior: ainda não começou
+    client.get("/api/punishments/current", headers=as_child(client))
+
+    # O de agora já foi visto; o da fila não conta - e nem existe pra ele.
+    assert client.get("/api/unseen", headers=as_child(client)).json()["castigos_novos"] == 0

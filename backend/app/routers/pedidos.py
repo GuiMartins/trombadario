@@ -126,7 +126,7 @@ def decide_pedido(
                 kind=Kind.CONQUISTA,
                 title=pedido.title,
                 description=pedido.justification,
-                category=pedido.category,
+                conquista_category=pedido.category,
                 occurred_at=pedido.decided_at,
                 child_id=pedido.child_id,
                 author_id=admin.id,

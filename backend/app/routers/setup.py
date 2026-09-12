@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
+from app.categorias import semear_tipos_de_trombadice
 from app.deps import DbSession
 from app.models import Role, User
 from app.schemas import SetupRequest, UserOut
@@ -34,4 +35,8 @@ def run_setup(payload: SetupRequest, db: DbSession) -> User:
     db.add(admin)
     db.commit()
     db.refresh(admin)
+    # A lista de tipos de trombadice nasce junto com a conta que vai usá-la:
+    # sem nenhum tipo cadastrado não dá para registrar nada, e o pai chegaria
+    # numa tela de anotação sem opção nenhuma no primeiro uso.
+    semear_tipos_de_trombadice(db)
     return admin
