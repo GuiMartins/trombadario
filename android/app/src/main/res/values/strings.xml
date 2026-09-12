@@ -159,6 +159,9 @@
     <string name="punishment_edit">Corrigindo o castigo</string>
     <string name="punishment_who">Quem</string>
     <string name="punishment_starts_label">Começou em</string>
+    <!-- Castigo novo ainda não começou: "Começou em" só vale corrigindo um que
+         já existe. Mesma distinção do painel. -->
+    <string name="punishment_starts_label_new">Começa em</string>
     <string name="punishment_until_label">Até quando</string>
     <string name="punishment_reason">Motivo</string>
     <string name="punishment_pick_trombadices">Por causa de quais trombadices</string>

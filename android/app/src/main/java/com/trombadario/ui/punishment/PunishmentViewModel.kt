@@ -181,6 +181,16 @@ class PunishmentViewModel(
                             startDate = inicio.toLocalDate(),
                             startTime = inicio.toLocalTime(),
                             endDate = inicio.toLocalDate().plusDays(1),
+                            // Emendando, o prazo novo guarda a hora do castigo
+                            // anterior: "mais um dia" acaba no mesmo horário
+                            // que o de agora acabaria, não às 20:00. Sem fila,
+                            // o padrão da tela (20:00) continua valendo - ali o
+                            // começo é agora, e a hora de agora não sugere nada.
+                            endTime = if (result.data.emFila) {
+                                inicio.toLocalTime()
+                            } else {
+                                editor.endTime
+                            },
                             emFila = result.data.emFila,
                         )
                     )

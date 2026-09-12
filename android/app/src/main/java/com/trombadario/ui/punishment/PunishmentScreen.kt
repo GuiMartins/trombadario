@@ -591,7 +591,13 @@ private fun PunishmentEditorDialog(
                 // encerrar - o que deixava no histórico um castigo "cumprido em
                 // parte" que nunca houve.
                 Text(
-                    stringResource(R.string.punishment_starts_label),
+                    stringResource(
+                        if (editor.isEditing) {
+                            R.string.punishment_starts_label
+                        } else {
+                            R.string.punishment_starts_label_new
+                        }
+                    ),
                     style = MaterialTheme.typography.labelLarge,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
