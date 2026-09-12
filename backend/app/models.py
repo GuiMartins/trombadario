@@ -393,6 +393,31 @@ class Punishment(Base):
             return False
         return self.starts_at <= moment < self.ends_at
 
+    def is_scheduled_at(self, moment: datetime) -> bool:
+        """Já foi dado, mas ainda não começou - o próximo da fila.
+
+        Calculado pelo mesmo motivo que `is_active_at`: uma coluna de status
+        precisaria de algo rodando pra virar na hora certa e ficaria errada no
+        meio do caminho. **Isto é informação do pai**: o filho só vê o castigo
+        que está valendo agora, nunca o que vem depois.
+        """
+        return self.ended_early_at is None and moment < self.starts_at
+
+    @property
+    def effective_end(self) -> datetime:
+        """Quando o castigo acabou de verdade - o prazo dado, ou a hora em que
+        o pai soltou antes dele.
+
+        `ends_at` sozinho não responde isso, e não é pra responder: ele fica
+        preservado de propósito quando o castigo termina antes, pra história
+        mostrar o que foi dado além do que foi cumprido. Quem precisa do fim de
+        verdade é o calendário (em que dias houve castigo) e a fila (onde
+        emenda o próximo).
+        """
+        if self.ended_early_at is not None and self.ended_early_at < self.ends_at:
+            return self.ended_early_at
+        return self.ends_at
+
 
 class ServerIdentity(Base):
     """Single row. The UUID is what the app pairs with on first setup, so that

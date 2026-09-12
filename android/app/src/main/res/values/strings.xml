@@ -169,6 +169,10 @@
     <string name="punishment_ended_early">encerrado antes</string>
     <string name="punishment_served">cumprido</string>
     <string name="punishment_active">de castigo</string>
+    <string name="punishment_scheduled">na fila</string>
+    <string name="punishment_queue">Na fila</string>
+    <string name="punishment_from_until">de %1$s até %2$s</string>
+    <string name="punishment_starts_after">Emenda no castigo de agora: começa em %1$s. Dá pra mudar.</string>
     <string name="punishment_history">Histórico</string>
     <string name="punishment_reaction_label">Como você tá se sentindo?</string>
     <string name="punishment_reaction_placeholder">Conte pro seu pai…</string>

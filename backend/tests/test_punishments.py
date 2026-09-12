@@ -479,3 +479,169 @@ def test_filho_nao_cancela_nem_corrige_castigo(
         client.delete(f"/api/punishments/{punishment['id']}", headers=as_child(client)).status_code
         == 403
     )
+
+
+# --------------------------------------------------------------------------
+# A fila: castigo em cima de castigo é "mais um dia"
+#
+# E o filho só vê o que está valendo - nem o que já cumpriu, nem o que vem
+# depois.
+# --------------------------------------------------------------------------
+
+
+def test_castigo_novo_emenda_no_fim_do_anterior(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Dois castigos valendo ao mesmo tempo não significam nada pra criança, que
+    só pode estar de castigo ou não."""
+    hoje = punish(client, child.id, ends_at=iso(timedelta(days=1)))
+
+    amanha = punish(client, child.id, ends_at=iso(timedelta(days=2)))
+
+    assert amanha["starts_at"] == hoje["ends_at"]
+    assert amanha["is_active"] is False
+    assert amanha["is_scheduled"] is True
+
+
+def test_terceiro_castigo_emenda_no_fim_da_fila_inteira(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Não é "depois do que está valendo", é "depois do último": senão o
+    terceiro nasceria por cima do segundo."""
+    punish(client, child.id, ends_at=iso(timedelta(days=1)))
+    segundo = punish(client, child.id, ends_at=iso(timedelta(days=2)))
+
+    terceiro = punish(client, child.id, ends_at=iso(timedelta(days=3)))
+
+    assert terceiro["starts_at"] == segundo["ends_at"]
+
+
+def test_castigo_encerrado_antes_nao_segura_a_fila(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Quem manda na fila é o fim de verdade. Um castigo que o pai encerrou já
+    acabou - o próximo não pode esperar por um prazo que não vale mais."""
+    solto = punish(client, child.id, ends_at=iso(timedelta(days=5)))
+    client.patch(
+        f"/api/punishments/{solto['id']}", headers=as_admin(client), json={"end_now": True}
+    )
+
+    novo = punish(client, child.id, ends_at=iso(timedelta(days=1)))
+
+    assert novo["is_active"] is True
+
+
+def test_fila_e_por_filho(client: TestClient, admin: User, child: User, other_child: User) -> None:
+    punish(client, child.id, ends_at=iso(timedelta(days=3)))
+
+    da_outra = punish(client, other_child.id, ends_at=iso(timedelta(days=1)))
+
+    # O castigo de um irmão não adia o do outro.
+    assert da_outra["is_active"] is True
+
+
+def test_comeco_explicito_nao_entra_na_fila(client: TestClient, admin: User, child: User) -> None:
+    """A fila é o padrão, não uma regra por cima do pai: dizendo quando começa,
+    é isso que vale - inclusive pra registrar castigo que já tinha começado."""
+    punish(client, child.id, ends_at=iso(timedelta(days=5)))
+    comeco = iso(timedelta(days=-1))
+
+    registrado = punish(
+        client, child.id, starts_at=comeco, ends_at=iso(timedelta(hours=1))
+    )
+
+    assert datetime.fromisoformat(registrado["starts_at"]) == datetime.fromisoformat(comeco)
+    assert registrado["is_active"] is True
+
+
+def test_proximo_inicio_diz_quando_o_castigo_comecaria(
+    client: TestClient, admin: User, child: User
+) -> None:
+    livre = client.get(
+        "/api/punishments/proximo-inicio", headers=as_admin(client), params={"child_id": child.id}
+    ).json()
+    assert livre["em_fila"] is False
+
+    atual = punish(client, child.id, ends_at=iso(timedelta(days=1)))
+
+    na_fila = client.get(
+        "/api/punishments/proximo-inicio", headers=as_admin(client), params={"child_id": child.id}
+    ).json()
+    assert na_fila["em_fila"] is True
+    assert na_fila["starts_at"] == atual["ends_at"]
+
+
+def test_filho_nao_pergunta_pela_fila(client: TestClient, admin: User, child: User) -> None:
+    """A fila é do pai: saber que vem outro castigo depois deste é justamente o
+    que o filho não vê."""
+    response = client.get(
+        "/api/punishments/proximo-inicio", headers=as_child(client), params={"child_id": child.id}
+    )
+
+    assert response.status_code == 403
+
+
+def test_filho_nao_ve_o_historico_de_castigo(
+    client: TestClient, db, admin: User, child: User
+) -> None:
+    """Ele já sabe o que fez - as anotações continuam todas lá. Reler a lista do
+    que já cumpriu só serve pra remoer, e o pedido foi explícito."""
+    cumprido = punish(client, child.id)
+    stored = db.get(Punishment, cumprido["id"])
+    stored.starts_at = datetime.now(UTC) - timedelta(days=5)
+    stored.ends_at = datetime.now(UTC) - timedelta(days=1)
+    db.commit()
+    headers = as_child(client)
+
+    assert client.get("/api/punishments", headers=headers).json() == []
+    assert client.get("/api/punishments/current", headers=headers).json() == []
+    # Nem pelo id: pedir direto não pode ser a porta dos fundos da lista.
+    assert client.get(f"/api/punishments/{cumprido['id']}", headers=headers).status_code == 404
+    # E o pai continua com a história inteira, que é dele.
+    assert len(client.get("/api/punishments", headers=as_admin(client)).json()) == 1
+
+
+def test_filho_nao_ve_castigo_que_ainda_nao_comecou(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Castigo na fila é planejamento do pai. A criança fica sabendo quando ele
+    começa, não antes."""
+    punish(client, child.id, ends_at=iso(timedelta(days=1)))
+    agendado = punish(client, child.id, ends_at=iso(timedelta(days=2)))
+    headers = as_child(client)
+
+    valendo = client.get("/api/punishments", headers=headers).json()
+
+    assert len(valendo) == 1
+    assert valendo[0]["id"] != agendado["id"]
+    assert client.get(f"/api/punishments/{agendado['id']}", headers=headers).status_code == 404
+
+
+def test_castigo_na_fila_nao_conta_como_visto(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """`seen_at` responde "o filho viu". Carimbar o que ele nem recebeu viraria
+    mentira pro pai."""
+    punish(client, child.id, ends_at=iso(timedelta(days=1)))
+    agendado = punish(client, child.id, ends_at=iso(timedelta(days=2)))
+
+    client.get("/api/punishments", headers=as_child(client))
+    client.get("/api/punishments/current", headers=as_child(client))
+
+    depois = client.get(f"/api/punishments/{agendado['id']}", headers=as_admin(client)).json()
+    assert depois["seen_at"] is None
+
+
+def test_filho_nao_reage_a_castigo_que_nao_esta_valendo(
+    client: TestClient, admin: User, child: User
+) -> None:
+    punish(client, child.id, ends_at=iso(timedelta(days=1)))
+    agendado = punish(client, child.id, ends_at=iso(timedelta(days=2)))
+
+    response = client.patch(
+        f"/api/punishments/{agendado['id']}/reaction",
+        headers=as_child(client),
+        json={"reaction_text": "😢"},
+    )
+
+    assert response.status_code == 404

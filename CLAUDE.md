@@ -435,6 +435,70 @@ Duas invariantes que a edição não pode furar, as duas com teste:
   no corpo, porque as antigas passariam a apontar a trombadice de outra criança.
   Sem lista nova, o `PATCH` responde 400 em vez de gravar um vínculo falso.
 
+`Punishment.is_scheduled_at` é o irmão do `is_active_at`: **dado, mas ainda não
+começou**. Calculado pelo mesmo motivo, e vai no `PunishmentOut` como
+`is_scheduled` — com `is_active` e `ended_early_at`, os três distinguem os
+quatro estados que a tela precisa nomear (valendo, na fila, cumprido, encerrado
+antes). Um enum de status trocaria isso por um campo que todo cliente antigo
+deixaria de entender de uma vez.
+
+`effective_end` é o fim de verdade — `ends_at`, ou a hora em que o pai soltou
+antes. Quem precisa dele é o calendário (em que dias houve castigo) e a fila
+(onde emenda o próximo); `ends_at` sozinho não responde isso, e não é pra
+responder.
+
+### Castigo é uma fila, não um monte
+
+Aplicar um castigo em cima de outro quer dizer **"mais um dia"**, e é o que
+`proximo_inicio` responde: o começo de um castigo novo é o fim do último daquele
+filho, ou agora, se ele não está de castigo. Emendar na mão obrigaria o pai a
+fazer conta de calendário toda vez que quisesse esticar mais um dia — e é a
+conta que ele mais faz.
+
+- **É o padrão, não uma regra por cima do pai.** Sem `starts_at` no corpo, a API
+  emenda; o app e o painel **já abrem o formulário com esse instante no campo de
+  começo**, e o pai muda à vontade — inclusive pra registrar um castigo que já
+  tinha começado, que é o caso de "Corrigir" acima. Continua sendo possível ter
+  dois valendo ao mesmo tempo; o que muda é que isso deixa de acontecer por
+  descuido.
+- **A fila é por filho**, e quem manda nela é o `effective_end`: um castigo que
+  o pai encerrou já acabou e não segura o próximo.
+- **Encerrar o de agora não puxa o da fila pra frente.** Soltar hoje é sobre
+  hoje; o de amanhã foi dado com data e continua com ela. Puxar reescreveria um
+  castigo que o pai não tocou.
+- **Quem calcula é o servidor, num lugar só** (`proximo_inicio`, em
+  `app/routers/punishments.py`), usado pela API e pelo painel.
+  `GET /api/punishments/proximo-inicio` é a mesma conta pro app — quando o
+  castigo começa é conta de servidor, como toda data neste projeto.
+- **O prazo sugerido é um dia depois do começo**, não um dia depois de agora:
+  emendando num castigo que termina amanhã à noite, sugerir "amanhã" daria um
+  castigo que acaba antes de começar.
+- **Cancelar o da fila é o mesmo Excluir de sempre** — não existe estado
+  "cancelado", pelo mesmo motivo da seção acima.
+
+### O filho só vê o castigo que está valendo
+
+Requisito do usuário, direto: a criança vê **o castigo de agora e mais nada**.
+Nem o histórico do que já cumpriu — ela já sabe o que fez, as anotações
+continuam todas lá, e reler a lista só serve pra remoer —, nem o que está na
+fila, que é planejamento do pai.
+
+Como o filho tem o APK na mão, isso não podia ser filtro de tela: quem corta é
+o servidor, em **toda** leitura que ele alcança (`_so_o_de_agora`). A lista, o
+`/datas`, o `GET` por id e até reagir passam pelo mesmo corte — pedir por id não
+pode ser a porta dos fundos da lista.
+
+- **A lista continua respondendo pro filho, só que com o de agora**, em vez de
+  virar 403. Um APK antigo que ainda chama `/api/punishments` mostra o castigo
+  certo em vez de uma tela mentindo "você não está de castigo".
+- **`unseen` conta só castigo que está valendo.** Avisar de um castigo da fila
+  seria notificação sem tela pra abrir — e, de brinde, o aviso sai sozinho na
+  hora em que ele começa, que é quando a contagem sobe.
+- **Castigo da fila não carimba `seen_at`.** "O filho viu" tem que continuar
+  verdade; carimbar o que ele nem recebeu viraria mentira pro pai. Pelo mesmo
+  motivo, o cartão do pai não diz "ainda não viu" num castigo da fila: seria
+  cobrança de uma coisa impossível.
+
 ### Conquista é o mesmo registro com outro sinal
 
 `Trombadice.kind` (`trombadice` | `conquista`). Mesma tabela, mesmas colunas,
@@ -562,7 +626,8 @@ fazer — quem carimba é `app/visto.py`, chamado pelas próprias leituras do fi
   todos. Ela lia `active.first()`, então com dois castigos ao mesmo tempo o pai
   via "visto" num castigo que nunca chegou a aparecer pra criança. O carimbo e a
   tela têm que concordar sobre o que foi mostrado, senão o campo passa a
-  responder outra coisa.
+  responder outra coisa. Desde a fila, é também a **única** leitura de castigo
+  que o app do filho faz.
 
 > **É escrita dentro de um GET**, o que normalmente é errado. Vale aqui porque
 > não há cache nem prefetch entre app e servidor (a leitura só acontece com a
@@ -791,7 +856,9 @@ alcançam).
 A tela de **Castigo do filho** existe pra responder uma coisa só, e responde
 grande: ícone, "Você está de castigo" e até quando — ou "Você não está de
 castigo". `is_active` vem calculado do servidor; o relógio do celular não decide
-isso.
+isso. Ela lê `/current` e só isso — sem histórico e sem fila, pelo motivo que
+está em "O filho só vê o castigo que está valendo". A lista do pai é que tem os
+três blocos: valendo agora, na fila e histórico.
 
 ### i18n: só português
 

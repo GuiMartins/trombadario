@@ -107,7 +107,14 @@ fun PunishmentScreen(container: AppContainer, currentUser: UserDto) {
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     if (currentUser.isAdmin) {
-                        AdminList(state, viewModel)
+                        AdminList(
+                            state = state,
+                            childName = viewModel::childName,
+                            onEdit = viewModel::startEdit,
+                            onEndNow = viewModel::endNow,
+                            onReopen = viewModel::reopen,
+                            onDelete = viewModel::askDelete,
+                        )
                     } else {
                         ChildAnswer(
                             ativos = state.active,
@@ -326,8 +333,22 @@ private fun ReactionSection(reactionText: String?, onSend: (String) -> Unit) {
 private const val REACTION_MAX_LENGTH = 256
 private val REACTION_EMOJIS = listOf("😢", "😠", "😐", "😔", "😳")
 
+/**
+ * A lista do pai, em três blocos: o que vale agora, a fila e o histórico.
+ *
+ * Recebe o que usa em vez do ViewModel, como `ChildAnswer` e pelo mesmo motivo:
+ * "castigo da fila não cobra visto" e "a fila mostra onde emenda" são fáceis de
+ * quebrar sem perceber, e assim dá pra medir (`PunishmentAdminListTest`).
+ */
 @Composable
-private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
+internal fun AdminList(
+    state: PunishmentState,
+    childName: (Int) -> String?,
+    onEdit: (PunishmentDto) -> Unit,
+    onEndNow: (PunishmentDto) -> Unit,
+    onReopen: (PunishmentDto) -> Unit,
+    onDelete: (PunishmentDto) -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
@@ -351,7 +372,21 @@ private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
             }
         } else {
             items(state.active, key = { it.id }) { p ->
-                PunishmentCard(p, viewModel, ativo = true)
+                PunishmentCard(p, childName, onEdit, onEndNow, onReopen, onDelete, ativo = true)
+            }
+        }
+
+        if (state.scheduled.isNotEmpty()) {
+            item {
+                Text(
+                    text = stringResource(R.string.punishment_queue),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                )
+            }
+            items(state.scheduled, key = { it.id }) { p ->
+                PunishmentCard(p, childName, onEdit, onEndNow, onReopen, onDelete, ativo = false)
             }
         }
 
@@ -365,14 +400,22 @@ private fun AdminList(state: PunishmentState, viewModel: PunishmentViewModel) {
                 )
             }
             items(state.history, key = { it.id }) { p ->
-                PunishmentCard(p, viewModel, ativo = false)
+                PunishmentCard(p, childName, onEdit, onEndNow, onReopen, onDelete, ativo = false)
             }
         }
     }
 }
 
 @Composable
-private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ativo: Boolean) {
+private fun PunishmentCard(
+    p: PunishmentDto,
+    childName: (Int) -> String?,
+    onEdit: (PunishmentDto) -> Unit,
+    onEndNow: (PunishmentDto) -> Unit,
+    onReopen: (PunishmentDto) -> Unit,
+    onDelete: (PunishmentDto) -> Unit,
+    ativo: Boolean,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -383,6 +426,7 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
                 text = stringResource(
                     when {
                         ativo -> R.string.punishment_active
+                        p.isScheduled -> R.string.punishment_scheduled
                         p.endedEarlyAt != null -> R.string.punishment_ended_early
                         else -> R.string.punishment_served
                     }
@@ -392,14 +436,24 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = viewModel.childName(p.childId) ?: "",
+                text = childName(p.childId) ?: "",
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                text = stringResource(
-                    R.string.punishment_until,
-                    parseInstant(p.endsAt).formatDateTime(),
-                ),
+                text = if (p.isScheduled) {
+                    // Na fila, "até quando" sozinho não diz nada: o que o pai
+                    // precisa ler é onde este castigo emenda.
+                    stringResource(
+                        R.string.punishment_from_until,
+                        parseInstant(p.startsAt).formatDateTime(),
+                        parseInstant(p.endsAt).formatDateTime(),
+                    )
+                } else {
+                    stringResource(
+                        R.string.punishment_until,
+                        parseInstant(p.endsAt).formatDateTime(),
+                    )
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -430,40 +484,44 @@ private fun PunishmentCard(p: PunishmentDto, viewModel: PunishmentViewModel, ati
                 )
             }
             // Só na lista do pai, que é onde este card aparece: "visto" é
-            // informação pra ele, não pro filho.
-            Text(
-                text = p.seenAt?.let {
-                    stringResource(R.string.visto_em, parseInstant(it).formatDateTime())
-                } ?: stringResource(R.string.visto_ainda_nao),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (p.seenAt == null) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
+            // informação pra ele, não pro filho. No castigo da fila não existe:
+            // o filho ainda nem recebe esse castigo, então "ainda não viu" seria
+            // cobrança de uma coisa impossível.
+            if (!p.isScheduled) {
+                Text(
+                    text = p.seenAt?.let {
+                        stringResource(R.string.visto_em, parseInstant(it).formatDateTime())
+                    } ?: stringResource(R.string.visto_ainda_nao),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (p.seenAt == null) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
             // Rola de lado: três botões de texto não cabem lado a lado num
             // celular estreito, e "Encerrar agora" é o mais largo deles.
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                TextButton(onClick = { viewModel.startEdit(p) }) {
+                TextButton(onClick = { onEdit(p) }) {
                     Text(stringResource(R.string.action_edit))
                 }
                 if (ativo) {
-                    TextButton(onClick = { viewModel.endNow(p) }) {
+                    TextButton(onClick = { onEndNow(p) }) {
                         Text(stringResource(R.string.punishment_end_now))
                     }
                 } else if (p.endedEarlyAt != null) {
                     // Encerrar por engano marcava o castigo como "encerrado
                     // antes" pra sempre; o prazo original nunca foi apagado,
                     // então voltar atrás é só limpar o carimbo.
-                    TextButton(onClick = { viewModel.reopen(p) }) {
+                    TextButton(onClick = { onReopen(p) }) {
                         Text(stringResource(R.string.punishment_reopen))
                     }
                 }
-                TextButton(onClick = { viewModel.askDelete(p) }) {
+                TextButton(onClick = { onDelete(p) }) {
                     Text(
                         text = stringResource(R.string.action_delete),
                         color = MaterialTheme.colorScheme.error,
@@ -517,13 +575,10 @@ private fun PunishmentEditorDialog(
                         state.children.forEach { child ->
                             FilterChip(
                                 selected = editor.childId == child.id,
-                                onClick = {
-                                    viewModel.updateEditor {
-                                        // Troca de filho limpa a seleção: as
-                                        // trombadices marcadas eram de outro.
-                                        it.copy(childId = child.id, trombadiceIds = emptySet())
-                                    }
-                                },
+                                // Troca de filho limpa a seleção (as trombadices
+                                // marcadas eram de outro) e pergunta a fila
+                                // dele, que é onde o castigo novo emenda.
+                                onClick = { viewModel.chooseChild(child.id) },
                                 label = { Text(child.displayName) },
                             )
                         }
@@ -546,6 +601,19 @@ private fun PunishmentEditorDialog(
                     TextButton(onClick = { escolhendo = Campo.INICIO_HORA }) {
                         Text(editor.startTime.format(HORA))
                     }
+                }
+                // O campo já vem preenchido com o fim do castigo de agora - é
+                // assim que se dá mais um dia. Dizer isso evita o pai achar que
+                // o castigo novo começa na hora e vale junto com o outro.
+                if (editor.emFila) {
+                    Text(
+                        text = stringResource(
+                            R.string.punishment_starts_after,
+                            editor.startDate.format(DATA) + " " + editor.startTime.format(HORA),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
 
                 Spacer(Modifier.height(8.dp))
@@ -644,7 +712,13 @@ private fun PunishmentEditorDialog(
                     pickerState.selectedDateMillis?.let { millis ->
                         val dia = LocalDate.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC)
                         viewModel.updateEditor {
-                            if (inicio) it.copy(startDate = dia) else it.copy(endDate = dia)
+                            // A partir daqui o começo é escolha do pai: a
+                            // resposta da fila não sobrescreve mais.
+                            if (inicio) {
+                                it.copy(startDate = dia, startTouched = true)
+                            } else {
+                                it.copy(endDate = dia)
+                            }
                         }
                     }
                     escolhendo = null
@@ -672,7 +746,11 @@ private fun PunishmentEditorDialog(
                 TextButton(onClick = {
                     val hora = LocalTime.of(pickerState.hour, pickerState.minute)
                     viewModel.updateEditor {
-                        if (inicio) it.copy(startTime = hora) else it.copy(endTime = hora)
+                        if (inicio) {
+                            it.copy(startTime = hora, startTouched = true)
+                        } else {
+                            it.copy(endTime = hora)
+                        }
                     }
                     escolhendo = null
                 }) { Text(stringResource(R.string.action_save)) }

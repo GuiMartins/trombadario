@@ -8,6 +8,7 @@ from app.models import Kind, Punishment, Role, Trombadice, User
 from app.periodo import data_local, intervalo
 from app.schemas import (
     DatasComRegistro,
+    ProximoInicio,
     PunishmentCreate,
     PunishmentOut,
     PunishmentReaction,
@@ -37,6 +38,7 @@ def _serialize(punishment: Punishment, now: datetime) -> PunishmentOut:
         trombadice_ids=[t.id for t in punishment.trombadices],
         trombadices=[TrombadiceOut.model_validate(t) for t in punishment.trombadices],
         is_active=punishment.is_active_at(now),
+        is_scheduled=punishment.is_scheduled_at(now),
     )
 
 
@@ -45,6 +47,43 @@ def _get_or_404(db: DbSession, punishment_id: int) -> Punishment:
     if punishment is None:
         raise NOT_FOUND
     return punishment
+
+
+def proximo_inicio(db: DbSession, child_id: int, agora: datetime) -> datetime:
+    """Quando o próximo castigo deste filho começa: emendado no fim do último da
+    fila, ou agora, quando não há fila.
+
+    É o que faz castigo virar **sequência** sem o pai ter que fazer conta de
+    calendário. Aplicar um castigo hoje e outro em seguida quer dizer "e mais um
+    dia depois desse", não dois castigos sobrepostos - dois valendo ao mesmo
+    tempo não significam nada pra criança, que só pode estar de castigo ou não.
+
+    Quem manda é o **fim de verdade** (`effective_end`), não o `ends_at`: um
+    castigo que o pai encerrou antes já acabou e não segura mais a fila.
+
+    Fica aqui, e não em cada tela, porque app e painel precisam da mesma
+    resposta - e porque quando o castigo começa é conta de servidor, como todo
+    resto de data neste projeto.
+    """
+    fins = [p.effective_end for p in db.scalars(
+        select(Punishment).where(Punishment.child_id == child_id)
+    )]
+    return max([agora, *fins])
+
+
+def _so_o_de_agora(punishments: list[Punishment], user: User, now: datetime) -> list[Punishment]:
+    """O filho vê o castigo que está valendo agora, e só ele.
+
+    Não é esconder botão: **o histórico de castigo não é do filho**. Ele já sabe
+    o que fez (as anotações continuam todas lá) e reler a lista do que já
+    cumpriu só serve pra ficar remoendo. O que vem depois também não é dele -
+    castigo agendado é a fila do pai, e a criança fica sabendo quando começa.
+
+    Como o filho tem o APK na mão, filtrar na tela não bastava: quem corta é o
+    servidor, em toda leitura que ele alcança."""
+    if user.role is Role.ADMIN:
+        return punishments
+    return [p for p in punishments if p.is_active_at(now)]
 
 
 def _resolve_trombadices(db: DbSession, ids: list[int], child_id: int) -> list[Trombadice]:
@@ -121,7 +160,7 @@ def list_punishments(
     now = datetime.now(UTC)
     query = select(Punishment).order_by(Punishment.starts_at.desc(), Punishment.id.desc())
     query = _filtros(_escopo(query, current_user, child_id), category_id, de, ate, q)
-    achados = list(db.scalars(query))
+    achados = _so_o_de_agora(list(db.scalars(query)), current_user, now)
     marcar_visto(db, achados, current_user)
     return [_serialize(p, now) for p in achados]
 
@@ -134,12 +173,15 @@ def dates_with_punishments(
 ) -> DatasComRegistro:
     """Todo dia em que houve castigo, não só o dia em que começou - é o que o
     calendário precisa para deixar clicar em qualquer dia de uma semana de
-    castigo."""
+    castigo.
+
+    Pro filho são só os dias do castigo que está valendo: o calendário é uma
+    leitura do histórico como outra qualquer (ver `_so_o_de_agora`)."""
+    achados = list(db.scalars(_escopo(select(Punishment), current_user, child_id)))
     dias: set[date] = set()
-    for p in db.scalars(_escopo(select(Punishment), current_user, child_id)):
-        fim = min(p.ended_early_at, p.ends_at) if p.ended_early_at else p.ends_at
+    for p in _so_o_de_agora(achados, current_user, datetime.now(UTC)):
         dia = data_local(p.starts_at)
-        ultimo = data_local(fim)
+        ultimo = data_local(p.effective_end)
         while dia <= ultimo:
             dias.add(dia)
             dia = dia.fromordinal(dia.toordinal() + 1)
@@ -161,13 +203,33 @@ def current_punishments(current_user: CurrentUser, db: DbSession) -> list[Punish
     return [_serialize(p, now) for p in ativos]
 
 
+@router.get("/proximo-inicio", response_model=ProximoInicio)
+def next_start(child_id: int, admin: AdminUser, db: DbSession) -> ProximoInicio:
+    """Quando começaria um castigo aplicado agora a este filho.
+
+    Existe pra tela poder dizer "começa quando o de agora terminar" **antes** de
+    salvar, e pra validar o prazo contra o começo de verdade em vez de contra o
+    relógio do aparelho. Só o pai pergunta: é a fila dele.
+
+    Declarada antes de `/{punishment_id}` de propósito - depois, o FastAPI leria
+    "proximo-inicio" como id e responderia 422."""
+    agora = datetime.now(UTC)
+    inicio = proximo_inicio(db, child_id, agora)
+    return ProximoInicio(starts_at=inicio, em_fila=inicio > agora)
+
+
 @router.get("/{punishment_id}", response_model=PunishmentOut)
 def get_punishment(punishment_id: int, current_user: CurrentUser, db: DbSession) -> PunishmentOut:
+    now = datetime.now(UTC)
     punishment = _get_or_404(db, punishment_id)
     if current_user.role is not Role.ADMIN and punishment.child_id != current_user.id:
         raise NOT_FOUND
+    # 404 também pro castigo do próprio filho que não está valendo agora: pedir
+    # por id não pode ser a porta dos fundos do histórico que a lista já fechou.
+    if not _so_o_de_agora([punishment], current_user, now):
+        raise NOT_FOUND
     marcar_visto(db, [punishment], current_user)
-    return _serialize(punishment, datetime.now(UTC))
+    return _serialize(punishment, now)
 
 
 @router.patch("/{punishment_id}/reaction", response_model=PunishmentOut)
@@ -180,6 +242,9 @@ def react_to_punishment(
     if punishment.child_id != child.id:
         # 404, não 403: mesmo padrão de toda leitura de item único - sondar id
         # não pode confirmar que o castigo de um irmão existe.
+        raise NOT_FOUND
+    if not punishment.is_active_at(datetime.now(UTC)):
+        # Reagir é responder ao castigo de agora, que é o único que ele vê.
         raise NOT_FOUND
 
     texto = (payload.reaction_text or "").strip()
@@ -196,7 +261,11 @@ def create_punishment(payload: PunishmentCreate, admin: AdminUser, db: DbSession
     if child is None or child.role is not Role.CHILD:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Filho inválido")
 
-    starts_at = payload.starts_at or datetime.now(UTC)
+    # Sem `starts_at` explícito o castigo **entra na fila**: começa quando o
+    # último do filho terminar, ou agora, se ele não está de castigo. É o que o
+    # pai quer dizer ao aplicar um castigo em cima do outro - "mais um dia" -, e
+    # emendar na mão exigiria dele uma conta de calendário a cada vez.
+    starts_at = payload.starts_at or proximo_inicio(db, payload.child_id, datetime.now(UTC))
     if payload.ends_at <= starts_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
