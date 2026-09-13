@@ -276,11 +276,21 @@ class PunishmentViewModel(
                     ),
                 )
             }
-            if (result is ApiResult.Success) {
-                _state.update { it.copy(submitting = false, editor = null) }
-                load()
-            } else {
-                _state.update { it.copy(submitting = false, error = R.string.login_error_network) }
+            when {
+                result is ApiResult.Success -> {
+                    _state.update { it.copy(submitting = false, editor = null) }
+                    load()
+                }
+                // 400 com essa mensagem é a recusa de sobreposição: dois
+                // castigos valendo ao mesmo tempo não dizem nada pra criança.
+                // Vem do servidor porque o filho tem o APK na mão.
+                result is ApiResult.Failure && result.code == 400 &&
+                    result.message?.contains("sobrep", ignoreCase = true) == true ->
+                    _state.update {
+                        it.copy(submitting = false, error = R.string.punishment_error_sobreposicao)
+                    }
+                else ->
+                    _state.update { it.copy(submitting = false, error = R.string.login_error_network) }
             }
         }
     }

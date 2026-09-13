@@ -22,6 +22,9 @@ import org.junit.runner.RunWith
  * A lista do pai com a fila: castigo dado que ainda não começou é um terceiro
  * estado, e a tela precisa dizer três coisas sobre ele que os outros não têm.
  *
+ * E, desde o castigo automático, precisa dizer **de onde o castigo veio**: sem
+ * isso o número de dias chega na tela sem explicação nenhuma.
+ *
  * Duas delas são fáceis de quebrar sem perceber:
  *
  * - **Não se cobra "ainda não viu" de castigo da fila.** O filho nem recebe
@@ -47,6 +50,7 @@ class PunishmentAdminListTest {
         termina: Instant,
         ativo: Boolean = false,
         naFila: Boolean = false,
+        recorrencia: Int? = null,
     ) = PunishmentDto(
         id = id,
         reason = motivo,
@@ -55,6 +59,7 @@ class PunishmentAdminListTest {
         childId = 2,
         isActive = ativo,
         isScheduled = naFila,
+        recurrenceLevel = recorrencia,
     )
 
     private val valendo = castigo(
@@ -140,5 +145,49 @@ class PunishmentAdminListTest {
         rule.onNodeWithText(contexto.getString(R.string.punishment_end_now)).assertDoesNotExist()
         rule.onNodeWithText(contexto.getString(R.string.punishment_reopen)).assertDoesNotExist()
         rule.onNodeWithText(contexto.getString(R.string.action_delete)).assertIsDisplayed()
+    }
+
+    @Test
+    fun castigo_automatico_diz_que_foi_automatico() {
+        val automatico = castigo(
+            id = 3,
+            motivo = "Xingou",
+            comeca = agora.minus(1, ChronoUnit.HOURS),
+            termina = agora.plus(1, ChronoUnit.DAYS),
+            ativo = true,
+            recorrencia = 0,
+        )
+        montar(listOf(automatico))
+
+        rule.onNodeWithText(contexto.getString(R.string.punishment_automatico))
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun castigo_automatico_de_recorrencia_diz_qual_vez_foi() {
+        val terceira = castigo(
+            id = 4,
+            motivo = "Xingou",
+            comeca = agora.minus(1, ChronoUnit.HOURS),
+            termina = agora.plus(3, ChronoUnit.DAYS),
+            ativo = true,
+            recorrencia = 2,
+        )
+        montar(listOf(terceira))
+
+        // Nível 2 é a terceira vez: o nível conta as recorrências acumuladas, e
+        // "3ª vez seguida" é o que o pai entende.
+        rule.onNodeWithText(
+            contexto.getString(R.string.punishment_automatico_recorrencia, 3)
+        ).assertIsDisplayed()
+    }
+
+    @Test
+    fun castigo_cadastrado_a_mao_nao_diz_automatico() {
+        montar(listOf(valendo))
+
+        // `recurrenceLevel` nulo é a verdade sobre um castigo que o pai digitou.
+        rule.onNodeWithText(contexto.getString(R.string.punishment_automatico))
+            .assertDoesNotExist()
     }
 }

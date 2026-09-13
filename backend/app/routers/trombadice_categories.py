@@ -9,8 +9,10 @@ filtro, é lixo na tela.
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 
+from app.castigos import dias_de_castigo
 from app.deps import AdminUser, CurrentUser, DbSession
 from app.models import Role, Trombadice, TrombadiceCategory
+from app.periodo import hoje_local
 from app.schemas import (
     TrombadiceCategoryCreate,
     TrombadiceCategoryOut,
@@ -37,8 +39,24 @@ def _em_uso(db: DbSession) -> dict[int, int]:
     return dict(linhas.all())
 
 
-def _saida(categoria: TrombadiceCategory, usos: int) -> TrombadiceCategoryOut:
-    return TrombadiceCategoryOut.model_validate(categoria).model_copy(update={"em_uso": usos})
+def _saida(
+    categoria: TrombadiceCategory, usos: int, previsao: tuple[int, int] | None = None
+) -> TrombadiceCategoryOut:
+    extra: dict[str, int | None] = {"em_uso": usos}
+    if previsao is not None:
+        extra["previsao_dias"], extra["previsao_nivel"] = previsao
+    return TrombadiceCategoryOut.model_validate(categoria).model_copy(update=extra)
+
+
+def _teto_coerente(base: int, teto: int) -> None:
+    """Teto abaixo da base daria um castigo menor que o base, que não é o que
+    nenhum dos dois campos quer dizer. Recusa em vez de silenciosamente clampar:
+    o pai digitou dois números que se contradizem e precisa saber disso."""
+    if teto > 0 and teto < base:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O teto não pode ser menor que os dias base",
+        )
 
 
 def _get_or_404(db: DbSession, category_id: int) -> TrombadiceCategory:
@@ -60,12 +78,31 @@ def _nome_livre(db: DbSession, nome: str, ignorando: int | None = None) -> None:
 
 
 @router.get("", response_model=list[TrombadiceCategoryOut])
-def list_categories(current_user: CurrentUser, db: DbSession) -> list[TrombadiceCategoryOut]:
+def list_categories(
+    current_user: CurrentUser, db: DbSession, child_id: int | None = None
+) -> list[TrombadiceCategoryOut]:
+    """A lista de tipos, opcionalmente já com o que cada um custaria hoje.
+
+    `child_id` liga a previsão: é o formulário de anotação perguntando "se eu
+    registrar isto agora, quantos dias de castigo dá". Vem na mesma requisição
+    que a tela já faz em vez de numa rota à parte - e só pro pai, porque é ele
+    quem registra; pro filho a lista é só os chips de filtro do feed.
+    """
     query = select(TrombadiceCategory).order_by(*ORDEM)
     if current_user.role is not Role.ADMIN:
         query = query.where(TrombadiceCategory.is_active)
     usos = _em_uso(db)
-    return [_saida(c, usos.get(c.id, 0)) for c in db.scalars(query)]
+
+    dia = hoje_local()
+    prever = child_id is not None and current_user.role is Role.ADMIN
+    return [
+        _saida(
+            c,
+            usos.get(c.id, 0),
+            dias_de_castigo(db, child_id, c, dia) if prever else None,
+        )
+        for c in db.scalars(query)
+    ]
 
 
 @router.post("", response_model=TrombadiceCategoryOut, status_code=status.HTTP_201_CREATED)
@@ -80,7 +117,14 @@ def create_category(
         # ter que saber que ele é o décimo.
         ultima = db.scalar(select(func.max(TrombadiceCategory.position)))
         posicao = 0 if ultima is None else ultima + 1
-    categoria = TrombadiceCategory(name=nome, position=posicao)
+    _teto_coerente(payload.punishment_days, payload.max_days)
+    categoria = TrombadiceCategory(
+        name=nome,
+        position=posicao,
+        punishment_days=payload.punishment_days,
+        escalation_days=payload.escalation_days,
+        max_days=payload.max_days,
+    )
     db.add(categoria)
     db.commit()
     db.refresh(categoria)
@@ -96,6 +140,13 @@ def update_category(
     if (nome := data.get("name")) is not None:
         data["name"] = nome.strip()
         _nome_livre(db, data["name"], ignorando=category_id)
+    # Confere contra o valor que vai ficar, não só contra o que veio no corpo:
+    # baixar o teto sem mexer na base, ou subir a base sem mexer no teto, deixa
+    # os dois em contradição sem que nenhum dos campos, sozinho, pareça errado.
+    _teto_coerente(
+        data.get("punishment_days", categoria.punishment_days),
+        data.get("max_days", categoria.max_days),
+    )
     for campo, valor in data.items():
         setattr(categoria, campo, valor)
     db.commit()

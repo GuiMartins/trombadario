@@ -184,6 +184,28 @@ data class TrombadiceCategoryDto(
     val position: Int = 0,
     @SerialName("is_active") val isActive: Boolean = true,
     @SerialName("em_uso") val emUso: Int = 0,
+    /**
+     * Quanto este tipo custa de castigo. O pai decide uma vez, aqui, em vez de
+     * decidir de novo a cada anotação.
+     *
+     * **Zero é o desligado nos três**, e não nulo: em `punishmentDays` quer
+     * dizer "este tipo não gera castigo", em `maxDays` quer dizer "sem teto".
+     * Nulo obrigaria o update a distinguir "não mexe" de "apaga" - a dor que
+     * fez `birthDate` virar o único campo com `@EncodeDefault(ALWAYS)`.
+     */
+    @SerialName("punishment_days") val punishmentDays: Int = 0,
+    @SerialName("escalation_days") val escalationDays: Int = 0,
+    @SerialName("max_days") val maxDays: Int = 0,
+    /**
+     * O que uma anotação deste tipo custaria agora, pro filho que a tela
+     * perguntou. Só vem quando a listagem passa `childId`; nulo diz "não
+     * perguntei", não "custa zero".
+     *
+     * Quem calcula é o servidor: traduzir recorrência em dias é conta de data,
+     * e neste app data nenhuma é decidida pelo aparelho.
+     */
+    @SerialName("previsao_dias") val previsaoDias: Int? = null,
+    @SerialName("previsao_nivel") val previsaoNivel: Int? = null,
 )
 
 @Serializable
@@ -191,6 +213,9 @@ data class TrombadiceCategoryCreateDto(
     val name: String,
     /** Nulo = vai pro fim da lista. */
     val position: Int? = null,
+    @SerialName("punishment_days") val punishmentDays: Int = 0,
+    @SerialName("escalation_days") val escalationDays: Int = 0,
+    @SerialName("max_days") val maxDays: Int = 0,
 )
 
 @Serializable
@@ -198,6 +223,11 @@ data class TrombadiceCategoryUpdateDto(
     val name: String? = null,
     val position: Int? = null,
     @SerialName("is_active") val isActive: Boolean? = null,
+    // Nulo é "não mexe", como nos outros campos - e aqui não falta nada, porque
+    // quem desliga é o zero e não a ausência.
+    @SerialName("punishment_days") val punishmentDays: Int? = null,
+    @SerialName("escalation_days") val escalationDays: Int? = null,
+    @SerialName("max_days") val maxDays: Int? = null,
 )
 
 /**
@@ -329,6 +359,12 @@ data class PunishmentDto(
      *  servidor pelo mesmo motivo que `isActive`. Só o pai recebe castigo
      *  agendado: pro filho, castigo que não está valendo não existe. */
     @SerialName("is_scheduled") val isScheduled: Boolean = false,
+    /** De onde este castigo veio. Nulos = cadastrado à mão; preenchidos =
+     *  gerado pela anotação, no nível de recorrência que estava na conta. É o
+     *  que deixa o cartão dizer "automático, 2ª vez seguida" em vez de largar
+     *  um número de dias sem explicação. */
+    @SerialName("origin_trombadice_id") val originTrombadiceId: Int? = null,
+    @SerialName("recurrence_level") val recurrenceLevel: Int? = null,
 )
 
 /** Quando começaria um castigo aplicado agora a este filho: já, ou emendado no

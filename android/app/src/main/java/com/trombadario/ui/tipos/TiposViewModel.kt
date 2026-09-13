@@ -21,6 +21,14 @@ data class TipoEditor(
     val name: String = "",
     /** Vazio ao criar: sem posição pedida o servidor põe no fim da lista. */
     val position: String = "",
+    /**
+     * Os três números do castigo, como texto porque vêm de campo de texto.
+     * Vazio conta como zero, que é o desligado: em `punishmentDays` quer dizer
+     * "este tipo não gera castigo", em `maxDays` quer dizer "sem teto".
+     */
+    val punishmentDays: String = "",
+    val escalationDays: String = "",
+    val maxDays: String = "",
 )
 
 data class TiposState(
@@ -57,7 +65,14 @@ class TiposViewModel(private val container: AppContainer) : ViewModel() {
 
     fun startEdit(tipo: TrombadiceCategoryDto) = _state.update {
         it.copy(
-            editor = TipoEditor(id = tipo.id, name = tipo.name, position = tipo.position.toString()),
+            editor = TipoEditor(
+                id = tipo.id,
+                name = tipo.name,
+                position = tipo.position.toString(),
+                punishmentDays = tipo.punishmentDays.toString(),
+                escalationDays = tipo.escalationDays.toString(),
+                maxDays = tipo.maxDays.toString(),
+            ),
             error = null,
         )
     }
@@ -75,17 +90,39 @@ class TiposViewModel(private val container: AppContainer) : ViewModel() {
             return
         }
 
+        val base = editor.punishmentDays.numero()
+        val teto = editor.maxDays.numero()
+        if (teto > 0 && teto < base) {
+            // Os dois números se contradizem. O servidor também recusa (400);
+            // barrar aqui evita a ida e volta pra dizer o óbvio.
+            _state.update { it.copy(error = R.string.tipos_error_teto_menor) }
+            return
+        }
+
         _state.update { it.copy(submitting = true, error = null) }
         viewModelScope.launch {
             val posicao = editor.position.trim().toIntOrNull()
+            val aumento = editor.escalationDays.numero()
             val result = if (editor.id == null) {
                 container.repository.createTrombadiceCategory(
-                    TrombadiceCategoryCreateDto(name = editor.name.trim(), position = posicao)
+                    TrombadiceCategoryCreateDto(
+                        name = editor.name.trim(),
+                        position = posicao,
+                        punishmentDays = base,
+                        escalationDays = aumento,
+                        maxDays = teto,
+                    )
                 )
             } else {
                 container.repository.updateTrombadiceCategory(
                     editor.id,
-                    TrombadiceCategoryUpdateDto(name = editor.name.trim(), position = posicao),
+                    TrombadiceCategoryUpdateDto(
+                        name = editor.name.trim(),
+                        position = posicao,
+                        punishmentDays = base,
+                        escalationDays = aumento,
+                        maxDays = teto,
+                    ),
                 )
             }
 
@@ -98,6 +135,8 @@ class TiposViewModel(private val container: AppContainer) : ViewModel() {
                 // meio sem ninguém perceber.
                 result is ApiResult.Failure && result.code == 409 ->
                     _state.update { it.copy(submitting = false, error = R.string.tipos_error_repetido) }
+                result is ApiResult.Failure && result.code == 400 ->
+                    _state.update { it.copy(submitting = false, error = R.string.tipos_error_teto_menor) }
                 else ->
                     _state.update { it.copy(submitting = false, error = R.string.login_error_network) }
             }
@@ -129,3 +168,6 @@ class TiposViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 }
+
+/** Campo de número vazio conta como zero - é o desligado, não um erro. */
+private fun String.numero(): Int = trim().toIntOrNull()?.coerceAtLeast(0) ?: 0

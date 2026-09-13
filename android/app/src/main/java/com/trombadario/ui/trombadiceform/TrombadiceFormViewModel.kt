@@ -40,6 +40,12 @@ data class TrombadiceFormState(
     val tipos: List<TrombadiceCategoryDto> = emptyList(),
     val categoryId: Int? = null,
     val conquistaCategory: String = CategoriaDeConquista.PADRAO,
+    /**
+     * Editando, a tela não promete castigo nenhum: corrigir o tipo ou a data de
+     * uma anotação **não** recalcula o castigo que ela já gerou (a criança pode
+     * já ter visto). Quem conserta um castigo é a tela de castigo.
+     */
+    val mostraCusto: Boolean = false,
     val submitting: Boolean = false,
     @StringRes val error: Int? = null,
     val saved: Boolean = false,
@@ -73,7 +79,10 @@ class TrombadiceFormViewModel(
                 ?.filter { it.isActive }
                 .orEmpty()
 
-            val tipos = (container.repository.listTrombadiceCategories() as? ApiResult.Success)
+            // O filho tem que ser resolvido **antes** dos tipos: a previsão de
+            // castigo é por criança, porque a recorrência é dela.
+            val childId = event?.childId ?: children.singleOrNull()?.id
+            val tipos = (container.repository.listTrombadiceCategories(childId) as? ApiResult.Success)
                 ?.data
                 // Só os ativos na hora de cadastrar: o pai tirou os outros da
                 // lista de propósito. O tipo da anotação que está sendo
@@ -92,7 +101,7 @@ class TrombadiceFormViewModel(
                     children = children,
                     // Editing keeps the event's own child; a new event defaults to
                     // the only child when there is just one, which is the usual case.
-                    selectedChildId = event?.childId ?: children.singleOrNull()?.id,
+                    selectedChildId = childId,
                     tasks = tasks,
                     selectedTaskId = event?.taskId,
                     kind = event?.kind ?: current.kind,
@@ -102,7 +111,28 @@ class TrombadiceFormViewModel(
                     // escolher é obrigatório.
                     categoryId = event?.categoryId ?: tipos.firstOrNull()?.id,
                     conquistaCategory = event?.conquistaCategory ?: current.conquistaCategory,
+                    mostraCusto = trombadiceId == null,
                 )
+            }
+        }
+    }
+
+    /**
+     * Repete a leitura dos tipos pra outro filho: o custo de cada um é por
+     * criança, então trocar "de quem" troca os números.
+     *
+     * Descarta resposta velha comparando o filho pedido com o escolhido agora -
+     * mesma guarda de `PunishmentViewModel.carregarInicio()`. Sem ela, dois
+     * toques rápidos deixariam na tela o custo do irmão.
+     */
+    private fun recarregarPrevisao(childId: Int) {
+        viewModelScope.launch {
+            val tipos = (container.repository.listTrombadiceCategories(childId) as? ApiResult.Success)
+                ?.data
+                ?.filter { it.isActive }
+                ?: return@launch
+            _state.update { current ->
+                if (current.selectedChildId != childId) current else current.copy(tipos = tipos)
             }
         }
     }
@@ -113,10 +143,11 @@ class TrombadiceFormViewModel(
 
     fun onTimeChange(value: LocalTime) = _state.update { it.copy(time = value) }
 
-    fun onChildChange(childId: Int) = _state.update {
+    fun onChildChange(childId: Int) {
         // Trocar de filho descarta a tarefa marcada: ela era de outro, e o
         // backend recusaria o vínculo.
-        it.copy(selectedChildId = childId, selectedTaskId = null, error = null)
+        _state.update { it.copy(selectedChildId = childId, selectedTaskId = null, error = null) }
+        recarregarPrevisao(childId)
     }
 
     fun onCategoryChange(categoryId: Int) = _state.update { it.copy(categoryId = categoryId) }
@@ -143,14 +174,18 @@ class TrombadiceFormViewModel(
      * só. Por isso o campo de filho some da tela quando há tarefa; ver a mesma
      * regra no painel web.
      */
-    fun onTaskChange(taskId: Int?) = _state.update { current ->
-        val task = current.tasks.firstOrNull { it.id == taskId }
-        current.copy(
-            selectedTaskId = taskId,
-            // A tarefa manda: ela pertence a um filho só.
-            selectedChildId = task?.childId ?: current.selectedChildId,
-            error = null,
-        )
+    fun onTaskChange(taskId: Int?) {
+        _state.update { current ->
+            val task = current.tasks.firstOrNull { it.id == taskId }
+            current.copy(
+                selectedTaskId = taskId,
+                // A tarefa manda: ela pertence a um filho só.
+                selectedChildId = task?.childId ?: current.selectedChildId,
+                error = null,
+            )
+        }
+        // A tarefa pode ter trocado o filho, e com ele o custo de cada tipo.
+        _state.value.selectedChildId?.let(::recarregarPrevisao)
     }
 
     fun submit() {

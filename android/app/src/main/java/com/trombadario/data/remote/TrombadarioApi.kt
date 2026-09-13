@@ -71,9 +71,15 @@ interface TrombadarioApi {
 
     /** A lista de tipos de trombadice. Os dois papéis leem - o filho precisa
      *  dos nomes pros chips de filtro do feed; o servidor só manda os ativos
-     *  pra ele. Escrever é só do pai. */
+     *  pra ele. Escrever é só do pai.
+     *
+     *  `childId` liga a previsão de castigo de cada tipo: é o formulário de
+     *  anotação perguntando "se eu registrar isto agora, quantos dias dá". Sem
+     *  ele a resposta é a mesma de antes, com os campos de previsão nulos. */
     @GET("api/trombadice-categories")
-    suspend fun listTrombadiceCategories(): Response<List<TrombadiceCategoryDto>>
+    suspend fun listTrombadiceCategories(
+        @Query("child_id") childId: Int? = null,
+    ): Response<List<TrombadiceCategoryDto>>
 
     @POST("api/trombadice-categories")
     suspend fun createTrombadiceCategory(

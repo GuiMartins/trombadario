@@ -3,11 +3,18 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, select
 
+from app.castigos import (
+    apagar_castigos_sem_causa,
+    criar_castigo_automatico,
+    dias_de_castigo,
+    proximo_inicio,
+    sem_sobreposicao,
+)
 from app.deps import DbSession
 from app.models import (
     CONQUISTA_PADRAO,
@@ -37,7 +44,6 @@ from app.periodo import (
     mes_seguinte,
     semanas_do_mes,
 )
-from app.routers.punishments import proximo_inicio
 from app.routers.reports import report
 from app.routers.tasks import estado_da_tarefa
 from app.security import create_access_token, hash_password, verify_password
@@ -429,6 +435,9 @@ def trombadices_page(
     do_formulario = ativos
     if editando is not None and editando.category is not None and editando.category not in ativos:
         do_formulario = [*ativos, editando.category]
+    # O custo de cada tipo entra no rótulo da <option>: sem JavaScript nenhum, o
+    # pai lê "Mentira - 3 dias" na hora de escolher em vez de descobrir depois.
+    filho_do_formulario = _filho_do_formulario(children, editando, child_id)
     url = _construtor_de_url(
         "/trombadices",
         {
@@ -451,6 +460,9 @@ def trombadices_page(
         tasks=list(db.scalars(select(Task).where(Task.is_active).order_by(Task.name))),
         selected_child=child_id,
         tipos_de_trombadice=do_formulario,
+        custo_do_tipo=_custo_dos_tipos(db, do_formulario, filho_do_formulario),
+        filho_do_formulario=filho_do_formulario,
+        escolhido=None,
         categorias_conquista=ROTULO_DA_CONQUISTA,
         chips_categoria=_chips_de_categoria(url, ativos, tipo, category_id, conquista),
         filtrando_categoria=bool(category_id) or conquista is not None,
@@ -467,6 +479,59 @@ def trombadices_page(
         editando=editando,
         url=url,
         **_calendario(mes_aberto, dias_com_registro),
+    )
+
+
+def _filho_do_formulario(
+    children: list[User], editando: Trombadice | None, child_id: int | None
+) -> int | None:
+    """De quem é a anotação que o formulário está montando, para o custo de cada
+    tipo ser o custo **daquele** filho: recorrência é por criança.
+
+    Editando, é o filho do registro; senão o do filtro, senão o primeiro da
+    lista - a mesma ordem em que o `<select>` já vem marcado."""
+    if editando is not None:
+        return editando.child_id
+    if child_id:
+        return child_id
+    return children[0].id if children else None
+
+
+def _custo_dos_tipos(
+    db: DbSession, tipos: list[TrombadiceCategory], child_id: int | None
+) -> dict[int, tuple[int, int]]:
+    """Quanto cada tipo custaria hoje para este filho: `{tipo_id: (dias, nível)}`.
+
+    Fica vazio sem filho escolhido - e o template então não promete nada."""
+    if child_id is None:
+        return {}
+    dia = hoje_local()
+    return {t.id: dias_de_castigo(db, child_id, t, dia) for t in tipos}
+
+
+@router.get("/trombadices/tipos-select", response_class=HTMLResponse)
+def trombadice_tipos_select(
+    request: Request,
+    db: DbSession,
+    user: AdminWeb,
+    child_id: int | None = None,
+    category_id: int | None = None,
+):
+    """Só o bloco do seletor de tipo, com o custo recalculado para outro filho.
+
+    O custo é por criança, então trocar o filho no formulário tem que trocar os
+    rótulos. Alvo de um `hx-get` no `change` do seletor de filho; sem JavaScript
+    o bloco simplesmente não atualiza e o render inicial da página continua
+    correto - mesma degradação dos filtros da lista."""
+    tipos = _tipos_de_trombadice(db)
+    return _render(
+        request,
+        "_tipos_select.html",
+        user=user,
+        tipos_de_trombadice=tipos,
+        custo_do_tipo=_custo_dos_tipos(db, tipos, child_id),
+        editando=None,
+        escolhido=category_id,
     )
 
 
@@ -558,21 +623,25 @@ def trombadice_create(
         # aconteceu. Volta sem gravar, com a página explicando.
         return _redirect("/trombadices?erro=sem-tipo")
 
-    db.add(
-        Trombadice(
-            # Sem título: ele sai do tipo (ou da tarefa) na leitura - ver
-            # `Trombadice.display_title`.
-            title="",
-            description=description.strip(),
-            kind=tipo,
-            category_id=tipo_id,
-            conquista_category=conquista,
-            occurred_at=_parse_local(occurred_at),
-            child_id=filho,
-            task_id=tarefa,
-            author_id=user.id,
-        )
+    trombadice = Trombadice(
+        # Sem título: ele sai do tipo (ou da tarefa) na leitura - ver
+        # `Trombadice.display_title`.
+        title="",
+        description=description.strip(),
+        kind=tipo,
+        category_id=tipo_id,
+        conquista_category=conquista,
+        occurred_at=_parse_local(occurred_at),
+        child_id=filho,
+        task_id=tarefa,
+        author_id=user.id,
     )
+    db.add(trombadice)
+    # `flush` antes do castigo: ele guarda o id da anotação que o gerou, e a
+    # anotação só tem id depois de ir ao banco. As duas coisas num commit só -
+    # anotação registrada sem o castigo dela seria metade do que o pai pediu.
+    db.flush()
+    criar_castigo_automatico(db, trombadice, user)
     db.commit()
     return _redirect("/trombadices")
 
@@ -624,6 +693,9 @@ def trombadice_edit(
 @router.post("/trombadices/{trombadice_id}/delete")
 def trombadice_delete(trombadice_id: int, db: DbSession, user: AdminWeb):
     if (trombadice := db.get(Trombadice, trombadice_id)) is not None:
+        # Leva junto o castigo que ficaria sem causa nenhuma - castigo solto é
+        # punição que a criança lê sem saber de onde veio (ver `app/castigos.py`).
+        apagar_castigos_sem_causa(db, trombadice)
         db.delete(trombadice)
         db.commit()
     return _redirect("/trombadices")
@@ -666,6 +738,29 @@ def tipos_page(
     )
 
 
+def _config_de_castigo(
+    punishment_days: str, escalation_days: str, max_days: str, atual: TrombadiceCategory | None
+) -> dict[str, int] | None:
+    """Os três números do tipo, lidos do formulário. `None` = o pai se
+    contradisse (teto abaixo da base) e a página tem que dizer isso.
+
+    Mesmo idioma de `position`: texto que não é número mantém o valor que já
+    estava, porque o navegador não sabe recusar isso sozinho e apagar o campo
+    por causa de um dedo torto seria pior que ignorar."""
+    def numero(texto: str, antes: int) -> int:
+        return int(texto) if texto.isdigit() else antes
+
+    base = numero(punishment_days, atual.punishment_days if atual else 0)
+    teto = numero(max_days, atual.max_days if atual else 0)
+    if teto > 0 and teto < base:
+        return None
+    return {
+        "punishment_days": base,
+        "escalation_days": numero(escalation_days, atual.escalation_days if atual else 0),
+        "max_days": teto,
+    }
+
+
 def _nome_em_uso(db: DbSession, nome: str, ignorando: int | None = None) -> bool:
     query = select(TrombadiceCategory).where(func.lower(TrombadiceCategory.name) == nome.lower())
     if ignorando is not None:
@@ -679,6 +774,9 @@ def tipo_create(
     user: AdminWeb,
     name: Annotated[str, Form()],
     position: Annotated[str, Form()] = "",
+    punishment_days: Annotated[str, Form()] = "",
+    escalation_days: Annotated[str, Form()] = "",
+    max_days: Annotated[str, Form()] = "",
 ):
     nome = name.strip()
     if not nome:
@@ -687,11 +785,15 @@ def tipo_create(
         # Dois "Mentira" na lista partiriam o relatório ao meio sem ninguém
         # perceber - as anotações ficariam divididas entre os dois.
         return _redirect("/tipos?erro=nome-repetido")
+    config = _config_de_castigo(punishment_days, escalation_days, max_days, None)
+    if config is None:
+        return _redirect("/tipos?erro=teto-menor")
     ultima = db.scalar(select(func.max(TrombadiceCategory.position)))
     db.add(
         TrombadiceCategory(
             name=nome,
             position=int(position) if position.isdigit() else (0 if ultima is None else ultima + 1),
+            **config,
         )
     )
     db.commit()
@@ -705,6 +807,9 @@ def tipo_edit(
     user: AdminWeb,
     name: Annotated[str, Form()],
     position: Annotated[str, Form()] = "",
+    punishment_days: Annotated[str, Form()] = "",
+    escalation_days: Annotated[str, Form()] = "",
+    max_days: Annotated[str, Form()] = "",
 ):
     tipo = db.get(TrombadiceCategory, category_id)
     if tipo is None:
@@ -714,12 +819,17 @@ def tipo_edit(
         return _redirect("/tipos")
     if _nome_em_uso(db, nome, ignorando=category_id):
         return _redirect(f"/tipos?editar={category_id}&erro=nome-repetido")
+    config = _config_de_castigo(punishment_days, escalation_days, max_days, tipo)
+    if config is None:
+        return _redirect(f"/tipos?editar={category_id}&erro=teto-menor")
     # Renomear vale para o que já está gravado junto: o registro aponta a linha,
     # não uma cópia do nome, então corrigir "Mentria" conserta o histórico
     # inteiro de uma vez.
     tipo.name = nome
     if position.isdigit():
         tipo.position = int(position)
+    for campo, valor in config.items():
+        setattr(tipo, campo, valor)
     db.commit()
     return _redirect("/tipos")
 
@@ -1002,6 +1112,24 @@ def _causas(db: DbSession, trombadice_ids: list[int] | None, child_id: int) -> l
     return [t for t in chosen if t.child_id == child_id and t.kind is Kind.TROMBADICE]
 
 
+def _sem_sobreposicao_web(
+    db: DbSession,
+    child_id: int,
+    inicio: datetime,
+    fim: datetime,
+    destino: str,
+    ignorando: int | None = None,
+) -> None:
+    """A mesma checagem da API, traduzida para o jeito do painel: o navegador
+    volta com `?erro=` e a página explica, em vez de ver um JSON de 400.
+
+    Quem decide é `app.castigos.sem_sobreposicao` - a regra vive num lugar só."""
+    try:
+        sem_sobreposicao(db, child_id, inicio, fim, ignorando=ignorando)
+    except HTTPException:
+        raise RedirectTo(destino) from None
+
+
 @router.post("/castigos")
 def punishment_create(
     db: DbSession,
@@ -1030,6 +1158,9 @@ def punishment_create(
     fim = _parse_local(ends_at)
     if fim <= inicio:
         raise RedirectTo("/castigos?erro=fim-antes-do-inicio")
+    # Dois castigos valendo ao mesmo tempo não dizem nada pra criança, que só
+    # pode estar de castigo ou não - a mesma recusa da API.
+    _sem_sobreposicao_web(db, child_id, inicio, fim, destino="/castigos?erro=sobreposicao")
 
     punishment = Punishment(
         reason=reason.strip(),
@@ -1070,6 +1201,14 @@ def punishment_edit(
     fim = _parse_local(ends_at)
     if fim <= inicio:
         raise RedirectTo(f"/castigos?editar={punishment_id}&erro=fim-antes-do-inicio#editar")
+    _sem_sobreposicao_web(
+        db,
+        child_id,
+        inicio,
+        fim,
+        destino=f"/castigos?editar={punishment_id}&erro=sobreposicao#editar",
+        ignorando=punishment.id,
+    )
 
     punishment.reason = reason.strip()
     punishment.starts_at = inicio

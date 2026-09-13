@@ -1,7 +1,9 @@
 package com.trombadario.ui.tipos
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -150,7 +153,9 @@ fun TiposScreen(container: AppContainer, currentUser: UserDto, onBack: () -> Uni
                 )
             },
             text = {
-                Column {
+                // Rola: com os três campos de castigo o formulário passa da
+                // altura do diálogo num celular estreito.
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     OutlinedTextField(
                         value = editor.name,
                         onValueChange = { v -> viewModel.updateEditor { it.copy(name = v) } },
@@ -169,6 +174,38 @@ fun TiposScreen(container: AppContainer, currentUser: UserDto, onBack: () -> Uni
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        text = stringResource(R.string.tipos_castigo_titulo),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.tipos_castigo_intro),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    NumeroDeDias(
+                        value = editor.punishmentDays,
+                        onValueChange = { v -> viewModel.updateEditor { it.copy(punishmentDays = v) } },
+                        label = R.string.tipos_punishment_days,
+                        dica = R.string.tipos_punishment_days_dica,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    NumeroDeDias(
+                        value = editor.escalationDays,
+                        onValueChange = { v -> viewModel.updateEditor { it.copy(escalationDays = v) } },
+                        label = R.string.tipos_escalation_days,
+                        dica = R.string.tipos_escalation_days_dica,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    NumeroDeDias(
+                        value = editor.maxDays,
+                        onValueChange = { v -> viewModel.updateEditor { it.copy(maxDays = v) } },
+                        label = R.string.tipos_max_days,
+                        dica = R.string.tipos_max_days_dica,
                     )
                     state.error?.let {
                         Spacer(Modifier.height(8.dp))
@@ -208,6 +245,41 @@ fun TiposScreen(container: AppContainer, currentUser: UserDto, onBack: () -> Uni
     }
 }
 
+/** Um campo de dias: só dígitos, porque o resto não é número de dia. */
+@Composable
+private fun NumeroDeDias(
+    value: String,
+    onValueChange: (String) -> Unit,
+    @StringRes label: Int,
+    @StringRes dica: Int,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { v -> onValueChange(v.filter(Char::isDigit)) },
+        label = { Text(stringResource(label)) },
+        supportingText = { Text(stringResource(dica)) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** O resumo do castigo no cartão, pro pai bater o olho sem abrir o tipo. */
+@Composable
+private fun resumoDoCastigo(tipo: TrombadiceCategoryDto): String {
+    if (tipo.punishmentDays <= 0) return stringResource(R.string.tipos_sem_castigo)
+    val dias = pluralStringResource(
+        R.plurals.tipos_dias_de_castigo, tipo.punishmentDays, tipo.punishmentDays
+    )
+    val aumento = if (tipo.escalationDays > 0) {
+        stringResource(R.string.tipos_resumo_aumento, tipo.escalationDays)
+    } else {
+        ""
+    }
+    val teto = if (tipo.maxDays > 0) stringResource(R.string.tipos_resumo_teto, tipo.maxDays) else ""
+    return dias + aumento + teto
+}
+
 @Composable
 private fun TipoCard(
     tipo: TrombadiceCategoryDto,
@@ -237,6 +309,15 @@ private fun TipoCard(
                     )
                 }
             }
+            Text(
+                text = resumoDoCastigo(tipo),
+                style = MaterialTheme.typography.labelMedium,
+                color = if (tipo.punishmentDays > 0) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = onToggle) {
                     Text(

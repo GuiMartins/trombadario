@@ -137,9 +137,13 @@ class TrombadarioRepository(
         call { it.trombadiceDates(childId, kind, categoryId, conquistaCategory, q) }
 
     /** Os tipos de trombadice cadastrados pelo pai. O filho recebe só os ativos:
-     *  quem decide isso é o servidor, pelo papel de quem pergunta. */
-    suspend fun listTrombadiceCategories(): ApiResult<List<TrombadiceCategoryDto>> =
-        call { it.listTrombadiceCategories() }
+     *  quem decide isso é o servidor, pelo papel de quem pergunta.
+     *
+     *  Com `childId`, cada tipo vem sabendo quanto custaria de castigo pra
+     *  aquele filho - a recorrência é por criança. */
+    suspend fun listTrombadiceCategories(
+        childId: Int? = null,
+    ): ApiResult<List<TrombadiceCategoryDto>> = call { it.listTrombadiceCategories(childId) }
 
     suspend fun createTrombadiceCategory(
         category: TrombadiceCategoryCreateDto,

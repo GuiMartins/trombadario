@@ -9,6 +9,11 @@
   mesmas coisas — cadastre as suas aqui e, no registro, sobra escolher o tipo e
   contar os detalhes.
 </p>
+<p class="sub">
+  É aqui também que cada tipo diz <strong>quanto custa de castigo</strong>.
+  Preenchido, registrar a anotação já cria o castigo, no tamanho certo e
+  emendado no que o filho já estiver cumprindo.
+</p>
 
 {# O mesmo formulário cadastra e corrige, como nas outras telas: com `editando`
    ele vem preenchido e grava por cima. #}
@@ -21,6 +26,9 @@
   {% if erro == 'em-uso' %}
   <div class="aviso">Esse tipo está em uso por alguma anotação. Desative em vez de apagar — apagar deixaria o registro sem dizer o que aconteceu.</div>
   {% endif %}
+  {% if erro == 'teto-menor' %}
+  <div class="aviso">O teto não pode ser menor que os dias base — os dois números se contradizem.</div>
+  {% endif %}
 
   <label for="name">Nome</label>
   <input type="text" id="name" name="name" maxlength="60" required
@@ -31,6 +39,25 @@
   <label for="position">Ordem na lista</label>
   <input type="number" id="position" name="position" min="0" max="999"
          value="{{ e.position if e else proxima_posicao }}">
+
+  <h2>Castigo</h2>
+  <label for="punishment_days">Dias de castigo</label>
+  <input type="number" id="punishment_days" name="punishment_days" min="0" max="365"
+         value="{{ e.punishment_days if e else 0 }}">
+  <p class="sub">Quanto a primeira vez custa. <strong>0 = este tipo não gera castigo.</strong></p>
+
+  <label for="escalation_days">A mais por recorrência</label>
+  <input type="number" id="escalation_days" name="escalation_days" min="0" max="365"
+         value="{{ e.escalation_days if e else 0 }}">
+  <p class="sub">
+    Quanto cresce a cada repetição. A recorrência sobe a cada vez que acontece e
+    <strong>cai um por dia sem acontecer</strong>. 0 = custa sempre o mesmo.
+  </p>
+
+  <label for="max_days">Teto de dias</label>
+  <input type="number" id="max_days" name="max_days" min="0" max="365"
+         value="{{ e.max_days if e else 0 }}">
+  <p class="sub">Até onde pode crescer. 0 = sem teto.</p>
 
   <button type="submit">{{ 'Salvar' if e else 'Cadastrar tipo' }}</button>
   {% if e %}<a href="/tipos" class="cancelar">Cancelar</a>{% endif %}
@@ -44,6 +71,16 @@
         <p class="titulo">{{ t.name }}</p>
         <span class="etiqueta">{{ em_uso.get(t.id, 0) }} anotaç{{ 'ão' if em_uso.get(t.id, 0) == 1 else 'ões' }}</span>
         {% if not t.is_active %}<span class="etiqueta fim">desativado</span>{% endif %}
+        {# Sem cor nova: a etiqueta padrão já é par medido em test_contraste. #}
+        {% if t.punishment_days %}
+        <span class="etiqueta">
+          {{ t.punishment_days }} dia{{ 's' if t.punishment_days != 1 else '' }} de castigo
+          {%- if t.escalation_days %} · +{{ t.escalation_days }} por recorrência{% endif %}
+          {%- if t.max_days %} · teto {{ t.max_days }}{% endif %}
+        </span>
+        {% else %}
+        <span class="etiqueta fim">sem castigo</span>
+        {% endif %}
       </div>
       <div class="acoes">
         <a class="mini secundario" href="/tipos?editar={{ t.id }}#editar">Editar</a>
