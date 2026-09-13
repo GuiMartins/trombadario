@@ -3,6 +3,7 @@ from datetime import date
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import or_, select
 
+from app.castigos import apagar_castigos_sem_causa, criar_castigo_automatico
 from app.deps import AdminUser, CurrentUser, DbSession
 from app.models import ConquistaCategory, Kind, Role, Task, Trombadice, TrombadiceCategory, User
 from app.periodo import data_local, intervalo
@@ -207,6 +208,11 @@ def create_trombadice(payload: TrombadiceCreate, admin: AdminUser, db: DbSession
         author_id=admin.id,
     )
     db.add(trombadice)
+    # `flush` antes do castigo: ele guarda o id da anotação que o gerou, e a
+    # anotação só tem id depois de ir ao banco. Um commit só para as duas coisas
+    # - registrar a anotação sem o castigo dela seria metade do fato.
+    db.flush()
+    criar_castigo_automatico(db, trombadice, admin)
     db.commit()
     db.refresh(trombadice)
     return trombadice
@@ -216,6 +222,12 @@ def create_trombadice(payload: TrombadiceCreate, admin: AdminUser, db: DbSession
 def update_trombadice(
     trombadice_id: int, payload: TrombadiceUpdate, admin: AdminUser, db: DbSession
 ) -> Trombadice:
+    """Corrigir o que já foi cadastrado.
+
+    **Não recalcula o castigo que a anotação gerou.** Corrigir o tipo ou a data
+    não pode reescrever um castigo que a criança já pode ter visto - o caminho
+    pra isso é Corrigir o castigo, que existe justamente pra quando o que foi
+    digitado estava errado. Mesmo espírito de `ends_at` sobreviver a Encerrar."""
     trombadice = _get_or_404(db, trombadice_id)
     data = payload.model_dump(exclude_unset=True)
 
@@ -251,5 +263,13 @@ def update_trombadice(
 
 @router.delete("/{trombadice_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_trombadice(trombadice_id: int, admin: AdminUser, db: DbSession) -> None:
-    db.delete(_get_or_404(db, trombadice_id))
+    """Apagar a anotação leva o castigo que ela gerou.
+
+    O castigo só existia por causa dela; sem a causa ele viraria um castigo
+    solto, que é o que "castigo sem trombadice não existe" proíbe. Vale também
+    pro castigo cadastrado à mão cuja única causa era esta anotação - antes, o
+    vínculo caía por CASCADE e sobrava o órfão."""
+    trombadice = _get_or_404(db, trombadice_id)
+    apagar_castigos_sem_causa(db, trombadice)
+    db.delete(trombadice)
     db.commit()

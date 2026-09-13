@@ -62,9 +62,16 @@
     {# Não existe campo de título: o que aconteceu é o tipo escolhido logo
        abaixo, e os detalhes vão em "Detalhes". Ver Trombadice.display_title. #}
     <label for="child_id">De quem</label>
-    <select id="child_id" name="child_id">
+    {# O custo de cada tipo é por criança, então trocar aqui recarrega os rótulos
+       do seletor de tipo. `hx-select` porque a rota devolve o bloco inteiro. #}
+    <select id="child_id" name="child_id"
+            hx-get="/trombadices/tipos-select"
+            hx-trigger="change"
+            hx-target="#tipo-de-trombadice"
+            hx-select="#tipo-de-trombadice"
+            hx-swap="outerHTML">
       {% for c in children %}
-      <option value="{{ c.id }}" {% if e and e.child_id == c.id %}selected{% endif %}>{{ c.display_name }}</option>
+      <option value="{{ c.id }}" {% if (e and e.child_id == c.id) or (not e and filho_do_formulario == c.id) %}selected{% endif %}>{{ c.display_name }}</option>
       {% endfor %}
     </select>
   </div>
@@ -77,16 +84,7 @@
      fechada no código. #}
   {% if so_trombadice %}
   <div class="so-trombadice">
-    <label for="category_id">Que tipo de trombadice foi</label>
-    {% if tipos_de_trombadice %}
-    <select id="category_id" name="category_id">
-      {% for t in tipos_de_trombadice %}
-      <option value="{{ t.id }}" {% if e and e.category_id == t.id %}selected{% endif %}>{{ t.name }}{% if not t.is_active %} (desativado){% endif %}</option>
-      {% endfor %}
-    </select>
-    {% else %}
-    <div class="aviso">Nenhum tipo cadastrado. Crie os tipos em <a href="/tipos">Tipos</a> antes de registrar uma trombadice.</div>
-    {% endif %}
+    {% include "_tipos_select.html" %}
   </div>
   {% endif %}
   {% if so_conquista %}

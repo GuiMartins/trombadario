@@ -11,7 +11,7 @@ testes passavam e a página quebrava com LookupError na primeira leitura.
 """
 
 import sqlite3
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -20,12 +20,15 @@ from sqlalchemy.orm import sessionmaker
 
 from alembic import command
 from alembic.config import Config
-from app.models import ConquistaCategory, Kind, Trombadice, TrombadiceCategory
+from app.models import ConquistaCategory, Kind, Punishment, Trombadice, TrombadiceCategory
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 # A revisão logo antes da que acrescentou `category` e `seen_at`.
 ANTES_DA_CATEGORIA = "ac8900eb456b"
+
+# A revisão logo antes da que pôs preço de castigo no tipo.
+ANTES_DO_CASTIGO_AUTOMATICO = "e1f2a3b4c5d6"
 
 
 def _alembic(url: str) -> Config:
@@ -435,3 +438,62 @@ def test_tipo_antigo_vira_linha_e_o_enum_e_zerado(banco_antigo: str) -> None:
             "Não fez o que devia",
         ]
         assert all(t.is_active for t in tipos)
+
+
+# --------------------------------------------------------------------------
+# Castigo automático: os três números no tipo e o rastro no castigo
+# --------------------------------------------------------------------------
+
+
+def test_tipo_antigo_chega_sem_castigo_configurado(banco_antigo: str) -> None:
+    """Zero nos três é o que toda instalação existente recebe, de propósito:
+    nenhum tipo passa a gerar castigo até o pai preencher.
+
+    E é inteiro, não texto: `server_default="0"` chega como string no SQLite, e
+    uma coluna declarada errada só apareceria na primeira conta - que é
+    exatamente a conta que a funcionalidade faz."""
+    command.upgrade(_alembic(banco_antigo), "head")
+
+    with sessionmaker(bind=create_engine(banco_antigo))() as sessao:
+        tipos = sessao.scalars(select(TrombadiceCategory)).all()
+        assert tipos
+        for tipo in tipos:
+            assert tipo.punishment_days == 0
+            assert tipo.escalation_days == 0
+            assert tipo.max_days == 0
+            assert isinstance(tipo.punishment_days, int)
+
+
+def test_castigo_antigo_nao_finge_ser_automatico(banco_antigo: str) -> None:
+    """Nulo nos dois é a verdade sobre um castigo que o pai digitou: nível zero
+    afirmaria que a conta automática o produziu.
+
+    E o castigo sai inteiro do outro lado, **com as causas dele**. É por isso que
+    `origin_trombadice_id` não tem FK: com FK, o SQLite exigiria recriar a tabela,
+    e o `DROP TABLE punishments` do meio do caminho dispararia o ON DELETE CASCADE
+    de `punishment_trombadices`, apagando todo vínculo de causa da instalação.
+
+    Parte da revisão anterior à desta migration de propósito, pra medir só o que
+    ela faz."""
+    command.upgrade(_alembic(banco_antigo), ANTES_DO_CASTIGO_AUTOMATICO)
+    agora = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f")
+    depois = (datetime.now(UTC) + timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S.%f")
+    conexao = sqlite3.connect(banco_antigo.removeprefix("sqlite:///"))
+    conexao.execute(
+        "insert into punishments (reason,starts_at,ends_at,child_id,author_id,created_at)"
+        " values ('Bagunca',?,?,2,1,?)",
+        (agora, depois, agora),
+    )
+    conexao.execute("insert into punishment_trombadices (punishment_id,trombadice_id) values (1,1)")
+    conexao.commit()
+    conexao.close()
+
+    command.upgrade(_alembic(banco_antigo), "head")
+
+    with sessionmaker(bind=create_engine(banco_antigo))() as sessao:
+        castigo = sessao.scalars(select(Punishment)).one()
+        assert castigo.reason == "Bagunca"
+        assert castigo.origin_trombadice_id is None
+        assert castigo.recurrence_level is None
+        # O vínculo com a causa sobrevive à recriação da tabela.
+        assert [t.title for t in castigo.trombadices] == ["Machou a irma"]

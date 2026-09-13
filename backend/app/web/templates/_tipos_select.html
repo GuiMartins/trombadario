@@ -1,0 +1,31 @@
+{# O seletor de tipo de trombadice, com o custo de castigo no próprio rótulo.
+
+   Fica num parcial porque o custo é **por filho** - a recorrência é de cada
+   criança -, então trocar "De quem" tem que trocar os rótulos. A página inclui
+   este bloco no primeiro render (já correto) e um `hx-get` no `change` do
+   seletor de filho troca só ele. Sem JavaScript o bloco não atualiza, e o
+   render inicial continua valendo: mesma degradação dos filtros da lista. #}
+<div id="tipo-de-trombadice">
+  <label for="category_id">Que tipo de trombadice foi</label>
+  {% if tipos_de_trombadice %}
+  <select id="category_id" name="category_id">
+    {% for t in tipos_de_trombadice %}
+    {% set custo = custo_do_tipo.get(t.id) %}
+    {# `escolhido` preserva o tipo marcado quando o bloco é trocado por causa da
+       mudança de filho: recarregar não pode desfazer o que o pai já escolheu. #}
+    <option value="{{ t.id }}" {% if (editando.category_id if editando else escolhido) == t.id %}selected{% endif %}>
+      {{- t.name }}{% if not t.is_active %} (desativado){% endif %}
+      {%- if custo and custo[0] %} — {{ custo[0] }} dia{{ 's' if custo[0] != 1 else '' }} de castigo
+        {%- if custo[1] %} ({{ custo[1] + 1 }}ª vez seguida){% endif %}
+      {%- endif %}
+    </option>
+    {% endfor %}
+  </select>
+  <p class="sub">
+    Os dias saem do que está cadastrado em <a href="/tipos">Tipos</a>. Onde não
+    aparece nada, aquele tipo não gera castigo.
+  </p>
+  {% else %}
+  <div class="aviso">Nenhum tipo cadastrado. Crie os tipos em <a href="/tipos">Tipos</a> antes de registrar uma trombadice.</div>
+  {% endif %}
+</div>

@@ -543,15 +543,74 @@ def test_fila_e_por_filho(client: TestClient, admin: User, child: User, other_ch
 def test_comeco_explicito_nao_entra_na_fila(client: TestClient, admin: User, child: User) -> None:
     """A fila é o padrão, não uma regra por cima do pai: dizendo quando começa,
     é isso que vale - inclusive pra registrar castigo que já tinha começado."""
-    punish(client, child.id, ends_at=iso(timedelta(days=5)))
     comeco = iso(timedelta(days=-1))
 
-    registrado = punish(
-        client, child.id, starts_at=comeco, ends_at=iso(timedelta(hours=1))
-    )
+    registrado = punish(client, child.id, starts_at=comeco, ends_at=iso(timedelta(hours=1)))
 
     assert datetime.fromisoformat(registrado["starts_at"]) == datetime.fromisoformat(comeco)
     assert registrado["is_active"] is True
+
+
+def test_comeco_explicito_nao_pode_cair_em_cima_de_outro(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Dizer quando começa continua valendo; escolher um período que cruze outro
+    castigo do mesmo filho, não.
+
+    Requisito do usuário: não pode haver dois castigos valendo ao mesmo tempo.
+    Quem segura é o servidor - a criança tem o APK na mão."""
+    punish(client, child.id, ends_at=iso(timedelta(days=5)))
+
+    resposta = client.post(
+        "/api/punishments",
+        headers=as_admin(client),
+        json={
+            "child_id": child.id,
+            "starts_at": iso(timedelta(days=-1)),
+            "ends_at": iso(timedelta(hours=1)),
+            "trombadice_ids": [create_trombadice(client, child.id)["id"]],
+        },
+    )
+
+    assert resposta.status_code == 400
+    assert "sobrep" in resposta.json()["detail"]
+
+
+def test_editar_castigo_nao_pode_invadir_o_da_fila(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Esticar um castigo por cima do próximo é a mesma sobreposição, por outro
+    caminho - e o PATCH recusa antes de escrever qualquer coisa."""
+    agora = punish(client, child.id, ends_at=iso(timedelta(days=1)))
+    punish(client, child.id, ends_at=iso(timedelta(days=3)))
+
+    resposta = client.patch(
+        f"/api/punishments/{agora['id']}",
+        headers=as_admin(client),
+        json={"ends_at": iso(timedelta(days=2))},
+    )
+
+    assert resposta.status_code == 400
+    # Nada escrito: o prazo original continua de pé.
+    depois = client.get(
+        f"/api/punishments/{agora['id']}", headers=as_admin(client)
+    ).json()
+    assert depois["ends_at"] == agora["ends_at"]
+
+
+def test_encerrar_antes_libera_o_periodo_pra_outro_castigo(
+    client: TestClient, admin: User, child: User
+) -> None:
+    """Quem manda na sobreposição é o fim de verdade, não o prazo dado: um
+    castigo que o pai soltou já acabou e não bloqueia mais nada."""
+    solto = punish(client, child.id, ends_at=iso(timedelta(days=5)))
+    client.patch(
+        f"/api/punishments/{solto['id']}", headers=as_admin(client), json={"end_now": True}
+    )
+
+    novo = punish(client, child.id, starts_at=iso(timedelta(minutes=1)), ends_at=iso(timedelta(days=1)))
+
+    assert novo["is_scheduled"] is True
 
 
 def test_proximo_inicio_diz_quando_o_castigo_comecaria(

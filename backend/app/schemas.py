@@ -100,13 +100,39 @@ class TrombadiceCategoryOut(BaseModel):
     position: int
     is_active: bool
     created_at: datetime
+    # Quanto este tipo custa de castigo. Zero em `punishment_days` = não gera
+    # castigo; zero em `max_days` = sem teto (ver models.TrombadiceCategory).
+    punishment_days: int = 0
+    escalation_days: int = 0
+    max_days: int = 0
     # Quantas anotações apontam para este tipo. Vai junto porque é o que decide
     # se dá para apagar: com uso, a rota devolve 409 e a tela precisa dizer isso
     # **antes** do toque, não depois do erro.
     em_uso: int = 0
+    # O que uma anotação deste tipo custaria **agora**, para o filho que a tela
+    # perguntou: dias e nível de recorrência. Só vem quando quem lista passa
+    # `child_id`; nulo diz "não perguntei", não "custa zero".
+    #
+    # Viaja na própria lista de tipos, e não numa rota de previsão à parte,
+    # porque é a requisição que o formulário de anotação já faz - e porque
+    # traduzir recorrência em dias é conta de servidor, como toda data aqui.
+    previsao_dias: int | None = None
+    previsao_nivel: int | None = None
 
 
-class TrombadiceCategoryCreate(BaseModel):
+class _ConfiguracaoDeCastigo(BaseModel):
+    """Os três números que o pai define uma vez por tipo.
+
+    Zero desliga cada um (nada de coluna nula - ver models.TrombadiceCategory).
+    O teto de 365 é sanidade de dedo torto, não regra de criação.
+    """
+
+    punishment_days: int = Field(default=0, ge=0, le=365)
+    escalation_days: int = Field(default=0, ge=0, le=365)
+    max_days: int = Field(default=0, ge=0, le=365)
+
+
+class TrombadiceCategoryCreate(_ConfiguracaoDeCastigo):
     name: str = Field(min_length=1, max_length=60)
     # Nulo = vai para o fim da lista. Quem cadastra o décimo tipo não quer ter
     # que saber que ele é o décimo.
@@ -117,6 +143,9 @@ class TrombadiceCategoryUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=60)
     position: int | None = Field(default=None, ge=0, le=999)
     is_active: bool | None = None
+    punishment_days: int | None = Field(default=None, ge=0, le=365)
+    escalation_days: int | None = Field(default=None, ge=0, le=365)
+    max_days: int | None = Field(default=None, ge=0, le=365)
 
 
 class TrombadiceOut(BaseModel):
@@ -305,6 +334,12 @@ class PunishmentOut(BaseModel):
     # `is_active`, e pelo mesmo motivo. O filho nunca recebe um destes: castigo
     # agendado é a fila do pai (ver `_so_o_de_agora` em routers/punishments.py).
     is_scheduled: bool = False
+    # De onde este castigo veio. Nulo nos dois = cadastrado à mão; preenchidos =
+    # gerado pela anotação, no nível de recorrência que estava na conta. É o que
+    # deixa a tela dizer "automático, 2ª recorrência" em vez de largar um número
+    # de dias sem explicação.
+    origin_trombadice_id: int | None = None
+    recurrence_level: int | None = None
 
 
 class PunishmentCreate(BaseModel):
