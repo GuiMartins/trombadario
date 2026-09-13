@@ -182,7 +182,8 @@ class TrombadiceCategory(Base):
     criança já leu. Para tirar da frente sem mexer no que passou existe
     `is_active`, mesma ideia da tarefa pausada.
 
-    Conquista não usa esta tabela - ver `ConquistaCategory`.
+    Conquista não usa esta tabela - ver `ConquistaCategory`. E é o tipo que diz
+    quantos dias de castigo a coisa custa - ver `app/castigos.py`.
     """
 
     __tablename__ = "trombadice_categories"
@@ -194,6 +195,20 @@ class TrombadiceCategory(Base):
     # escolha do pai. Empate desempata pelo nome, para a lista não dançar.
     position: Mapped[int] = mapped_column(default=0, index=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+
+    # Quanto este tipo custa de castigo. O pai decide uma vez, aqui, em vez de
+    # decidir de novo a cada anotação - era a conta que ele mais fazia, e fazia
+    # no olho: a segunda mentira da semana podia sair com o mesmo um dia da
+    # primeira ou com cinco, conforme o dia.
+    #
+    # **Zero é o desligado nos três**, e não nulo. Coluna nula obrigaria o PATCH
+    # a distinguir "não mexe" de "apaga" - a dor que fez `birth_date` virar o
+    # único campo do app com `@EncodeDefault(ALWAYS)`. Aqui não existe diferença
+    # útil entre "sem teto" e "teto nenhum", então o sentinela resolve.
+    punishment_days: Mapped[int] = mapped_column(default=0)
+    escalation_days: Mapped[int] = mapped_column(default=0)
+    max_days: Mapped[int] = mapped_column(default=0)
+
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
 
 
@@ -379,6 +394,30 @@ class Punishment(Base):
 
     child_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+
+    # A anotação que gerou este castigo, quando ele nasceu do automático. Nulo =
+    # cadastrado à mão. É o vínculo que diz "nasceu daqui", diferente do N:N de
+    # `trombadices`, que o pai pode editar depois pra incluir outras causas.
+    #
+    # **Sem FK de propósito**, e o motivo é o SQLite. Alembic não faz ALTER de
+    # constraint nele, então acrescentar uma coluna com FK exige o modo batch,
+    # que recria a tabela - e o `DROP TABLE punishments` do meio do caminho,
+    # com `PRAGMA foreign_keys=ON` (ver app/database.py), dispara o ON DELETE
+    # CASCADE de `punishment_trombadices` e **apaga todos os vínculos de causa**
+    # da instalação. Perda de dado real, pega por tests/test_migrations.py.
+    #
+    # O comportamento de SET NULL está em `apagar_castigos_sem_causa`, que já
+    # decidia o caso difícil de qualquer forma: só apaga o castigo que ficaria
+    # sem causa nenhuma, e zera este campo no que sobreviver. Um CASCADE de
+    # banco não saberia fazer essa distinção.
+    origin_trombadice_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
+    # Quantas recorrências estavam na conta quando o castigo foi calculado
+    # (0 = primeira vez). Nulo no castigo cadastrado à mão.
+    #
+    # Gravado, e não recalculado na leitura, porque a configuração do tipo pode
+    # mudar depois: é o retrato de como aquele número foi decidido, mesmo motivo
+    # de `ends_at` sobreviver a Encerrar.
+    recurrence_level: Mapped[int | None] = mapped_column(nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
 

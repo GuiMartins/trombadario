@@ -3,6 +3,7 @@ from datetime import UTC, date, datetime
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
+from app.castigos import proximo_inicio, sem_sobreposicao
 from app.deps import AdminUser, ChildUser, CurrentUser, DbSession
 from app.models import Kind, Punishment, Role, Trombadice, User
 from app.periodo import data_local, intervalo
@@ -39,6 +40,8 @@ def _serialize(punishment: Punishment, now: datetime) -> PunishmentOut:
         trombadices=[TrombadiceOut.model_validate(t) for t in punishment.trombadices],
         is_active=punishment.is_active_at(now),
         is_scheduled=punishment.is_scheduled_at(now),
+        origin_trombadice_id=punishment.origin_trombadice_id,
+        recurrence_level=punishment.recurrence_level,
     )
 
 
@@ -47,28 +50,6 @@ def _get_or_404(db: DbSession, punishment_id: int) -> Punishment:
     if punishment is None:
         raise NOT_FOUND
     return punishment
-
-
-def proximo_inicio(db: DbSession, child_id: int, agora: datetime) -> datetime:
-    """Quando o próximo castigo deste filho começa: emendado no fim do último da
-    fila, ou agora, quando não há fila.
-
-    É o que faz castigo virar **sequência** sem o pai ter que fazer conta de
-    calendário. Aplicar um castigo hoje e outro em seguida quer dizer "e mais um
-    dia depois desse", não dois castigos sobrepostos - dois valendo ao mesmo
-    tempo não significam nada pra criança, que só pode estar de castigo ou não.
-
-    Quem manda é o **fim de verdade** (`effective_end`), não o `ends_at`: um
-    castigo que o pai encerrou antes já acabou e não segura mais a fila.
-
-    Fica aqui, e não em cada tela, porque app e painel precisam da mesma
-    resposta - e porque quando o castigo começa é conta de servidor, como todo
-    resto de data neste projeto.
-    """
-    fins = [p.effective_end for p in db.scalars(
-        select(Punishment).where(Punishment.child_id == child_id)
-    )]
-    return max([agora, *fins])
 
 
 def _so_o_de_agora(punishments: list[Punishment], user: User, now: datetime) -> list[Punishment]:
@@ -271,6 +252,7 @@ def create_punishment(payload: PunishmentCreate, admin: AdminUser, db: DbSession
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="O castigo precisa terminar depois de começar",
         )
+    sem_sobreposicao(db, payload.child_id, starts_at, payload.ends_at)
 
     punishment = Punishment(
         reason=payload.reason,
@@ -322,6 +304,7 @@ def update_punishment(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="O castigo precisa terminar depois de começar",
         )
+    sem_sobreposicao(db, alvo, starts_at, ends_at, ignorando=punishment.id)
 
     # True encerra agora; False desfaz o encerramento. Sem o segundo caso, um
     # toque errado em Encerrar deixava o castigo marcado como "encerrado antes"

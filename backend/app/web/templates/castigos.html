@@ -18,6 +18,12 @@
 <div class="aviso">
   O castigo precisa terminar depois de começar.
 </div>
+{% elif erro == 'sobreposicao' %}
+<div class="aviso">
+  Esse período cai em cima de outro castigo desse filho. Não pode haver dois
+  valendo ao mesmo tempo — a criança só pode estar de castigo ou não. Deixe
+  "Começa em" em branco pra emendar no fim do último.
+</div>
 {% endif %}
 {# A fila: castigo novo emenda no fim do que já existe, em vez de valer junto.
    Uma linha por filho que já tem castigo, porque o campo "Quem" pode ser
@@ -121,6 +127,14 @@
           <span class="etiqueta fim">encerrado antes</span>
         {% else %}
           <span class="etiqueta fim">cumprido</span>
+        {% endif %}
+        {# Automático: o rastro de como o castigo nasceu, pra o número de dias
+           não chegar sem explicação. Reusa a etiqueta padrão, sem cor nova. #}
+        {% if p.recurrence_level is not none %}
+          <span class="etiqueta">
+            automático
+            {%- if p.recurrence_level %} · {{ p.recurrence_level + 1 }}ª vez seguida{% endif %}
+          </span>
         {% endif %}
         <p class="titulo">{{ children_by_id[p.child_id].display_name if p.child_id in children_by_id else 'Filho' }}</p>
         <p class="sub">

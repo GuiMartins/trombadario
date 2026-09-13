@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,6 +47,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trombadario.AppContainer
 import com.trombadario.R
 import com.trombadario.data.remote.CategoriaDeConquista
+import com.trombadario.data.remote.TrombadiceCategoryDto
 import com.trombadario.data.remote.UserDto
 import com.trombadario.ui.components.AdaptiveScreen
 import com.trombadario.data.remote.Tipo
@@ -239,6 +241,15 @@ fun TrombadiceFormScreen(
                             )
                         }
                     }
+                    // Quanto a anotação vai custar, antes de salvar. O número
+                    // vem do servidor: traduzir recorrência em dias é conta de
+                    // data, e nenhuma é decidida pelo aparelho neste app.
+                    if (state.mostraCusto) {
+                        state.tipos.firstOrNull { it.id == state.categoryId }?.let { tipo ->
+                            Spacer(Modifier.height(8.dp))
+                            CustoDoCastigo(tipo)
+                        }
+                    }
                 }
                 Spacer(Modifier.height(24.dp))
 
@@ -349,4 +360,39 @@ fun TrombadiceFormScreen(
             }
         }
     }
+}
+
+/**
+ * O que a anotação vai gerar de castigo, antes de salvar.
+ *
+ * `previsaoDias` nulo é "o servidor não respondeu isso", que é diferente de
+ * zero - por isso a linha some em vez de prometer que não custa nada. E o número
+ * vem de lá porque traduzir recorrência em dias é conta de data, e neste app
+ * nenhuma data é decidida pelo aparelho.
+ */
+@Composable
+private fun CustoDoCastigo(tipo: TrombadiceCategoryDto) {
+    val dias = tipo.previsaoDias ?: return
+    val nivel = tipo.previsaoNivel ?: 0
+    val texto = when {
+        dias <= 0 -> stringResource(R.string.trombadice_form_sem_custo)
+        nivel > 0 -> stringResource(
+            R.string.trombadice_form_custo_recorrencia,
+            pluralStringResource(R.plurals.dias, dias, dias),
+            nivel + 1,
+        )
+        else -> stringResource(
+            R.string.trombadice_form_custo_primeira,
+            pluralStringResource(R.plurals.dias, dias, dias),
+        )
+    }
+    Text(
+        text = texto,
+        style = MaterialTheme.typography.bodyMedium,
+        color = if (dias > 0) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    )
 }

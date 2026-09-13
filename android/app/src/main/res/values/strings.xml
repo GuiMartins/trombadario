@@ -207,6 +207,10 @@
     <string name="pedidos_form_title_conquista">O que você fez de bom</string>
     <string name="pedidos_form_category_label">Que tipo de coisa boa foi</string>
     <string name="punishment_error_end_before_start">O castigo precisa terminar depois de começar</string>
+    <!-- Como o castigo nasceu. Sem isso o número de dias chega sem explicação. -->
+    <string name="punishment_automatico">automático</string>
+    <string name="punishment_automatico_recorrencia">automático · %1$dª vez seguida</string>
+    <string name="punishment_error_sobreposicao">Esse período cai em cima de outro castigo desse filho. Deixe "Começa em" em branco pra emendar no fim do último.</string>
     <string name="punishment_error_needs_trombadice">Marque pelo menos uma trombadice: todo castigo vem de alguma coisa que aconteceu</string>
     <string name="punishment_no_trombadices">Nenhuma trombadice desse filho ainda. Castigo vem de alguma coisa que aconteceu, então registre uma anotação antes.</string>
 
@@ -299,6 +303,11 @@
     <string name="trombadice_form_conquista_label">Que tipo de coisa boa foi</string>
     <string name="trombadice_form_sem_tipos">Nenhum tipo cadastrado. Crie os tipos em Configurações › Tipos de trombadice antes de registrar.</string>
     <string name="trombadice_form_error_no_category">Escolha o tipo da trombadice — é ele que diz o que aconteceu</string>
+    <!-- O que a anotação vai custar, antes de salvar. O número vem do servidor:
+         traduzir recorrência em dias é conta de data, e nenhuma é decidida aqui. -->
+    <string name="trombadice_form_custo_primeira">Vai gerar %1$s de castigo</string>
+    <string name="trombadice_form_custo_recorrencia">Vai gerar %1$s de castigo — %2$dª vez seguida</string>
+    <string name="trombadice_form_sem_custo">Este tipo não gera castigo</string>
 
     <!-- Tipos de trombadice (a lista que o pai cadastra) -->
     <string name="tipos_title">Tipos de trombadice</string>
@@ -315,6 +324,21 @@
     <string name="tipos_delete_confirm_title">Excluir este tipo?</string>
     <string name="tipos_error_empty">O nome não pode ficar vazio</string>
     <string name="tipos_error_repetido">Já existe um tipo com esse nome</string>
+    <string name="tipos_error_teto_menor">O teto não pode ser menor que os dias base</string>
+
+    <!-- Quanto cada tipo custa de castigo. Zero desliga: em "Dias de castigo"
+         quer dizer que o tipo não gera castigo, em "Teto" quer dizer sem teto. -->
+    <string name="tipos_castigo_titulo">Castigo</string>
+    <string name="tipos_castigo_intro">Preenchido, registrar a anotação já cria o castigo — no tamanho certo e emendado no que o filho já estiver cumprindo.</string>
+    <string name="tipos_punishment_days">Dias de castigo</string>
+    <string name="tipos_punishment_days_dica">Quanto a primeira vez custa. 0 = este tipo não gera castigo.</string>
+    <string name="tipos_escalation_days">A mais por recorrência</string>
+    <string name="tipos_escalation_days_dica">Quanto cresce a cada repetição. A recorrência sobe a cada vez que acontece e cai um por dia sem acontecer. 0 = custa sempre o mesmo.</string>
+    <string name="tipos_max_days">Teto de dias</string>
+    <string name="tipos_max_days_dica">Até onde pode crescer. 0 = sem teto.</string>
+    <string name="tipos_sem_castigo">Não gera castigo</string>
+    <string name="tipos_resumo_aumento"> · +%1$d por recorrência</string>
+    <string name="tipos_resumo_teto"> · teto %1$d</string>
 
     <!-- Filtros e busca -->
     <string name="filtro_abrir">Filtrar</string>
@@ -370,6 +394,14 @@
     <string name="birthday_title">Feliz aniversário,</string>
     <string name="birthday_no_trombadario">Hoje não tem Trombadário. O dia é todo seu!</string>
 
+    <plurals name="tipos_dias_de_castigo">
+        <item quantity="one">%d dia de castigo</item>
+        <item quantity="other">%d dias de castigo</item>
+    </plurals>
+    <plurals name="dias">
+        <item quantity="one">%d dia</item>
+        <item quantity="other">%d dias</item>
+    </plurals>
     <plurals name="tipos_em_uso">
         <item quantity="one">%d anotação</item>
         <item quantity="other">%d anotações</item>

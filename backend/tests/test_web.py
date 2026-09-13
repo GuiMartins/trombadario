@@ -1237,3 +1237,185 @@ def test_painel_nao_cobra_visto_de_castigo_na_fila(
     assert "na fila" in html
     # Dois castigos na página, e só o que está valendo cobra o visto.
     assert html.count("ainda não viu") == 1
+
+
+# --------------------------------------------------------------------------
+# Castigo automático pelo painel
+#
+# A regra que vale pra sempre: funcionalidade do pai nasce nos dois lugares. O
+# que a API faz aqui, o painel faz igual - e pela mesma função.
+# --------------------------------------------------------------------------
+
+
+def test_painel_grava_a_config_de_castigo_do_tipo(
+    client: TestClient, db: Session, admin: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    client.post(
+        "/tipos",
+        data={"name": "Xingou", "punishment_days": "2", "escalation_days": "1", "max_days": "5"},
+        follow_redirects=False,
+    )
+
+    tipo = db.scalar(select(TrombadiceCategory).where(TrombadiceCategory.name == "Xingou"))
+    assert (tipo.punishment_days, tipo.escalation_days, tipo.max_days) == (2, 1, 5)
+
+
+def test_painel_recusa_teto_menor_que_o_base(client: TestClient, db: Session, admin: User) -> None:
+    """Os dois números se contradizem, e o navegador não sabe recusar isso - quem
+    recusa é o servidor, com a página explicando."""
+    login_web(client, "pai", ADMIN_PASSWORD)
+
+    resposta = client.post(
+        "/tipos",
+        data={"name": "Xingou", "punishment_days": "5", "max_days": "2"},
+        follow_redirects=False,
+    )
+
+    assert resposta.headers["location"] == "/tipos?erro=teto-menor"
+    assert db.scalar(select(TrombadiceCategory).where(TrombadiceCategory.name == "Xingou")) is None
+
+
+def test_anotar_pelo_painel_cria_o_castigo(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """O pedido do usuário, pelo lado do navegador: o pai diz que aconteceu e o
+    castigo já está lá."""
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post("/tipos", data={"name": "Xingou", "punishment_days": "2"}, follow_redirects=False)
+    tipo = db.scalar(select(TrombadiceCategory).where(TrombadiceCategory.name == "Xingou"))
+
+    client.post(
+        "/trombadices",
+        data={
+            "child_id": child.id,
+            "occurred_at": _hora_local(timedelta(0)),
+            "category_id": tipo.id,
+        },
+        follow_redirects=False,
+    )
+
+    castigo = db.scalar(select(Punishment).where(Punishment.child_id == child.id))
+    assert castigo is not None
+    assert (castigo.ends_at - castigo.starts_at) == timedelta(days=2)
+    assert castigo.recurrence_level == 0
+    assert [t.category_id for t in castigo.trombadices] == [tipo.id]
+
+
+def test_painel_emenda_o_castigo_automatico_na_fila(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """Duas anotações no mesmo dia não produzem dois castigos sobrepostos: o
+    segundo começa onde o primeiro acaba."""
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post(
+        "/tipos",
+        data={"name": "Xingou", "punishment_days": "1", "escalation_days": "1"},
+        follow_redirects=False,
+    )
+    tipo = db.scalar(select(TrombadiceCategory).where(TrombadiceCategory.name == "Xingou"))
+    corpo = {
+        "child_id": child.id,
+        "occurred_at": _hora_local(timedelta(0)),
+        "category_id": tipo.id,
+    }
+
+    client.post("/trombadices", data=corpo, follow_redirects=False)
+    client.post("/trombadices", data=corpo, follow_redirects=False)
+
+    castigos = db.scalars(
+        select(Punishment).where(Punishment.child_id == child.id).order_by(Punishment.starts_at)
+    ).all()
+    assert len(castigos) == 2
+    assert castigos[1].starts_at == castigos[0].ends_at
+    # O segundo custa um dia a mais: a recorrência subiu.
+    assert (castigos[1].ends_at - castigos[1].starts_at) == timedelta(days=2)
+
+
+def test_apagar_anotacao_pelo_painel_apaga_o_castigo(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post("/tipos", data={"name": "Xingou", "punishment_days": "1"}, follow_redirects=False)
+    tipo = db.scalar(select(TrombadiceCategory).where(TrombadiceCategory.name == "Xingou"))
+    client.post(
+        "/trombadices",
+        data={
+            "child_id": child.id,
+            "occurred_at": _hora_local(timedelta(0)),
+            "category_id": tipo.id,
+        },
+        follow_redirects=False,
+    )
+    trombadice = db.scalar(select(Trombadice).where(Trombadice.category_id == tipo.id))
+
+    client.post(f"/trombadices/{trombadice.id}/delete", follow_redirects=False)
+
+    assert db.scalar(select(Punishment).where(Punishment.child_id == child.id)) is None
+
+
+def test_painel_recusa_castigo_em_cima_de_outro(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """Requisito do usuário: não pode haver dois castigos na mesma data."""
+    login_web(client, "pai", ADMIN_PASSWORD)
+    trombadice = _trombadice_de(db, admin, child)
+    _castiga_pelo_painel(client, child, trombadice, _hora_local(timedelta(days=5)))
+
+    resposta = client.post(
+        "/castigos",
+        data={
+            "child_id": child.id,
+            "starts_at": _hora_local(timedelta(days=-1)),
+            "ends_at": _hora_local(timedelta(hours=1)),
+            "trombadice_ids": [trombadice.id],
+        },
+        follow_redirects=False,
+    )
+
+    assert resposta.headers["location"] == "/castigos?erro=sobreposicao"
+    assert len(db.scalars(select(Punishment)).all()) == 1
+
+
+def test_o_custo_do_tipo_aparece_no_formulario_de_anotacao(
+    client: TestClient, db: Session, admin: User, child: User
+) -> None:
+    """O pai lê quanto vai custar **antes** de salvar, no rótulo da opção - sem
+    JavaScript nenhum, correto no primeiro render."""
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post("/tipos", data={"name": "Xingou", "punishment_days": "3"}, follow_redirects=False)
+
+    pagina = client.get("/trombadices").text
+
+    assert "3 dias de castigo" in pagina
+
+
+def test_trocar_de_filho_recarrega_o_custo(
+    client: TestClient, db: Session, admin: User, child: User, other_child: User
+) -> None:
+    """A recorrência é por criança, então o bloco do seletor tem rota própria pro
+    HTMX trocar só ele."""
+    login_web(client, "pai", ADMIN_PASSWORD)
+    client.post(
+        "/tipos",
+        data={"name": "Xingou", "punishment_days": "1", "escalation_days": "1"},
+        follow_redirects=False,
+    )
+    tipo = db.scalar(select(TrombadiceCategory).where(TrombadiceCategory.name == "Xingou"))
+    client.post(
+        "/trombadices",
+        data={
+            "child_id": child.id,
+            "occurred_at": _hora_local(timedelta(0)),
+            "category_id": tipo.id,
+        },
+        follow_redirects=False,
+    )
+
+    dele = client.get("/trombadices/tipos-select", params={"child_id": child.id}).text
+    do_irmao = client.get("/trombadices/tipos-select", params={"child_id": other_child.id}).text
+
+    # Ele já tem uma: a próxima custa dois. O irmão continua no base.
+    assert "2 dias de castigo" in dele
+    assert "1 dia de castigo" in do_irmao
