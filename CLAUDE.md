@@ -421,10 +421,24 @@ uma afirma sobre o que aconteceu:
   histórico — deixá-lo lá etiquetado seria manter na tela do pai um castigo que
   nunca houve, exatamente o que ele reclamou de Encerrar.
 
-**Mais de um castigo pode valer ao mesmo tempo**, e a tela do filho anuncia o
-prazo **mais distante** — o que acaba antes diria a ela que ficaria livre num dia
-em que ainda está de castigo. Cada castigo aparece com o próprio motivo, as
-próprias causas e a própria reação; com um só, a tela é a de sempre.
+**Dois castigos não podem valer ao mesmo tempo.** Foi requisito do usuário junto
+com o castigo automático, e é `sem_sobreposicao` (em `app/castigos.py`) quem
+segura, em **toda** escrita — API e painel, criar e corrigir. Antes disso a
+sobreposição era permitida de propósito; o que a mudou foi o automático, que só
+faz sentido se "mais uma trombadice" quer dizer "mais um dia depois", não "dois
+castigos em cima um do outro".
+
+**Mas a tela do filho continua preparada pra mais de um**, e isso não é
+contradição: a invariante vale pra escrita nova e **o que já está no banco não é
+reescrito**. Uma instalação com dois castigos sobrepostos de antes continua com
+eles, então a tela anuncia o prazo **mais distante** — o que acaba antes diria à
+criança que ficaria livre num dia em que ainda está de castigo — e mostra cada
+castigo com o próprio motivo, as próprias causas e a própria reação. Com um só, é
+a tela de sempre, que é o caso de agora em diante.
+
+> Buraco na fila é permitido; sobreposição não. Apagar ou encerrar um castigo
+> **não** puxa os seguintes pra frente, mantendo o que Encerrar já fazia: um
+> castigo dado com data continua com ela.
 
 Duas invariantes que a edição não pode furar, as duas com teste:
 
@@ -447,6 +461,82 @@ antes. Quem precisa dele é o calendário (em que dias houve castigo) e a fila
 (onde emenda o próximo); `ends_at` sozinho não responde isso, e não é pra
 responder.
 
+### O tipo de trombadice diz quanto custa de castigo
+
+Era a conta que o pai mais fazia, e fazia no olho: a segunda mentira da semana
+podia sair com o mesmo um dia da primeira ou com cinco, conforme o dia. A decisão
+saiu do caso a caso e foi pro **tipo**, uma vez — três números em
+`TrombadiceCategory`, cadastrados em Tipos (painel) e Configurações → Tipos de
+trombadice (app), como toda coisa do pai:
+
+| campo | o que é | zero quer dizer |
+|---|---|---|
+| `punishment_days` | dias da primeira vez | **este tipo não gera castigo** |
+| `escalation_days` | dias a mais por recorrência acumulada | não cresce |
+| `max_days` | teto | sem teto |
+
+Com isso **registrar a anotação já cria o castigo** (`criar_castigo_automatico`),
+no tamanho certo e em `proximo_inicio` — então trombadice durante castigo emenda
+no fim, nunca em cima. Chamado pela API e pelo painel, pela mesma função.
+
+**Zero é o desligado, não nulo.** Não existe diferença útil entre "sem teto" e
+"teto nenhum", e coluna nula obrigaria o `PATCH` a distinguir "não mexe" de
+"apaga" — a dor que fez `birth_date` ser o único campo do app com
+`@EncodeDefault(ALWAYS)`. De brinde, os três campos são um `<input type=number>`
+e um `OutlinedTextField` sem caso especial.
+
+**A recorrência é calculada, nunca guardada** (`dias_de_castigo`), pelo mesmo
+motivo de `is_active_at`: contador em coluna precisaria de algo rodando pra
+decair e ficaria errado no intervalo entre execuções. A caminhada é sobre as
+anotações daquele filho e daquele tipo, e o nível **sobe a cada ocorrência e cai
+um por dia limpo** — dia em que aquilo não aconteceu.
+
+> O `- 1` na contagem de dias limpos não é descuido: o dia da ocorrência seguinte
+> não é um dia limpo. Segunda e terça seguidas têm **zero** dias limpos entre
+> elas, e é por isso que a recorrência cresce; de segunda a sábado são quatro.
+
+- **A anotação não se conta a si mesma.** `criar_castigo_automatico` pergunta
+  depois de gravar (precisa do id), então passa `ignorando=` o próprio id. Sem
+  isso a primeira vez já saía como recorrência — e a previsão do formulário e o
+  castigo criado davam números diferentes.
+- **Anotação com data futura não cobra recorrência de nada.** O pai registra
+  depois do fato; o que ainda não aconteceu não encarece o de hoje.
+- **O que já foi dado não é recalculado.** Mudar a configuração do tipo, ou
+  corrigir o tipo/data de uma anotação, **não** reescreve o castigo que ela gerou
+  — a criança pode já ter visto. Quem conserta um castigo é Corrigir, que existe
+  exatamente pra isso. Mesmo espírito de `ends_at` sobreviver a Encerrar.
+- **O teto não pode ser menor que os dias base** (400, e a tela recusa antes):
+  os dois números se contradizem, e clampar em silêncio esconderia do pai que ele
+  digitou coisas incompatíveis.
+- **A previsão viaja na lista de tipos**, não numa rota à parte:
+  `GET /api/trombadice-categories?child_id=N` devolve `previsao_dias` e
+  `previsao_nivel` por tipo, na requisição que o formulário já faz. Nulo diz "não
+  perguntei", não "custa zero" — recorrência é por criança, e sem saber de quem
+  não há resposta honesta. No painel, o custo vai no **rótulo da `<option>`**
+  (zero JavaScript, certo no primeiro render) e trocar o filho dispara um `hx-get`
+  que troca só aquele bloco.
+- **Toda instalação existente chega com zero nos três**, e nada gera castigo até
+  o pai preencher. Uma migration que adivinhasse "um dia por mentira" estaria
+  decidindo pela casa dos outros.
+- **Apagar a anotação apaga o castigo dela** (`apagar_castigos_sem_causa`) — sem
+  a causa ele seria um castigo solto, que "castigo sem trombadice não existe"
+  proíbe. Mas só o que ficaria **sem causa nenhuma**: um que o pai depois atrelou
+  a outras trombadices continua existindo, e o campo de origem é que é zerado.
+
+> **`origin_trombadice_id` não tem FK, e isso é deliberado.** O SQLite não faz
+> ALTER de constraint, então acrescentar uma coluna com FK exige o
+> `batch_alter_table` do Alembic, que recria a tabela — e o `DROP TABLE
+> punishments` do meio do caminho, com `PRAGMA foreign_keys=ON` (que
+> `app/database.py` liga), dispara o ON DELETE CASCADE de
+> `punishment_trombadices` e **apaga todos os vínculos de causa da instalação**.
+> Perda de dado real, pega por `tests/test_migrations.py` antes de sair. O
+> comportamento de SET NULL vive na rota, que já precisava decidir o caso difícil
+> acima — o banco não sabe fazer essa conta.
+>
+> A mesma armadilha existe hoje na migration `d4e5f6a7b8c9` (a da reação do
+> filho), que usa modo batch em `punishments` — já publicada, e por isso não
+> tocada aqui.
+
 ### Castigo é uma fila, não um monte
 
 Aplicar um castigo em cima de outro quer dizer **"mais um dia"**, e é o que
@@ -455,6 +545,10 @@ filho, ou agora, se ele não está de castigo. Emendar na mão obrigaria o pai a
 fazer conta de calendário toda vez que quisesse esticar mais um dia — e é a
 conta que ele mais faz.
 
+- **Quem entra na fila normalmente é o castigo automático.** Desde que o tipo de
+  trombadice tem preço (ver a seção abaixo), registrar a anotação já cria o
+  castigo em `proximo_inicio` — o pai não escolhe data nenhuma no caso comum. O
+  cadastro à mão continua inteiro pro que o automático não cobre.
 - **É o padrão, não uma regra por cima do pai.** Sem `starts_at` no corpo, a API
   emenda; o app e o painel **já abrem o formulário com esse instante no campo de
   começo**, e o pai muda à vontade — inclusive pra registrar um castigo que já
@@ -548,6 +642,9 @@ trombadice no app, como toda coisa do pai.
   não uma cópia do nome.
 - **A ordem é do pai** (`position`, com o nome desempatando). Era a ordem do
   enum, do mais comum ao menos.
+- **E é o tipo que diz quanto custa de castigo** — ver "O tipo de trombadice diz
+  quanto custa de castigo", acima. Foi o que transformou a lista de "o que
+  aconteceu" em "o que aconteceu e o que isso vale".
 - **A lista inicial é a antiga**, com os mesmos oito nomes: a migration
   transforma os valores gravados nas oito primeiras linhas, e uma instalação
   nova recebe as mesmas na criação da conta do pai (`app/categorias.py`).

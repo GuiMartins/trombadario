@@ -434,6 +434,19 @@ private fun PunishmentCard(
                 style = MaterialTheme.typography.labelMedium,
                 color = if (ativo) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
             )
+            // O rastro de como o castigo nasceu: sem ele, o número de dias chega
+            // na tela sem explicação de onde veio. Nulo = cadastrado à mão.
+            p.recurrenceLevel?.let { nivel ->
+                Text(
+                    text = if (nivel > 0) {
+                        stringResource(R.string.punishment_automatico_recorrencia, nivel + 1)
+                    } else {
+                        stringResource(R.string.punishment_automatico)
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Spacer(Modifier.height(4.dp))
             Text(
                 text = childName(p.childId) ?: "",
