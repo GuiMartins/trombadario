@@ -52,6 +52,41 @@ def test_pai_cadastra_um_tipo_novo(client: TestClient, admin: User) -> None:
     assert resposta.json()["em_uso"] == 0
 
 
+def test_os_limites_dos_campos_sao_os_que_as_telas_repetem(
+    client: TestClient, admin: User
+) -> None:
+    """Os números que o app e o painel recusam antes de mandar.
+
+    As duas telas repetem estes limites do lado delas (`LimitesDoTipo`, no
+    Android; `maxlength`/`max` em `tipos.html`) porque o que passa deles volta
+    **422**, e 422 é uma recusa sem recado - o app mostrava "não consegui falar
+    com o servidor" e mandava procurar problema numa rede que estava boa.
+    Mudar um limite aqui sem mudar lá recria exatamente isso.
+    """
+    for corpo in (
+        {"name": "a" * 61},
+        {"name": "Ordem alta", "position": 1000},
+        {"name": "Base alta", "punishment_days": 366},
+        {"name": "Aumento alto", "escalation_days": 366},
+        {"name": "Teto alto", "max_days": 366},
+    ):
+        resposta = client.post(
+            "/api/trombadice-categories", headers=as_admin(client), json=corpo
+        )
+        assert resposta.status_code == 422, (corpo, resposta.text)
+
+    # E o valor exato do limite passa: o teto é teto, não um a menos.
+    no_limite = criar_tipo(
+        client,
+        "a" * 60,
+        position=999,
+        punishment_days=365,
+        escalation_days=365,
+        max_days=365,
+    )
+    assert no_limite.status_code == 201, no_limite.text
+
+
 def test_nome_repetido_e_recusado(client: TestClient, admin: User) -> None:
     # Dois "Mentira" na lista partiriam o relatório ao meio sem ninguém ver.
     assert criar_tipo(client, "mentira").status_code == 409
