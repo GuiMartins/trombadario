@@ -122,7 +122,13 @@ fun TiposScreen(container: AppContainer, currentUser: UserDto, onBack: () -> Uni
                 if (state.tipos.isEmpty()) {
                     item {
                         Text(
-                            text = stringResource(R.string.tipos_empty),
+                            // "Nenhum tipo cadastrado" só é verdade quando a
+                            // lista chegou vazia. Com a leitura falhando, essa
+                            // frase mandava cadastrar de novo o que já existe.
+                            text = stringResource(
+                                if (state.loadFailed) R.string.tipos_load_error
+                                else R.string.tipos_empty
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 24.dp),
@@ -207,9 +213,12 @@ fun TiposScreen(container: AppContainer, currentUser: UserDto, onBack: () -> Uni
                         label = R.string.tipos_max_days,
                         dica = R.string.tipos_max_days_dica,
                     )
-                    state.error?.let {
+                    // Mesmo par da tela de Contas: o que a tela recusou vem de
+                    // `strings.xml`, o que o servidor recusou vem dele mesmo.
+                    val erro = state.validationError?.let { stringResource(it) } ?: state.serverError
+                    if (erro != null) {
                         Spacer(Modifier.height(8.dp))
-                        Text(stringResource(it), color = MaterialTheme.colorScheme.error)
+                        Text(erro, color = MaterialTheme.colorScheme.error)
                     }
                 }
             },

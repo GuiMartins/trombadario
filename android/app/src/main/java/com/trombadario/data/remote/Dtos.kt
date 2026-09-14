@@ -258,9 +258,6 @@ data class TrombadiceUpdateDto(
     @SerialName("conquista_category") val conquistaCategory: String? = null,
 )
 
-@Serializable
-data class ApiErrorDto(val detail: String? = null)
-
 // --------------------------------------------------------------------------
 // Tarefas
 // --------------------------------------------------------------------------

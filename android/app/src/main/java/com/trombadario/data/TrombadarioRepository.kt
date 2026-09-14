@@ -41,6 +41,11 @@ import com.trombadario.data.remote.UserUpdateDto
 import java.io.IOException
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import retrofit2.Response
 
 /**
@@ -100,8 +105,28 @@ class TrombadarioRepository(
         block: suspend (TrombadarioApi) -> Response<Unit>,
     ): ApiResult<Unit> = request(block) { ApiResult.Success(Unit) }
 
+    /**
+     * O que o servidor disse junto da recusa.
+     *
+     * Duas formas, e as duas importam: `{"detail": "texto"}`, que é o que as
+     * rotas escrevem à mão, e `{"detail": [{"loc": [...], "msg": "..."}]}`, que
+     * é o 422 do Pydantic quando um campo não passa. A segunda voltava nula -
+     * `decodeFromString` de uma lista para `String?` estourava e o `runCatching`
+     * engolia -, então a tela que fosse mostrar "o que o servidor respondeu"
+     * ficava sem nada para mostrar e caía no recado de rede, que era mentira:
+     * o servidor tinha respondido.
+     */
     private fun <T> Response<T>.errorDetail(): String? = runCatching {
-        errorBody()?.string()?.let { json.decodeFromString<com.trombadario.data.remote.ApiErrorDto>(it).detail }
+        val corpo = errorBody()?.string().orEmpty()
+        when (val detail = json.parseToJsonElement(corpo).jsonObject["detail"]) {
+            is JsonPrimitive -> detail.contentOrNull
+            // Um 422 pode reprovar mais de um campo de uma vez.
+            is JsonArray ->
+                detail.mapNotNull { it.jsonObject["msg"]?.jsonPrimitive?.contentOrNull }
+                    .joinToString("; ")
+                    .ifBlank { null }
+            else -> null
+        }
     }.getOrNull()
 
     suspend fun login(username: String, password: String): ApiResult<TokenDto> =
