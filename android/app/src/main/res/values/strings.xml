@@ -322,9 +322,18 @@
     <string name="tipos_desativar">Desativar</string>
     <string name="tipos_reativar">Reativar</string>
     <string name="tipos_delete_confirm_title">Excluir este tipo?</string>
+    <string name="tipos_load_error">Não consegui carregar a lista de tipos.</string>
     <string name="tipos_error_empty">O nome não pode ficar vazio</string>
     <string name="tipos_error_repetido">Já existe um tipo com esse nome</string>
     <string name="tipos_error_teto_menor">O teto não pode ser menor que os dias base</string>
+    <!-- Os limites são os mesmos da API (ver LimitesDoTipo). Passar deles
+         voltava 422, que a tela não sabia nomear e virava recado de rede. -->
+    <string name="tipos_error_nome_longo">O nome tem no máximo 60 caracteres</string>
+    <string name="tipos_error_ordem_alta">A ordem vai de 0 a 999</string>
+    <string name="tipos_error_dias_demais">Cada campo de dias vai de 0 a 365</string>
+    <string name="tipos_error_recusado">O servidor não aceitou esse tipo. Confira os campos.</string>
+    <string name="tipos_error_servidor_antigo">Este servidor ainda não tem os tipos de trombadice. Atualize o Trombadário no ZimaOS.</string>
+    <string name="tipos_error_sem_permissao">Esta conta não pode mexer nos tipos.</string>
 
     <!-- Quanto cada tipo custa de castigo. Zero desliga: em "Dias de castigo"
          quer dizer que o tipo não gera castigo, em "Teto" quer dizer sem teto. -->
