@@ -1098,14 +1098,54 @@ e as de Retrofit/Tink.
 
 ## Deploy (ZimaOS)
 
-- Vive em `/DATA/AppData/trombadario/`, subido com `docker compose up -d`.
-  **Nunca `docker run` manual** — o CasaOS marca como "Legacy App".
-- Toda sessão de compose por SSH precisa de `export DOCKER_CONFIG=/tmp/dockercfg`
-  antes: `HOME=/DATA` não é legível e a descoberta de plugins do Docker CLI
-  morre com "unknown command: docker compose".
-- `sudo` no servidor pede senha — não contar com ele.
-- **Porta 8090** no host. Servidor em `192.168.31.172` (DHCP — por isso a URL
-  é configurável no app em vez de compilada no APK).
+Servidor em `192.168.31.172` (DHCP — por isso a URL é configurável no app em vez
+de compilada no APK), **porta 8090** no host. SSH com o usuário **`zimaos`**;
+`sudo` lá pede senha, então nada que dependa de root sai de uma sessão nossa.
+
+**Quem gerencia o container é o CasaOS, não um `docker compose` na mão.** Isso
+mudou em 20/08/2026 e inverte o que dava certo antes:
+
+- O compose que vale é `/var/lib/casaos/apps/trombadario/docker-compose.yml`, e
+  ele é `-rw------- root` — ninguém além do root lê o arquivo em disco.
+- O antigo `/DATA/AppData/trombadario/docker-compose.yml` foi **renomeado de
+  propósito** pra `docker-compose.yml.NAO-USE-casaos-gerencia-agora`, com um
+  `LEIA-ME.txt` ao lado. Rodar `docker compose up -d` naquele diretório **sobe um
+  segundo container conflitante** na mesma porta.
+- Continua valendo: **nunca `docker run` manual** — o CasaOS marca como
+  "Legacy App".
+
+Atualizar para uma imagem nova são quatro comandos:
+
+```bash
+export DOCKER_CONFIG=/tmp/dockercfg
+docker pull ghcr.io/guimartins/trombadario:latest
+curl -s -H "Accept: application/yaml" \
+  http://localhost:80/v2/app_management/compose/trombadario \
+  > /tmp/trombadario-compose.yml
+casaos-cli app-management apply trombadario -f /tmp/trombadario-compose.yml
+```
+
+Cada desvio tem motivo, e quase todos foram descobertos batendo a cabeça:
+
+- **`export DOCKER_CONFIG=/tmp/dockercfg` antes de tudo**, como sempre:
+  `HOME=/DATA` não é legível e a descoberta de plugins do Docker CLI morre com
+  "unknown command: docker compose".
+- **`casaos-cli app-management update app` não serve.** Com a tag `latest` ele
+  responde `app is up to date` mesmo havendo digest novo no registry — o check
+  dele é contra a loja, não contra a imagem. Com `-f` estoura
+  `500 - not found in app store`, porque este app foi instalado por compose
+  próprio e não veio de loja nenhuma.
+- **O compose se lê pela API do CasaOS**, que roda como root, já que o arquivo
+  não é legível e `sudo` pede senha. O que a API devolve é o mesmo arquivo.
+- **Reaplicar é verbatim, nunca reconstruído na mão.** O bloco `x-casaos`
+  (ícone, `port_map`, `id`, descrições) não é enfeite: o que não for copiado
+  igual some do app, e um app sem esses labels é exatamente o "Legacy App" que a
+  regra acima manda evitar. Vale conferir com `--dry-run` antes.
+
+O `./data` é bind mount de `/DATA/AppData/trombadario/data` e é **banco com dado
+real** — sobrevive à recriação do container. Nada de `down -v` nem prune. Que o
+banco continua o mesmo depois de atualizar se confere pelo `server_id` do
+`GET /api/health`: ele mora no banco, então mudou = o banco foi trocado.
 
 ## Dev loop / testes
 
